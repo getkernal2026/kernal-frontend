@@ -487,7 +487,7 @@ export const TOURS = {
         targetId: null,
         position: null,
         title: '👥  User Management',
-        body: "Add team members, assign roles, and control exactly what each person can see and do. Kernel supports six built-in roles (Admin, Manager, Accounting, Warehouse, Driver, Sales) plus custom overrides.",
+        body: "Add team members, assign roles, and control exactly what each person can see and do. Kernel supports built-in roles (Admin, Manager, Dispatcher, Driver, Accountant, Sales Rep, Warehouse Staff, Buyer) plus per-user permission overrides.",
       },
       {
         targetId: 'kernal-main',

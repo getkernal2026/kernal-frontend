@@ -1145,6 +1145,44 @@ export default function InventoryModule() {
   };
 
   // ─────────────────────────────────────────
+  // EXPORT CSV
+  // ─────────────────────────────────────────
+  const exportInventoryCSV = () => {
+    const headers = ['SKU', 'Name', 'Category', 'UOM', 'Location', 'Total Stock', 'Available Stock', 'On QC Hold', 'Reorder Point', 'Reorder Qty', 'Unit Cost', 'Unit Price', 'Earliest Expiry'];
+    const rows = processedData.map(item => {
+      const total     = getTotalStock(item.lots);
+      const available = getAvailableStock(item.lots);
+      const onHold    = total - available;
+      const expiry    = getEarliestExpiry(item.lots) || '';
+      return [
+        item.sku,
+        item.name,
+        item.category,
+        item.uom,
+        item.location || '',
+        total,
+        available,
+        onHold,
+        item.reorderPoint ?? '',
+        item.reorderQty   ?? '',
+        item.cost  != null ? item.cost.toFixed(2)  : '',
+        item.price != null ? item.price.toFixed(2) : '',
+        expiry,
+      ];
+    });
+    const csv = [headers, ...rows]
+      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `inventory-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ─────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────
   const tabs = [
@@ -1174,6 +1212,11 @@ export default function InventoryModule() {
               {barcodeScanEnabled && (
               <button onClick={() => setIsBarcodeToolOpen(true)} className={UI.btnSecondary}>
                 <Barcode className="w-4 h-4" /> Scanner Tool
+              </button>
+              )}
+              {activeTab === 'inventory' && (
+              <button onClick={exportInventoryCSV} className={UI.btnSecondary} title="Export current stock view as CSV">
+                <Download className="w-4 h-4" /> Export CSV
               </button>
               )}
               <button onClick={() => setIsItemModalOpen(true)} className={UI.btnPrimary}>
