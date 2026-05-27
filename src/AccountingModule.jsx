@@ -26,7 +26,7 @@ import {
 
 // Local copy — avoids Rolldown IIFE TDZ ordering issue with KernalContext
 const COMPANY_INFO = {
-  name:     'Kernal Food Distribution LLC',
+  name:     'Kernel Food Distribution LLC',
   address:  '1800 Commerce Pkwy, Suite A',
   city:     'New Orleans, LA 70123',
   phone:    '(504) 555-9100',

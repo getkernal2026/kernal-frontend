@@ -7,13 +7,13 @@ export const TOURS = {
 
   // ── WELCOME ────────────────────────────────────────────────────────────────
   welcome: {
-    label: 'Welcome to Kernal',
+    label: 'Welcome to Kernel',
     moduleId: null,
     steps: [
       {
         targetId: 'kernal-brand',
         position: 'right',
-        title: 'Welcome to Kernal ERM 👋',
+        title: 'Welcome to Kernel ERM 👋',
         body: "You're on the most complete ERP platform built for food distribution. Let's take 2 minutes to show you where everything lives.",
         tip: 'Press → or click Next to continue',
       },
@@ -53,7 +53,7 @@ export const TOURS = {
         targetId: null,
         position: null,
         title: '📦  Inventory Management',
-        body: "Your master product catalog — every SKU you stock, across all warehouses. Kernal tracks physical stock, allocated units (reserved for open orders), and available quantity in real time.",
+        body: "Your master product catalog — every SKU you stock, across all warehouses. Kernel tracks physical stock, allocated units (reserved for open orders), and available quantity in real time.",
       },
       {
         targetId: 'kernal-main',
@@ -84,7 +84,7 @@ export const TOURS = {
         targetId: null,
         position: null,
         title: '📈  Demand Planning',
-        body: "Kernal's AI analyzes your sales velocity, seasonal patterns, and supplier lead times to generate buying recommendations before you run out — and flag items you're likely to overstock.",
+        body: "Kernel's AI analyzes your sales velocity, seasonal patterns, and supplier lead times to generate buying recommendations before you run out — and flag items you're likely to overstock.",
       },
       {
         targetId: 'kernal-main',
@@ -121,7 +121,7 @@ export const TOURS = {
         targetId: 'kernal-topbar',
         position: 'bottom',
         title: 'Receiving & Putaway',
-        body: "When a PO arrives, switch to the Receiving tab to check in each item against the PO. After receiving, Kernal generates putaway tasks that direct associates to the correct bin location.",
+        body: "When a PO arrives, switch to the Receiving tab to check in each item against the PO. After receiving, Kernel generates putaway tasks that direct associates to the correct bin location.",
       },
     ],
   },
@@ -134,7 +134,7 @@ export const TOURS = {
         targetId: null,
         position: null,
         title: '📱  Mobile WMS',
-        body: "The Mobile WMS app puts Kernal in your warehouse associates' hands. They scan barcodes to receive shipments, confirm putaway, and pick orders — no desktop required.",
+        body: "The Mobile WMS app puts Kernel in your warehouse associates' hands. They scan barcodes to receive shipments, confirm putaway, and pick orders — no desktop required.",
       },
       {
         targetId: 'kernal-main',
@@ -159,7 +159,7 @@ export const TOURS = {
         targetId: null,
         position: null,
         title: '🚚  Delivery Operations',
-        body: "Manage everything after picking — route assignment, driver dispatch, proof of delivery, and real-time order status for every customer. Drivers interact with Kernal directly from their phone.",
+        body: "Manage everything after picking — route assignment, driver dispatch, proof of delivery, and real-time order status for every customer. Drivers interact with Kernel directly from their phone.",
       },
       {
         targetId: 'kernal-main',
@@ -210,7 +210,7 @@ export const TOURS = {
         targetId: null,
         position: null,
         title: '🤝  Customer Relationship Management',
-        body: "Every customer account, contact, purchase history, credit limit, and health score lives here. Kernal tracks customer behavior automatically — you always know who your best accounts are.",
+        body: "Every customer account, contact, purchase history, credit limit, and health score lives here. Kernel tracks customer behavior automatically — you always know who your best accounts are.",
       },
       {
         targetId: 'kernal-main',
@@ -323,7 +323,7 @@ export const TOURS = {
         targetId: 'kernal-topbar',
         position: 'bottom',
         title: 'Three-Way Matching',
-        body: "Kernal automatically matches what was ordered vs. received vs. billed. Discrepancies are flagged before you approve payment — catching billing errors before they cost you money.",
+        body: "Kernel automatically matches what was ordered vs. received vs. billed. Discrepancies are flagged before you approve payment — catching billing errors before they cost you money.",
       },
     ],
   },
@@ -342,7 +342,7 @@ export const TOURS = {
         targetId: 'kernal-main',
         position: null,
         title: 'Shipment Cost Allocation',
-        body: "Each inbound shipment shows the vendor invoice cost plus all additional charges — freight, customs duties, port fees. Kernal prorates each charge across the SKUs in the shipment by weight or value.",
+        body: "Each inbound shipment shows the vendor invoice cost plus all additional charges — freight, customs duties, port fees. Kernel prorates each charge across the SKUs in the shipment by weight or value.",
       },
       {
         targetId: 'kernal-topbar',
@@ -443,7 +443,7 @@ export const TOURS = {
         targetId: 'kernal-main',
         position: null,
         title: 'FSMA Traceability',
-        body: "For every lot of food in your system, Kernal tracks the full chain of custody from supplier to customer — the Key Data Elements (KDEs) and Critical Tracking Events (CTEs) required by FSMA Rule 204.",
+        body: "For every lot of food in your system, Kernel tracks the full chain of custody from supplier to customer — the Key Data Elements (KDEs) and Critical Tracking Events (CTEs) required by FSMA Rule 204.",
       },
       {
         targetId: 'kernal-topbar',
@@ -462,7 +462,7 @@ export const TOURS = {
         targetId: null,
         position: null,
         title: '⚙️  Settings',
-        body: "Configure every aspect of Kernal for your business — company profile, feature flags, module visibility, approval rules, and your subscription plan. Changes take effect immediately for all users.",
+        body: "Configure every aspect of Kernel for your business — company profile, feature flags, module visibility, approval rules, and your subscription plan. Changes take effect immediately for all users.",
       },
       {
         targetId: 'kernal-main',
@@ -487,7 +487,7 @@ export const TOURS = {
         targetId: null,
         position: null,
         title: '👥  User Management',
-        body: "Add team members, assign roles, and control exactly what each person can see and do. Kernal supports six built-in roles (Admin, Manager, Accounting, Warehouse, Driver, Sales) plus custom overrides.",
+        body: "Add team members, assign roles, and control exactly what each person can see and do. Kernel supports six built-in roles (Admin, Manager, Accounting, Warehouse, Driver, Sales) plus custom overrides.",
       },
       {
         targetId: 'kernal-main',
@@ -506,20 +506,20 @@ export const TOURS = {
 
   // ── INTELLIGENCE ───────────────────────────────────────────────────────────
   nlquery: {
-    label: 'Ask Kernal',
+    label: 'Ask Kernel',
     moduleId: 'nlquery',
     steps: [
       {
         targetId: null,
         position: null,
-        title: '✨  Ask Kernal — AI Query Engine',
+        title: '✨  Ask Kernel — AI Query Engine',
         body: "Ask any question about your business in plain English and get an instant, accurate answer backed by your live data. No SQL, no reports, no waiting — just ask.",
       },
       {
         targetId: 'kernal-main',
         position: null,
         title: 'Natural Language Questions',
-        body: 'Try questions like: "What\'s our margin on the Tampa route this week?", "Which customers haven\'t ordered in 30 days?", or "What\'s our current inventory value for frozen beef?" — Kernal answers immediately.',
+        body: 'Try questions like: "What\'s our margin on the Tampa route this week?", "Which customers haven\'t ordered in 30 days?", or "What\'s our current inventory value for frozen beef?" — Kernel answers immediately.',
       },
       {
         targetId: 'kernal-topbar',
@@ -538,19 +538,19 @@ export const TOURS = {
         targetId: null,
         position: null,
         title: '📊  Report Builder',
-        body: "Build custom reports from any data in Kernal — inventory, sales, AR aging, delivery performance, purchasing — and schedule them to arrive in your inbox automatically. No SQL required.",
+        body: "Build custom reports from any data in Kernel — inventory, sales, AR aging, delivery performance, purchasing — and schedule them to arrive in your inbox automatically. No SQL required.",
       },
       {
         targetId: 'kernal-main',
         position: null,
         title: 'Report Library',
-        body: "The report library shows all saved reports — your custom ones and Kernal's built-in templates. Click any report to run it instantly with the latest data, or edit it to change fields, filters, or grouping.",
+        body: "The report library shows all saved reports — your custom ones and Kernel's built-in templates. Click any report to run it instantly with the latest data, or edit it to change fields, filters, or grouping.",
       },
       {
         targetId: 'kernal-topbar',
         position: 'bottom',
         title: 'Build, Schedule & Export',
-        body: "Click + New Report to drag-and-drop fields from any module into a custom view. Set a schedule (daily, weekly, monthly) and Kernal emails the report as CSV or PDF automatically.",
+        body: "Click + New Report to drag-and-drop fields from any module into a custom view. Set a schedule (daily, weekly, monthly) and Kernel emails the report as CSV or PDF automatically.",
       },
     ],
   },
@@ -564,7 +564,7 @@ export const TOURS = {
         targetId: null,
         position: null,
         title: '🔌  Integrations Hub',
-        body: "Connect Kernal to the tools you already use. 40+ pre-built connectors including QuickBooks, Salesforce, major 3PLs, and payment processors — all configured with OAuth, no middleware required.",
+        body: "Connect Kernel to the tools you already use. 40+ pre-built connectors including QuickBooks, Salesforce, major 3PLs, and payment processors — all configured with OAuth, no middleware required.",
       },
       {
         targetId: 'kernal-main',
@@ -595,7 +595,7 @@ export const TOURS = {
         targetId: 'kernal-main',
         position: null,
         title: 'EDI Document Queue',
-        body: "All inbound and outbound EDI transactions appear here. Inbound 850s (customer POs) become Kernal orders automatically. Outbound 810s (invoices) are generated from delivered orders and transmitted on schedule.",
+        body: "All inbound and outbound EDI transactions appear here. Inbound 850s (customer POs) become Kernel orders automatically. Outbound 810s (invoices) are generated from delivered orders and transmitted on schedule.",
       },
       {
         targetId: 'kernal-topbar',
@@ -614,7 +614,7 @@ export const TOURS = {
         targetId: null,
         position: null,
         title: '</>  Developer API',
-        body: "Build custom integrations, automate workflows, and connect Kernal to any system using the REST API, webhooks, and OAuth app platform. Full documentation is available in-platform.",
+        body: "Build custom integrations, automate workflows, and connect Kernel to any system using the REST API, webhooks, and OAuth app platform. Full documentation is available in-platform.",
       },
       {
         targetId: 'kernal-main',
@@ -639,19 +639,19 @@ export const TOURS = {
         targetId: null,
         position: null,
         title: '🛍️  eCommerce Sync',
-        body: "Connect Shopify, WooCommerce, Amazon, and other marketplace channels to Kernal. Online orders flow directly into the fulfillment workflow, inventory deducts in real time, and shipping updates push back to the channel.",
+        body: "Connect Shopify, WooCommerce, Amazon, and other marketplace channels to Kernel. Online orders flow directly into the fulfillment workflow, inventory deducts in real time, and shipping updates push back to the channel.",
       },
       {
         targetId: 'kernal-main',
         position: null,
         title: 'Channel Orders Feed',
-        body: "All incoming orders from connected channels appear here, tagged by source. Each order shows channel, customer, items ordered, payment status, and current fulfillment status in Kernal.",
+        body: "All incoming orders from connected channels appear here, tagged by source. Each order shows channel, customer, items ordered, payment status, and current fulfillment status in Kernel.",
       },
       {
         targetId: 'kernal-topbar',
         position: 'bottom',
         title: 'Channel Settings & Catalog Sync',
-        body: "The Channels tab manages each connected store — sync frequency, order import rules, and inventory export settings. The Catalog Sync tab maps your Kernal SKUs to the product IDs in each channel.",
+        body: "The Channels tab manages each connected store — sync frequency, order import rules, and inventory export settings. The Catalog Sync tab maps your Kernel SKUs to the product IDs in each channel.",
       },
     ],
   },

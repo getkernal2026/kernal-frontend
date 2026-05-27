@@ -127,7 +127,7 @@ const MODULE_LABELS = {
   ecommerce:'eCommerce',
   landedcost:'Landed Cost',
   mobilewms:'Mobile WMS',
-  nlquery:'Ask Kernal',
+  nlquery:'Ask Kernel',
 };
 
 // ── Global Search component ────────────────────────────────────────────────────
@@ -380,7 +380,7 @@ const ALL_TABS = [
   { id: 'ecommerce',    label: 'eCommerce',        Icon: ShoppingBag,     Component: EcommerceModule          },
   { id: 'landedcost',   label: 'Landed Cost',      Icon: Anchor,          Component: LandedCostModule         },
   { id: 'mobilewms',   label: 'Mobile WMS',       Icon: Smartphone,      Component: MobileWMSModule          },
-  { id: 'nlquery',     label: 'Ask Kernal',       Icon: Sparkles,        Component: NLQueryModule            },
+  { id: 'nlquery',     label: 'Ask Kernel',       Icon: Sparkles,        Component: NLQueryModule            },
 ];
 
 // Sidebar grouping — keep the order of ALL_TABS as the canonical sequence;
@@ -619,12 +619,12 @@ function LockedModule({ tab }) {
 
           {/* CTA */}
           <button className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-colors ${isAddon ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20 hover:bg-teal-500/20' : (planDef?.bg?.replace('/15','/10') || 'bg-cyan-500/10') + ' ' + (planDef?.color || 'text-cyan-400') + ' border ' + (planDef?.border || 'border-cyan-500/20') + ' hover:opacity-80'}`}>
-            Contact Kernal to Upgrade ↗
+            Contact Kernel to Upgrade ↗
           </button>
         </div>
 
         <p className="text-xs text-gray-700 text-center mt-4">
-          Reach out to your Kernal account manager to enable this module.
+          Reach out to your Kernel account manager to enable this module.
         </p>
       </div>
     </div>
@@ -830,7 +830,7 @@ function Sidebar({ isDark, collapsed, onToggleCollapse, visibleTabs, activeTabId
           {collapsed ? (
             <span className="block text-center font-bold">v1</span>
           ) : (
-            <span>Kernal ERM · v1.0</span>
+            <span>Kernel ERM · v1.0</span>
           )}
         </div>
       </aside>
@@ -1113,7 +1113,7 @@ class ModuleErrorBoundary extends Component {
   componentWillUnmount(){ this._mounted = false; }
   componentDidCatch(error, errorInfo) {
     this.setState({ errorInfo, reportSending: true });
-    console.error(`[Kernal] Module "${this.props.label}" crashed:`, error, errorInfo?.componentStack);
+    console.error(`[Kernel] Module "${this.props.label}" crashed:`, error, errorInfo?.componentStack);
     captureError({ error, moduleName: this.props.label, type: 'crash' }).then(report => {
       if (this._mounted) {
         this.setState({ reportId: report.id, reportSent: report.sent, reportSending: false });
@@ -1158,7 +1158,7 @@ class ModuleErrorBoundary extends Component {
 
             {/* Description */}
             <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 14, lineHeight: 1.6 }}>
-              This module encountered an unexpected error. The rest of Kernal is unaffected — navigate to any other module normally.
+              This module encountered an unexpected error. The rest of Kernel is unaffected — navigate to any other module normally.
             </p>
 
             {/* Report delivery status */}
@@ -1257,7 +1257,7 @@ function LoginScreen() {
               <line x1="12" y1="22.08" x2="12" y2="12"/>
             </svg>
           </div>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: '#f1f5f9', letterSpacing: '-0.02em' }}>Kernal</h1>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: '#f1f5f9', letterSpacing: '-0.02em' }}>Kernel</h1>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: '#6b7280' }}>Enterprise Resource Management</p>
         </div>
 
@@ -1316,7 +1316,7 @@ function LoginScreen() {
         </form>
 
         <p style={{ textAlign: 'center', marginTop: 20, fontSize: 12, color: '#374151' }}>
-          Kernal ERM · Secure access via Supabase Auth
+          Kernel ERM · Secure access via Supabase Auth
         </p>
       </div>
     </div>
@@ -1358,14 +1358,14 @@ class AppErrorBoundary extends Component {
       return (
         <div style={{ padding: '48px', fontFamily: 'system-ui, sans-serif', background: '#030712', minHeight: '100vh', color: '#f1f5f9', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fb7185" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-          <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>Kernal encountered a critical error</h2>
+          <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>Kernel encountered a critical error</h2>
           <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>Please reload the page to restart the application.</p>
           <pre style={{ fontSize: 12, color: '#4b5563', background: '#0d1117', padding: '14px 18px', borderRadius: 8, maxWidth: 640, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', border: '1px solid #1f2937' }}>
             {String(this.state.error)}
           </pre>
           <button onClick={() => window.location.reload()}
             style={{ background: 'rgba(59,130,246,.15)', border: '1px solid rgba(59,130,246,.3)', color: '#60a5fa', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-            Reload Kernal
+            Reload Kernel
           </button>
         </div>
       );

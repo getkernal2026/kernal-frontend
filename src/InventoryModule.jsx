@@ -24,7 +24,7 @@ import {
 
 // Local copy avoids Rolldown IIFE ordering / TDZ issue
 const COMPANY_INFO = {
-  name:     'Kernal Food Distribution LLC',
+  name:     'Kernel Food Distribution LLC',
   address:  '1800 Commerce Pkwy, Suite A',
   city:     'New Orleans, LA 70123',
   phone:    '(504) 555-9100',
@@ -2362,7 +2362,7 @@ Remaining in warehouse: ${r.remainingQty} ${r.uom}` },
 • All ${r.dispatches.length} affected customer${r.dispatches.length !== 1?'s':''} contacted via phone and email.
 • Return-to-vendor (RTV) initiated with ${r.supplierName}.
 • Product to be destroyed or returned to supplier per FDA guidance.` },
-                                  { label:'9. Effectiveness Checks', value:`Kernal Food Distribution will conduct follow-up contact with all notified customers within 72 hours to confirm product has been removed from service. Disposition records will be maintained for a minimum of 2 years per 21 CFR 7.59.` },
+                                  { label:'9. Effectiveness Checks', value:`Kernel Food Distribution will conduct follow-up contact with all notified customers within 72 hours to confirm product has been removed from service. Disposition records will be maintained for a minimum of 2 years per 21 CFR 7.59.` },
                                 ].map(field => (
                                   <div key={field.label} className="space-y-1">
                                     <p className="font-black text-xs uppercase tracking-widest text-gray-500">{field.label}</p>
@@ -2400,7 +2400,7 @@ Remaining in warehouse: ${r.remainingQty} ${r.uom}` },
                                 </div>
                                 <p className="font-black text-base uppercase tracking-wide text-rose-600">⚠ URGENT: Voluntary Product Recall Notice</p>
                                 <p>Dear [Customer Contact Name],</p>
-                                <p>We are writing to inform you of a voluntary recall of the following product that was delivered to your facility by Kernal Food Distribution LLC:</p>
+                                <p>We are writing to inform you of a voluntary recall of the following product that was delivered to your facility by Kernel Food Distribution LLC:</p>
                                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-1">
                                   <p><strong>Product:</strong> {r.itemName}</p>
                                   <p><strong>SKU:</strong> {r.sku}</p>
@@ -2423,13 +2423,13 @@ Remaining in warehouse: ${r.remainingQty} ${r.uom}` },
                                     <li><strong>Do not return</strong> product to store shelves or use in food preparation until you receive written clearance from us.</li>
                                   </ol>
                                 </div>
-                                <p>Kernal Food Distribution will arrange pickup of all recalled product at no cost to you. A full credit or replacement will be issued upon return. We sincerely apologize for any inconvenience this recall may cause.</p>
+                                <p>Kernel Food Distribution will arrange pickup of all recalled product at no cost to you. A full credit or replacement will be issued upon return. We sincerely apologize for any inconvenience this recall may cause.</p>
                                 <p>This recall is being conducted in accordance with FDA regulations (21 CFR Part 7). If you have any questions or require additional documentation, please do not hesitate to contact us.</p>
                                 <div className="pt-4 space-y-1">
                                   <p>Sincerely,</p>
                                   <div className="border-b border-gray-400 w-48 my-4" />
                                   <p className="font-bold">Quality Assurance &amp; Compliance</p>
-                                  <p>Kernal Food Distribution LLC</p>
+                                  <p>Kernel Food Distribution LLC</p>
                                   <p className="text-gray-500">(504) 555-9100 · purchasing@kernaldist.com</p>
                                 </div>
                               </div>

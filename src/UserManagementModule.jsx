@@ -52,7 +52,7 @@ const MOD_LABELS = {
   settings:     '⚙️ Settings',
   users:        '👥 Users',
   // Intelligence
-  nlquery:      '✨ Ask Kernal',
+  nlquery:      '✨ Ask Kernel',
   reports:      '📊 Report Builder',
   // Platform
   integrations: '🔌 Integrations',

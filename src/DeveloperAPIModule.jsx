@@ -11,7 +11,7 @@ import { useKernal } from './KernalContext.jsx';
 
 // ── Local Company Info (Rolldown IIFE TDZ fix) ───────────────────────────────
 const COMPANY_INFO = {
-  name:    'Kernal Food Distribution LLC',
+  name:    'Kernel Food Distribution LLC',
   email:   'purchasing@kernaldist.com',
   apiBase: 'https://api.kernaldist.com',
 };
@@ -646,7 +646,7 @@ function WebhooksTab({ isDark }) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className={`text-base font-semibold ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>Webhooks</h3>
-          <p className={`text-xs mt-0.5 ${subText}`}>Receive real-time POST requests when events occur in Kernal. Each delivery includes a signature header for verification.</p>
+          <p className={`text-xs mt-0.5 ${subText}`}>Receive real-time POST requests when events occur in Kernel. Each delivery includes a signature header for verification.</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
@@ -791,7 +791,7 @@ function WebhooksTab({ isDark }) {
               </div>
               <div className={`rounded-lg px-3 py-2.5 ${isDark ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-200'} flex items-start gap-2`}>
                 <Lock className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
-                <p className={`text-xs ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>A signing secret will be generated automatically. Use it to verify <code className="font-mono">X-Kernal-Signature</code> headers.</p>
+                <p className={`text-xs ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>A signing secret will be generated automatically. Use it to verify <code className="font-mono">X-Kernel-Signature</code> headers.</p>
               </div>
             </div>
             <div className={`px-6 py-4 border-t ${isDark ? 'border-gray-800' : 'border-slate-100'} flex justify-end gap-2`}>
@@ -828,8 +828,8 @@ function EventLogTab({ isDark }) {
 
   const MOCK_PAYLOADS = {
     'evt_001': `GET /v1/orders\nAuthorization: Bearer krn_live_4f8a••••\n\nResponse 200 OK (48ms)\n{ "data": [...], "total": 24 }`,
-    'evt_002': `POST https://erp.metrorestaurant.com/kernal/events\nX-Kernal-Signature: sha256=abc123••••\nContent-Type: application/json\n\n{\n  "event": "order.created",\n  "id": "SO-9898",\n  "customer_id": "CUST-103",\n  "total": 6580.00,\n  "created_at": "2026-05-27T08:41:00Z"\n}`,
-    'evt_007': `POST https://api.custombi.io/ingest/kernal\nX-Kernal-Signature: sha256=def456••••\nContent-Type: application/json\n\n{\n  "event": "invoice.paid",\n  "id": "INV-503",\n  "amount_paid": 12800.00,\n  "paid_at": "2026-05-26T23:00:00Z"\n}\n\nResponse: HTTP 503 Service Unavailable (5001ms)\nAttempt 3 of 3 — marking endpoint as failing`,
+    'evt_002': `POST https://erp.metrorestaurant.com/kernal/events\nX-Kernel-Signature: sha256=abc123••••\nContent-Type: application/json\n\n{\n  "event": "order.created",\n  "id": "SO-9898",\n  "customer_id": "CUST-103",\n  "total": 6580.00,\n  "created_at": "2026-05-27T08:41:00Z"\n}`,
+    'evt_007': `POST https://api.custombi.io/ingest/kernal\nX-Kernel-Signature: sha256=def456••••\nContent-Type: application/json\n\n{\n  "event": "invoice.paid",\n  "id": "INV-503",\n  "amount_paid": 12800.00,\n  "paid_at": "2026-05-26T23:00:00Z"\n}\n\nResponse: HTTP 503 Service Unavailable (5001ms)\nAttempt 3 of 3 — marking endpoint as failing`,
     'evt_010': `POST /v1/orders\nAuthorization: Bearer krn_test_2c9e••••\n\n{\n  "customer_id": "CUST-999",\n  "items": []\n}\n\nResponse 422 Unprocessable Entity (22ms)\n{ "error": "customer_id not found", "items": "must not be empty" }`,
   };
 

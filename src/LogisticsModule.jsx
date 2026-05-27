@@ -282,7 +282,7 @@ export default function LogisticsModule() {
   });
   useEffect(() => {
     try { localStorage.setItem('kernal_logistics_syncqueue', JSON.stringify(syncQueue)); }
-    catch (e) { console.warn('[Kernal] Could not persist sync queue:', e); }
+    catch (e) { console.warn('[Kernel] Could not persist sync queue:', e); }
   }, [syncQueue]);
 
   const [notifications, setNotifications] = useState([]);
@@ -293,7 +293,7 @@ export default function LogisticsModule() {
     const n = {
       id: Date.now() + Math.random(),
       customer: order.customer,
-      message: `Your wholesale delivery from Kernal Foods is next! ETA ~15 min. Track: kernal-track.app/${order.id}`,
+      message: `Your wholesale delivery from Kernel Foods is next! ETA ~15 min. Track: kernal-track.app/${order.id}`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
     setNotifications(prev => [...prev, n]);
@@ -326,7 +326,7 @@ export default function LogisticsModule() {
             <Truck className="w-5 h-5 text-cyan-500" />
           </div>
           <div>
-            <span className="font-bold text-gray-100 text-lg">Kernal</span>
+            <span className="font-bold text-gray-100 text-lg">Kernel</span>
             <span className="text-gray-500 text-sm ml-2 hidden sm:inline">/ Delivery Operations</span>
           </div>
         </div>

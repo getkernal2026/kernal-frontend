@@ -82,7 +82,7 @@ const XERO_ACCOUNTS = [
   { id: '',        name: '— Not mapped —',                type: ''                },
 ];
 
-// Default account mapping (Kernal code → external account id)
+// Default account mapping (Kernel code → external account id)
 const DEFAULT_MAPPING_QBO = {
   '1000': 'qbo-1', '1100': 'qbo-2', '1200': 'qbo-3', '1400': 'qbo-4',
   '1500': 'qbo-5', '2100': 'qbo-6', '2200': '',      '2300': 'qbo-7',
@@ -222,7 +222,7 @@ function OAuthModal({ platform, onSuccess, onClose }) {
               </div>
               <div>
                 <p className="text-sm font-bold text-gray-200">Opening {isQBO ? 'QuickBooks' : 'Xero'} sign-in…</p>
-                <p className="text-xs text-gray-500 mt-1">You'll be redirected to authorize Kernal ERM</p>
+                <p className="text-xs text-gray-500 mt-1">You'll be redirected to authorize Kernel ERM</p>
               </div>
             </>
           )}
@@ -462,7 +462,7 @@ function ConnectTab({ connection, onConnect, onDisconnect, onSyncNow }) {
       <div className="bg-cyan-500/5 border border-cyan-500/15 rounded-xl p-4 flex items-start gap-3">
         <Link2 className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
         <div className="text-sm text-gray-400 leading-relaxed">
-          Connect Kernal ERM to your existing bookkeeping platform. Invoices, payments, and bills sync automatically — your accountant keeps working in the tool they know while operations run in Kernal.
+          Connect Kernel ERM to your existing bookkeeping platform. Invoices, payments, and bills sync automatically — your accountant keeps working in the tool they know while operations run in Kernel.
           <span className="text-gray-500"> Only one platform can be active at a time.</span>
         </div>
       </div>
@@ -544,8 +544,8 @@ function SyncRulesTab({ connection, syncConfig, setSyncConfig, onSyncNow }) {
     setSyncConfig(prev => ({ ...prev, [id]: { ...prev[id], [field]: val } }));
 
   const DIR_OPTIONS = [
-    { value: 'push', label: 'Kernal → ' + platformName, icon: ArrowRight },
-    { value: 'pull', label: platformName + ' → Kernal', icon: ArrowLeft  },
+    { value: 'push', label: 'Kernel → ' + platformName, icon: ArrowRight },
+    { value: 'pull', label: platformName + ' → Kernel', icon: ArrowLeft  },
     { value: 'both', label: 'Bidirectional',              icon: ArrowLeftRight },
   ];
 
@@ -661,9 +661,9 @@ function SyncRulesTab({ connection, syncConfig, setSyncConfig, onSyncNow }) {
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
           {[
-            { label: 'Invoices & Bills',  rule: 'Kernal wins — QB/Xero is updated to match', color: 'cyan'    },
+            { label: 'Invoices & Bills',  rule: 'Kernel wins — QB/Xero is updated to match', color: 'cyan'    },
             { label: 'Customers & Vendors',rule: 'Most recently updated wins',                color: 'amber'   },
-            { label: 'Chart of Accounts', rule: 'QB/Xero wins — Kernal mapping updates',      color: 'violet'  },
+            { label: 'Chart of Accounts', rule: 'QB/Xero wins — Kernel mapping updates',      color: 'violet'  },
           ].map(c => (
             <div key={c.label} className="bg-gray-800/40 border border-gray-800 rounded-xl p-3">
               <p className="text-xs font-bold text-gray-300">{c.label}</p>
@@ -722,7 +722,7 @@ function AccountMappingTab({ connection, mapping, setMapping, showToast }) {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <p className="font-bold text-gray-200">Account Mapping — Kernal GL → {platformName}</p>
+          <p className="font-bold text-gray-200">Account Mapping — Kernel GL → {platformName}</p>
           <p className="text-xs text-gray-500 mt-0.5">
             {unmappedCount > 0
               ? <span className="text-amber-400">{unmappedCount} accounts unmapped — transactions may not post correctly</span>
@@ -754,7 +754,7 @@ function AccountMappingTab({ connection, mapping, setMapping, showToast }) {
         <table className="w-full text-sm">
           <thead className="border-b border-gray-800">
             <tr>
-              <th className={UI.th}>Kernal GL Account</th>
+              <th className={UI.th}>Kernel GL Account</th>
               <th className={UI.th}>Type</th>
               <th className="px-4 py-2.5 text-left">
                 <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
@@ -796,7 +796,7 @@ function AccountMappingTab({ connection, mapping, setMapping, showToast }) {
       </div>
 
       <p className="text-[11px] text-gray-600 text-center">
-        Account mapping controls how Kernal transactions post to your {platformName} books. Unmapped accounts will appear in {platformName} as "Undeposited Funds" until resolved.
+        Account mapping controls how Kernel transactions post to your {platformName} books. Unmapped accounts will appear in {platformName} as "Undeposited Funds" until resolved.
       </p>
     </div>
   );

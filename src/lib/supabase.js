@@ -8,7 +8,7 @@ const supabaseAnon = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnon) {
   console.warn(
-    '[Kernal] Supabase env vars missing. ' +
+    '[Kernel] Supabase env vars missing. ' +
     'Copy .env.local.example → .env.local and fill in VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY.'
   );
 }

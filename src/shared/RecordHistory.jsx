@@ -141,7 +141,7 @@ function CoC({ events, label, isDark }) {
         .critical { background:#fee2e2; color:#991b1b; }
       </style></head><body>
       <h2>FSMA Chain of Custody — ${label}</h2>
-      <div class="sub">Printed ${new Date().toLocaleString()} · Kernal ERM · Append-only log</div>
+      <div class="sub">Printed ${new Date().toLocaleString()} · Kernel ERM · Append-only log</div>
       <table>
         <tr><th>Timestamp</th><th>Event</th><th>Summary</th><th>User</th><th>Severity</th></tr>
         ${sortedAsc.map(e => `

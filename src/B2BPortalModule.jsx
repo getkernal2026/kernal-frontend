@@ -349,7 +349,7 @@ export default function B2BPortalModule() {
       },
     }));
 
-    console.log('[Kernal → Inventory API] RMA QC Hold payload:', JSON.stringify(rmaPayload, null, 2));
+    console.log('[Kernel → Inventory API] RMA QC Hold payload:', JSON.stringify(rmaPayload, null, 2));
 
     const newReturn = {
       id: `RMA-${Math.floor(Math.random() * 9000) + 1000}`,
@@ -464,7 +464,7 @@ export default function B2BPortalModule() {
           <div>
             <h1 className="text-xl font-bold flex items-center gap-3 uppercase tracking-widest text-cyan-500">
               <Box size={24} className="text-cyan-500" />
-              Kernal
+              Kernel
             </h1>
             <p className="text-xs text-gray-400 mt-1.5 font-medium">B2B Order Portal · {CUSTOMER.name}</p>
           {customerPricingEnabled && tierMeta && (

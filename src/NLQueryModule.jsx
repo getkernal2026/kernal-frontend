@@ -454,7 +454,7 @@ export default function NLQueryModule() {
       <div style={{ marginBottom: 20, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
           <Sparkles size={18} color="#a78bfa" />
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#f1f5f9' }}>Ask Kernal</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#f1f5f9' }}>Ask Kernel</h2>
           <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: 'rgba(167,139,250,.12)', color: '#a78bfa', border: '1px solid rgba(167,139,250,.25)' }}>AI · Beta</span>
           {messages.length > 0 && (
             <button onClick={clearAll} style={{ marginLeft: 'auto', background: 'none', border: '1px solid #1f2937', borderRadius: 6, color: '#6b7280', fontSize: 11, padding: '3px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -511,7 +511,7 @@ export default function NLQueryModule() {
                   <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'rgba(167,139,250,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Sparkles size={11} color="#a78bfa" />
                   </div>
-                  <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>Kernal AI</span>
+                  <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>Kernel AI</span>
                 </div>
                 <ResultCard result={msg.result} />
               </div>
@@ -525,7 +525,7 @@ export default function NLQueryModule() {
               <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'rgba(167,139,250,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Sparkles size={11} color="#a78bfa" />
               </div>
-              <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>Kernal AI</span>
+              <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>Kernel AI</span>
             </div>
             <ThinkingBubble />
           </div>

@@ -1,4 +1,4 @@
-// ─── Kernal Error Reporter ────────────────────────────────────────────────────
+// ─── Kernel Error Reporter ────────────────────────────────────────────────────
 // Singleton module. No React dependency — safe to call from anywhere.
 //
 // Captures crash reports and sends them to a configured webhook.
@@ -208,10 +208,10 @@ export async function captureError({ error, moduleName, type = 'crash', extra = 
         report.sent = true;
         notifyListeners();
       } else {
-        console.warn(`[Kernal] Error reporter: webhook returned ${res.status}`);
+        console.warn(`[Kernel] Error reporter: webhook returned ${res.status}`);
       }
     } catch (e) {
-      console.warn('[Kernal] Error reporter: webhook delivery failed —', e?.message);
+      console.warn('[Kernel] Error reporter: webhook delivery failed —', e?.message);
     }
   }
 

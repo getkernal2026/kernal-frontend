@@ -1,4 +1,4 @@
-// ── Kernal API Client ─────────────────────────────────────────────────────────
+// ── Kernel API Client ─────────────────────────────────────────────────────────
 // Thin wrapper around the Railway backend. Attaches the Supabase JWT on every
 // request so the backend's requireAuth middleware can verify it.
 //

@@ -8,7 +8,7 @@ import {
 
 // ─── Local const — Rolldown IIFE TDZ fix ─────────────────────────────────────
 const COMPANY_INFO = {
-  name: 'Kernal Distribution Co.',
+  name: 'Kernel Distribution Co.',
   warehouseCode: 'LOC-A',
 };
 

@@ -7,7 +7,7 @@ import {
 
 // ─── Local const — required for Rolldown IIFE TDZ ─────────────────────────────
 const COMPANY_INFO = {
-  name: 'Kernal Distribution Co.',
+  name: 'Kernel Distribution Co.',
   currency: 'USD',
 };
 

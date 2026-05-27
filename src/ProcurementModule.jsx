@@ -21,7 +21,7 @@ import {
 
 // Local copy — avoids Rolldown IIFE TDZ ordering issue with KernalContext
 const COMPANY_INFO = {
-  name:     'Kernal Food Distribution LLC',
+  name:     'Kernel Food Distribution LLC',
   address:  '1800 Commerce Pkwy, Suite A',
   city:     'New Orleans, LA 70123',
   phone:    '(504) 555-9100',
@@ -532,7 +532,7 @@ const ManualRequisitionModal = ({ vendors, onSubmit, onClose }) => {
 
 // ─── ReceivingModal ───────────────────────────────────────────────────────────
 const ReceivingModal = ({ po, onClose, onComplete }) => {
-  // FIX #10: Pre-generate a Kernal Lot ID per line, surfaced and editable by clerk
+  // FIX #10: Pre-generate a Kernel Lot ID per line, surfaced and editable by clerk
   const initLines = () =>
     po.items.map(item => ({
       sku: item.sku,
@@ -642,7 +642,7 @@ const ReceivingModal = ({ po, onClose, onComplete }) => {
                   {/* FIX #10: Pre-generated Lot ID shown and editable */}
                   <div className="col-span-2">
                     <label className="block text-xs font-semibold text-gray-400 mb-1.5">
-                      <Hash size={11} className="inline mr-1" />Kernal Lot ID
+                      <Hash size={11} className="inline mr-1" />Kernel Lot ID
                       <span className="text-gray-600 font-normal ml-1">(auto-generated — edit if needed)</span>
                     </label>
                     <input

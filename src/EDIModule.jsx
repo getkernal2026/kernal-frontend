@@ -68,7 +68,7 @@ const INIT_850 = [
     id: 'EDI-850-0089', partnerId: 'TP003', partnerRef: 'GFS-2026-44201',
     received: '2026-05-24 11:20', deliveryDate: '2026-05-27',
     shipTo: 'Gordon Food Service — 2200 Calumet Ave, Valparaiso IN 46383',
-    status: 'error', errorMsg: 'Line 1: Partner item# GFS-OIL-XL5 has no matching Kernal SKU — manual mapping required before order can be created.',
+    status: 'error', errorMsg: 'Line 1: Partner item# GFS-OIL-XL5 has no matching Kernel SKU — manual mapping required before order can be created.',
     total: 1890.00,
     lines: [
       { seq: 1, partnerItem: 'GFS-OIL-XL5', ourSku: null,          desc: 'Vegetable Oil 5 Gallon Jug', qty: 18, uom: 'EA', unitPrice: 52.50, total:  945.00, mapped: false },
@@ -186,7 +186,7 @@ export default function EDIModule() {
     return p ? p.name : id;
   }, []);
 
-  // Map 850 to Kernal order
+  // Map 850 to Kernel order
   const handleMapToOrder = useCallback((poId) => {
     const soNum = nextSo();
     setPos850(prev => prev.map(p => p.id !== poId ? p : { ...p, status: 'processed', kernalSo: soNum }));
@@ -464,7 +464,7 @@ export default function EDIModule() {
                   )}
                   {po.status === 'processed' && (
                     <div className="flex-shrink-0 flex items-center gap-1.5 text-emerald-400 text-sm font-semibold">
-                      <CheckCircle size={15}/> Kernal {po.kernalSo}
+                      <CheckCircle size={15}/> Kernel {po.kernalSo}
                     </div>
                   )}
                 </div>
@@ -497,7 +497,7 @@ export default function EDIModule() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-gray-700">
-                        {['#', 'Partner Item#', 'Kernal SKU', 'Description', 'Qty', 'UoM', 'Unit Price', 'Total'].map(h => (
+                        {['#', 'Partner Item#', 'Kernel SKU', 'Description', 'Qty', 'UoM', 'Unit Price', 'Total'].map(h => (
                           <th key={h} className="text-left text-gray-500 font-semibold pb-2 pr-3">{h}</th>
                         ))}
                       </tr>
@@ -587,7 +587,7 @@ export default function EDIModule() {
                   <div className="flex items-center gap-3 text-xs text-gray-400 flex-wrap">
                     <span className="font-semibold text-gray-300">{partnerName(doc.partnerId)}</span>
                     <span className="text-gray-600">·</span>
-                    <span>Kernal ref: <span className="font-mono text-gray-300">{doc.ref}</span></span>
+                    <span>Kernel ref: <span className="font-mono text-gray-300">{doc.ref}</span></span>
                     <span className="text-gray-600">·</span>
                     <span>Partner PO: <span className="font-mono text-gray-300">{doc.partnerPo}</span></span>
                   </div>

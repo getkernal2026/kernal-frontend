@@ -686,7 +686,7 @@ function AllergenRecall() {
 }
 
 // ─── FSMA 204 KDE/CTE TRACEABILITY ───────────────────────────────────────────
-const COMPANY_INFO = { name: 'Kernal Foods Inc.', addr: '5401 E Hillsborough Ave, Tampa, FL 33610', fda: 'FDA-FTL-FIRM-0078234' };
+const COMPANY_INFO = { name: 'Kernel Foods Inc.', addr: '5401 E Hillsborough Ave, Tampa, FL 33610', fda: 'FDA-FTL-FIRM-0078234' };
 
 const CTE_META = {
   harvesting:      { label: 'Harvesting',       color: 'emerald', bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20', step: 1 },
@@ -720,11 +720,11 @@ const INIT_CTE_LOG = [
     referenceDoc: 'PO-GCP-04022026', enteredBy: 'J. Park' },
   { id: 'CTE-0004', cteType: 'shipping',        lotId: 'LOT-A-URGENT', sku: 'FRZ-BEEF-01', productName: 'Premium Ground Beef 80/20',
     date: '2026-04-03', location: 'Gulf Coast Proteins — Houston, TX', qty: 500, unit: 'lbs',
-    kdes: { tlc: 'TLC-GCR-2026-0401', shipDate: '2026-04-03', shipFrom: 'Gulf Coast Proteins LLC, Houston TX', shipTo: 'Kernal Foods Inc, Tampa FL', carrier: 'Refrigerated Freight Inc', bol: 'BOL-RF-2026-9120' },
+    kdes: { tlc: 'TLC-GCR-2026-0401', shipDate: '2026-04-03', shipFrom: 'Gulf Coast Proteins LLC, Houston TX', shipTo: 'Kernel Foods Inc, Tampa FL', carrier: 'Refrigerated Freight Inc', bol: 'BOL-RF-2026-9120' },
     referenceDoc: 'BOL-RF-2026-9120', enteredBy: 'J. Park' },
   { id: 'CTE-0005', cteType: 'receiving',       lotId: 'LOT-A-URGENT', sku: 'FRZ-BEEF-01', productName: 'Premium Ground Beef 80/20',
-    date: '2026-04-04', location: 'Kernal Foods — Tampa FL (LOC-A)', qty: 500, unit: 'lbs',
-    kdes: { tlc: 'TLC-GCR-2026-0401', receiptDate: '2026-04-04', receiveAt: 'Kernal Foods Inc, Tampa FL', poNumber: 'PO-AP-0881', receivedBy: 'Mike T.', tempOnArrival: 35 },
+    date: '2026-04-04', location: 'Kernel Foods — Tampa FL (LOC-A)', qty: 500, unit: 'lbs',
+    kdes: { tlc: 'TLC-GCR-2026-0401', receiptDate: '2026-04-04', receiveAt: 'Kernel Foods Inc, Tampa FL', poNumber: 'PO-AP-0881', receivedBy: 'Mike T.', tempOnArrival: 35 },
     referenceDoc: 'PO-AP-0881', enteredBy: 'M. Torres' },
 
   // LOT-G-CRITICAL — FRZ-SALM-01 chain
@@ -738,11 +738,11 @@ const INIT_CTE_LOG = [
     referenceDoc: 'ASF-PACK-0416-2026', enteredBy: 'L. Nguyen' },
   { id: 'CTE-0008', cteType: 'shipping',        lotId: 'LOT-G-CRITICAL', sku: 'FRZ-SALM-01', productName: 'Atlantic Salmon Fillet 6oz',
     date: '2026-04-18', location: 'Miami Port of Entry — FL', qty: 300, unit: 'lbs',
-    kdes: { tlc: 'TLC-ASF-2026-0415', shipDate: '2026-04-18', shipFrom: 'ASF Processing AS, Norway', shipTo: 'Kernal Foods Inc, Tampa FL', carrier: 'ColdChain Logistics Int\'l', bol: 'BOL-CCL-2026-4418' },
+    kdes: { tlc: 'TLC-ASF-2026-0415', shipDate: '2026-04-18', shipFrom: 'ASF Processing AS, Norway', shipTo: 'Kernel Foods Inc, Tampa FL', carrier: 'ColdChain Logistics Int\'l', bol: 'BOL-CCL-2026-4418' },
     referenceDoc: 'BOL-CCL-2026-4418', enteredBy: 'L. Nguyen' },
   { id: 'CTE-0009', cteType: 'receiving',       lotId: 'LOT-G-CRITICAL', sku: 'FRZ-SALM-01', productName: 'Atlantic Salmon Fillet 6oz',
-    date: '2026-04-20', location: 'Kernal Foods — Tampa FL (LOC-A)', qty: 300, unit: 'lbs',
-    kdes: { tlc: 'TLC-ASF-2026-0415', receiptDate: '2026-04-20', receiveAt: 'Kernal Foods Inc, Tampa FL', poNumber: 'PO-AP-0882', receivedBy: 'Carlos R.', tempOnArrival: 28 },
+    date: '2026-04-20', location: 'Kernel Foods — Tampa FL (LOC-A)', qty: 300, unit: 'lbs',
+    kdes: { tlc: 'TLC-ASF-2026-0415', receiptDate: '2026-04-20', receiveAt: 'Kernel Foods Inc, Tampa FL', poNumber: 'PO-AP-0882', receivedBy: 'Carlos R.', tempOnArrival: 28 },
     referenceDoc: 'PO-AP-0882', enteredBy: 'M. Torres' },
 
   // LOT-D-CRITICAL — PRO-TOMA-01 chain
@@ -760,11 +760,11 @@ const INIT_CTE_LOG = [
     referenceDoc: 'PO-SPC-04262026', enteredBy: 'D. Boudreaux' },
   { id: 'CTE-0013', cteType: 'shipping',        lotId: 'LOT-D-CRITICAL', sku: 'PRO-TOMA-01', productName: 'Roma Tomatoes 25lb Case',
     date: '2026-04-27', location: 'Sunshine Produce Co — Tampa, FL', qty: 800, unit: 'lbs',
-    kdes: { tlc: 'TLC-SFI-2026-0425', shipDate: '2026-04-27', shipFrom: 'Sunshine Produce Co., Tampa FL', shipTo: 'Kernal Foods Inc, Tampa FL', carrier: 'SPC Direct', bol: 'BOL-SPC-2026-1127' },
+    kdes: { tlc: 'TLC-SFI-2026-0425', shipDate: '2026-04-27', shipFrom: 'Sunshine Produce Co., Tampa FL', shipTo: 'Kernel Foods Inc, Tampa FL', carrier: 'SPC Direct', bol: 'BOL-SPC-2026-1127' },
     referenceDoc: 'BOL-SPC-2026-1127', enteredBy: 'D. Boudreaux' },
   { id: 'CTE-0014', cteType: 'receiving',       lotId: 'LOT-D-CRITICAL', sku: 'PRO-TOMA-01', productName: 'Roma Tomatoes 25lb Case',
-    date: '2026-04-28', location: 'Kernal Foods — Tampa FL (LOC-A)', qty: 800, unit: 'lbs',
-    kdes: { tlc: 'TLC-SFI-2026-0425', receiptDate: '2026-04-28', receiveAt: 'Kernal Foods Inc, Tampa FL', poNumber: 'PO-AP-0879', receivedBy: 'Carlos R.', tempOnArrival: 56 },
+    date: '2026-04-28', location: 'Kernel Foods — Tampa FL (LOC-A)', qty: 800, unit: 'lbs',
+    kdes: { tlc: 'TLC-SFI-2026-0425', receiptDate: '2026-04-28', receiveAt: 'Kernel Foods Inc, Tampa FL', poNumber: 'PO-AP-0879', receivedBy: 'Carlos R.', tempOnArrival: 56 },
     referenceDoc: 'PO-AP-0879', enteredBy: 'D. Boudreaux' },
 
   // LOT-E-WARN — DAI-MILK-02 (non-FTL but tracked)
@@ -774,11 +774,11 @@ const INIT_CTE_LOG = [
     referenceDoc: 'DFD-PACK-0501', enteredBy: 'J. Park' },
   { id: 'CTE-0016', cteType: 'shipping',        lotId: 'LOT-E-WARN', sku: 'DAI-MILK-02', productName: 'Whole Milk 1 Gal',
     date: '2026-05-01', location: 'Dairy Fresh Distributors — Lakeland, FL', qty: 600, unit: 'units',
-    kdes: { tlc: 'TLC-DFD-2026-0501', shipDate: '2026-05-01', shipFrom: 'Dairy Fresh Distributors, Lakeland FL', shipTo: 'Kernal Foods Inc, Tampa FL', carrier: 'DFD Direct Route', bol: 'BOL-DFD-2026-0501' },
+    kdes: { tlc: 'TLC-DFD-2026-0501', shipDate: '2026-05-01', shipFrom: 'Dairy Fresh Distributors, Lakeland FL', shipTo: 'Kernel Foods Inc, Tampa FL', carrier: 'DFD Direct Route', bol: 'BOL-DFD-2026-0501' },
     referenceDoc: 'BOL-DFD-2026-0501', enteredBy: 'J. Park' },
   { id: 'CTE-0017', cteType: 'receiving',       lotId: 'LOT-E-WARN', sku: 'DAI-MILK-02', productName: 'Whole Milk 1 Gal',
-    date: '2026-05-02', location: 'Kernal Foods — Tampa FL (LOC-A)', qty: 600, unit: 'units',
-    kdes: { tlc: 'TLC-DFD-2026-0501', receiptDate: '2026-05-02', receiveAt: 'Kernal Foods Inc, Tampa FL', poNumber: 'PO-AP-0880', receivedBy: 'Mike T.', tempOnArrival: 38 },
+    date: '2026-05-02', location: 'Kernel Foods — Tampa FL (LOC-A)', qty: 600, unit: 'units',
+    kdes: { tlc: 'TLC-DFD-2026-0501', receiptDate: '2026-05-02', receiveAt: 'Kernel Foods Inc, Tampa FL', poNumber: 'PO-AP-0880', receivedBy: 'Mike T.', tempOnArrival: 38 },
     referenceDoc: 'PO-AP-0880', enteredBy: 'M. Torres' },
 ];
 
@@ -1174,7 +1174,7 @@ function Fsma204Tab() {
                       ['SKU',  ptiMeta.sku ],
                       ['Pack Date', packing?.kdes?.packDate || packing?.date || '—'],
                       ['Packed By', packing?.kdes?.packerName || '—'],
-                      ['Recv At', receiving?.kdes?.receiveAt ? 'Kernal Foods Inc, Tampa FL' : '—'],
+                      ['Recv At', receiving?.kdes?.receiveAt ? 'Kernel Foods Inc, Tampa FL' : '—'],
                       ['Expiry', ptiMeta.expiry],
                     ].map(([label, val]) => (
                       <div key={label} className="flex justify-between border-b border-gray-100 pb-0.5">

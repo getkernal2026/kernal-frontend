@@ -626,7 +626,7 @@ function TraccarHubView({ routes, tick, isDark }) {
 
       {/* Architecture note */}
       <div className={`text-xs ${sub} border ${isDark?'border-gray-700 bg-gray-800/30':'border-gray-200 bg-gray-50'} rounded-xl px-4 py-3`}>
-        <span className="font-semibold text-cyan-400">Production architecture:</span> Driver tablets (Samsung Galaxy Tab A8, cellular) run the Kernal Driver PWA, which pings this Traccar server every 10 s via WebSocket over the existing cellular data plan. No third-party GPS subscription required. Server hosted on a $12/mo VPS — supports up to 50 concurrent vehicles.
+        <span className="font-semibold text-cyan-400">Production architecture:</span> Driver tablets (Samsung Galaxy Tab A8, cellular) run the Kernel Driver PWA, which pings this Traccar server every 10 s via WebSocket over the existing cellular data plan. No third-party GPS subscription required. Server hosted on a $12/mo VPS — supports up to 50 concurrent vehicles.
       </div>
     </div>
   );

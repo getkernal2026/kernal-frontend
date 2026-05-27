@@ -886,7 +886,7 @@ function AIInsightsTab({ enriched, onAddToPO, addedToPO }) {
         <div className="flex-1">
           <p className="text-xs font-bold text-violet-300">AI outperforms rule-based min/max on {aiWins} of 12 SKUs this cycle</p>
           <p className="text-[10px] text-gray-400 mt-0.5">
-            Rule-based systems use static reorder points. Kernal's model layers seasonal patterns, Tampa event calendars, weather forecasts,
+            Rule-based systems use static reorder points. Kernel's model layers seasonal patterns, Tampa event calendars, weather forecasts,
             and order-velocity trends — recommending quantities closer to actual demand than any competitor can offer.
           </p>
         </div>

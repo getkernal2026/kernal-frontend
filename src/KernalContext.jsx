@@ -7,7 +7,7 @@ import { api } from './lib/api.js';
 // Single source of truth. Referenced by PO documents, recall letters,
 // invoice headers, and any printed output. Update here → updates everywhere.
 export const COMPANY_INFO = {
-  name:        'Kernal Food Distribution LLC',
+  name:        'Kernel Food Distribution LLC',
   address:     '1800 Commerce Pkwy, Suite A',
   city:        'New Orleans, LA 70123',
   phone:       '(504) 555-9100',
@@ -69,7 +69,7 @@ export const ADDONS = {
   integrations: { label: 'Integrations Hub', price: '$79 / mo',  icon: '🔌', description: 'QuickBooks, Salesforce, and 40+ pre-built connectors via OAuth.' },
   edi:          { label: 'EDI Integration',  price: '$149 / mo', icon: '↔️', description: '850/856/810/214 EDI document exchange with trading partners.' },
   developer:    { label: 'Developer API',    price: '$99 / mo',  icon: '</>',description: 'REST API, webhooks, and OAuth app platform for custom integrations.' },
-  ecommerce:    { label: 'eCommerce',        price: '$99 / mo',  icon: '🛍️', description: 'Shopify, WooCommerce, and marketplace sync — orders flow straight into Kernal.' },
+  ecommerce:    { label: 'eCommerce',        price: '$99 / mo',  icon: '🛍️', description: 'Shopify, WooCommerce, and marketplace sync — orders flow straight into Kernel.' },
 };
 
 // ── Module IDs (must match TABS ids in main.jsx) ─────────────────────────────
@@ -531,7 +531,7 @@ export function KernalProvider({ children }) {
       })
       .catch((err) => {
         if (cancelled) return;
-        console.error('[Kernal API] Initial data load failed:', err);
+        console.error('[Kernel API] Initial data load failed:', err);
         setApiError(err.message);
       })
       .finally(() => { if (!cancelled) setApiLoading(false); });

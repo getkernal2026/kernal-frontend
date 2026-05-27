@@ -150,7 +150,7 @@ const MODULE_GROUPS_META = [
     group: 'Intelligence',
     color: 'text-cyan-400',
     modules: [
-      { id:'nlquery',     label:'Ask Kernal',         icon:'✨', desc:'Natural language queries across all your data' },
+      { id:'nlquery',     label:'Ask Kernel',         icon:'✨', desc:'Natural language queries across all your data' },
       { id:'reports',     label:'Report Builder',     icon:'📊', desc:'Custom reports, scheduled exports' },
     ],
   },
@@ -505,7 +505,7 @@ function ReportPreviewModal({ reportId, onClose }) {
             {/* Email meta bar */}
             <div className="bg-gray-900/60 px-4 py-3 border-b border-gray-800 flex items-start justify-between gap-4">
               <div className="space-y-0.5">
-                <div className="text-[10px] text-gray-500"><span className="text-gray-600">From:</span> Kernal ERM Reports &lt;noreply@kernal-erm.com&gt;</div>
+                <div className="text-[10px] text-gray-500"><span className="text-gray-600">From:</span> Kernel ERM Reports &lt;noreply@kernal-erm.com&gt;</div>
                 <div className="text-[10px] text-gray-500"><span className="text-gray-600">Subject:</span> {def.name} · {data.subjectDate}</div>
               </div>
               <span className="text-[10px] text-gray-700 shrink-0">Auto-generated · Do not reply</span>
@@ -521,7 +521,7 @@ function ReportPreviewModal({ reportId, onClose }) {
             {/* Email footer */}
             <div className="px-5 py-4 border-t border-gray-800/50">
               <p className="text-[10px] text-gray-600 text-center">
-                You're receiving this because you're subscribed to scheduled reports in Kernal ERM.
+                You're receiving this because you're subscribed to scheduled reports in Kernel ERM.
                 &nbsp;·&nbsp;<span className="text-gray-500 cursor-pointer hover:text-gray-300 transition-colors">Manage Preferences</span>
                 &nbsp;·&nbsp;<span className="text-gray-500 cursor-pointer hover:text-gray-300 transition-colors">Unsubscribe</span>
               </p>
@@ -1291,7 +1291,7 @@ export default function SettingsModule() {
                 <div className="flex items-start gap-3 px-4 py-3.5 rounded-xl bg-cyan-500/5 border border-cyan-500/20">
                   <span className="text-cyan-400 text-lg shrink-0 mt-0.5">✦</span>
                   <div>
-                    <p className="text-xs font-semibold text-cyan-300">Your account is managed by the Kernal team</p>
+                    <p className="text-xs font-semibold text-cyan-300">Your account is managed by the Kernel team</p>
                     <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
                       You're on the <span className="text-cyan-400 font-medium">Enterprise</span> plan with full access to all modules and add-ons.
                       To make changes to your plan, add-ons, or billing details, contact us at{' '}
@@ -1478,7 +1478,7 @@ export default function SettingsModule() {
                 <div>
                   <h2 className="text-sm font-semibold text-gray-100">Automated Crash Reporting</h2>
                   <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                    When something breaks in the app, Kernal automatically captures a full crash report — the error, the module it happened in,
+                    When something breaks in the app, Kernel automatically captures a full crash report — the error, the module it happened in,
                     what the user was doing, and everything a developer needs to identify and fix the issue quickly.
                     Connect a webhook below to have those reports delivered automatically.
                   </p>
@@ -1621,7 +1621,7 @@ export default function SettingsModule() {
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
               <h3 className="text-sm font-semibold text-gray-100 mb-3">How to Set Up Crash Report Delivery</h3>
               <p className="text-xs text-gray-400 leading-relaxed mb-4">
-                When a crash happens, Kernal sends a detailed report to any URL you provide. The easiest way to receive those reports
+                When a crash happens, Kernel sends a detailed report to any URL you provide. The easiest way to receive those reports
                 is through a free automation tool like <strong className="text-gray-200">Make.com</strong> or <strong className="text-gray-200">Zapier</strong>.
                 Here's how to get set up in about 5 minutes:
               </p>
@@ -1632,7 +1632,7 @@ export default function SettingsModule() {
                   { n:'2', title:'Create a new Scenario', body:'Click "Create a new scenario." Add a Webhooks module as the trigger — choose "Custom webhook." Copy the webhook URL it gives you.' },
                   { n:'3', title:'Paste the URL above and save', body:'Paste the webhook URL into the field above and click Save. Then click "Send Test Report" to fire a sample crash — Make.com will receive it and show you the data shape.' },
                   { n:'4', title:'Add a destination action', body:'Back in Make.com, add a second module after the webhook — for example: send an Email, post to a Slack channel, or create a row in a Google Sheet. Map the fields (module, error message, report ID, stack trace) to your destination.' },
-                  { n:'5', title:'Activate the scenario', body:'Turn the scenario on. From now on, every crash in Kernal will be automatically delivered to wherever you set up — no manual checking required.' },
+                  { n:'5', title:'Activate the scenario', body:'Turn the scenario on. From now on, every crash in Kernel will be automatically delivered to wherever you set up — no manual checking required.' },
                 ].map(step => (
                   <div key={step.n} className="flex gap-3">
                     <div className="w-6 h-6 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">{step.n}</div>

@@ -10,7 +10,7 @@ import { useKernal } from './KernalContext.jsx';
 
 // ── Local Company Info (Rolldown IIFE TDZ fix) ────────────────────────────────
 const COMPANY_INFO = {
-  name:    'Kernal Food Distribution LLC',
+  name:    'Kernel Food Distribution LLC',
   email:   'purchasing@kernaldist.com',
 };
 
@@ -571,7 +571,7 @@ function OrdersTab({ isDark }) {
                       </div>
                       {o.kernalSO && (
                         <div>
-                          <p className={`text-[10px] font-semibold uppercase tracking-wider mb-1 ${subText}`}>Kernal Sales Order</p>
+                          <p className={`text-[10px] font-semibold uppercase tracking-wider mb-1 ${subText}`}>Kernel Sales Order</p>
                           <p className="text-xs font-mono text-cyan-400 font-semibold">{o.kernalSO}</p>
                         </div>
                       )}
@@ -589,7 +589,7 @@ function OrdersTab({ isDark }) {
                         >
                           {importing === o.id
                             ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Importing…</>
-                            : <><ArrowDownToLine className="w-3.5 h-3.5" /> Import to Kernal</>
+                            : <><ArrowDownToLine className="w-3.5 h-3.5" /> Import to Kernel</>
                           }
                         </button>
                       )}
