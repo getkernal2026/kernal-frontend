@@ -114,14 +114,14 @@ export const TOURS = {
       {
         targetId: 'kernal-main',
         position: null,
-        title: 'Task Queue',
-        body: "The task queue shows every pending warehouse action: receiving tasks (inbound POs), putaway tasks, pick tasks (open orders to fulfill), and packing tasks ready for dispatch.",
+        title: 'Fulfillment Board',
+        body: "The Fulfillment board tracks every outbound sales order through four stages — Pending (queued to pick), Active Picking (picker assigned, in progress), Packed / Ready (staged for the route), and Shipped (handed off to the driver). Use the action buttons on each card to advance orders through the workflow.",
       },
       {
         targetId: 'kernal-topbar',
         position: 'bottom',
         title: 'Putaway, Pick Tasks & Floor Map',
-        body: "Switch to the Putaway tab to direct associates to the correct bin location after a shipment is received — each task shows the suggested zone and slot. Pick Tasks assigns outbound order picking jobs. The Floor Map tab gives a visual overview of zone utilization across your warehouse.",
+        body: "Switch to the Putaway tab to direct associates to the correct bin location after a shipment arrives — each task shows the suggested zone and slot. The Pick Tasks tab lists all open picking jobs with item locations. The Floor Map tab gives a visual overview of zone utilization across your warehouse.",
       },
     ],
   },
