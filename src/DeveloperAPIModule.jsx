@@ -991,7 +991,7 @@ export default function DeveloperAPIModule() {
       </div>
 
       {/* Sub-tabs */}
-      <div className={`px-6 pt-3 border-b ${border} flex gap-0`}>
+      <div id="kernal-module-tabs" className={`px-6 pt-3 border-b ${border} flex gap-0`}>
         {TABS.map(t => (
           <button
             key={t.id}

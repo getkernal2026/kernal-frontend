@@ -551,7 +551,7 @@ export default function CustomReportModule() {
             <p className="text-xs text-gray-500">Ad-hoc cross-module queries — no code required</p>
           </div>
         </div>
-        <div className="flex items-center gap-1 bg-gray-900 rounded-xl p-1 border border-gray-800">
+        <div id="kernal-module-tabs" className="flex items-center gap-1 bg-gray-900 rounded-xl p-1 border border-gray-800">
           {VIEW_TABS.map(tab => {
             const Icon = tab.Icon;
             return (

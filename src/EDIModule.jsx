@@ -850,7 +850,7 @@ export default function EDIModule() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 border-b border-gray-700 -mb-2 overflow-x-auto">
+      <div id="kernal-module-tabs" className="flex gap-1 border-b border-gray-700 -mb-2 overflow-x-auto">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex-shrink-0 px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${

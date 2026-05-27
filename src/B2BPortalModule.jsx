@@ -1313,7 +1313,7 @@ export default function B2BPortalModule() {
       ════════════════════════════════════════════════════════════════════ */}
       {/* FIX #11: Replaced animate-in / slide-in-from-* (requires tailwindcss-animate)
           with standard Tailwind transition-colors which work out of the box. */}
-      <nav className="bg-gray-900/90 backdrop-blur-xl border-t border-gray-800 fixed bottom-0 w-full z-20 shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
+      <nav id="kernal-module-tabs" className="bg-gray-900/90 backdrop-blur-xl border-t border-gray-800 fixed bottom-0 w-full z-20 shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
         <div className="max-w-5xl mx-auto flex justify-around px-2">
           {[
             { id: 'guide',    label: 'Guide',    Icon: ClipboardList },

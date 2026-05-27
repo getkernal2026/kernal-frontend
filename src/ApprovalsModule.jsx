@@ -611,7 +611,7 @@ export default function ApprovalsModule() {
         </div>
 
         {/* Tab bar */}
-        <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1 mb-4">
+        <div id="kernal-module-tabs" className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1 mb-4">
           {tabs.map(t => {
             const Icon = t.icon;
             const isActive = tab === t.id;

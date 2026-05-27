@@ -1559,7 +1559,7 @@ export default function ERMCustomerSuccessModule() {
           </h1>
           <p className="text-gray-500 text-sm mt-1">Manage enterprise accounts, B2B access, and contract pricing.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div id="kernal-module-tabs" className="flex items-center gap-2">
           <button onClick={() => setView('analytics')}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-gray-700 text-gray-400 hover:text-cyan-400 hover:border-cyan-500/40 transition-colors">
             <BarChart3 className="w-4 h-4" /> Sales Analytics

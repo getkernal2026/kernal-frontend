@@ -1991,7 +1991,7 @@ export default function ProcurementModule() {
 
         {/* Tab bar */}
         <div className="max-w-screen-2xl mx-auto px-6">
-          <div className="flex items-center overflow-x-auto">
+          <div id="kernal-module-tabs" className="flex items-center overflow-x-auto">
             {tabs.map(tab => (
               <button
                 key={tab.id}

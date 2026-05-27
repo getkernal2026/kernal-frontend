@@ -1135,7 +1135,7 @@ export default function WarehouseModule() {
       </div>
 
       {/* ── Tab Bar ── */}
-      <div className="shrink-0 flex items-center gap-1 px-6 pt-3 border-b border-gray-800 bg-gray-900/40 overflow-x-auto">
+      <div id="kernal-module-tabs" className="shrink-0 flex items-center gap-1 px-6 pt-3 border-b border-gray-800 bg-gray-900/40 overflow-x-auto">
         {TABS.map(tab => (
           <button
             key={tab.id}

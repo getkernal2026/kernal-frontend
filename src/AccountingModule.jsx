@@ -5406,7 +5406,7 @@ export default function AccountingModule() {
       </div>
 
       {/* ── Tab Bar ── */}
-      <div className="shrink-0 flex border-b border-gray-800 bg-gray-900/30 px-2 overflow-x-auto">
+      <div id="kernal-module-tabs" className="shrink-0 flex border-b border-gray-800 bg-gray-900/30 px-2 overflow-x-auto">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-5 py-3.5 text-sm font-semibold transition-colors border-b-2 whitespace-nowrap ${

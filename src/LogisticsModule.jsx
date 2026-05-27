@@ -649,7 +649,7 @@ function DispatcherDashboard({ orders, setOrders, fleet, setFleet, triggerETANot
       {/* View tabs */}
       <div className="flex items-center justify-between mb-4 shrink-0">
         <h2 className="text-xl font-bold text-gray-100 hidden md:block">Dispatcher Command Center</h2>
-        <div className="flex border-b border-gray-800">
+        <div id="kernal-module-tabs" className="flex border-b border-gray-800">
           {[
             { id: 'planning',  Icon: LayoutDashboard, label: 'Route Planning' },
             { id: 'tracking',  Icon: MapIcon,          label: 'Live GPS Tracking' },

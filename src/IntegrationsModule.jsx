@@ -999,7 +999,7 @@ export default function IntegrationsModule() {
         </div>
 
         {/* Tab nav */}
-        <div className="flex gap-1 mt-4">
+        <div id="kernal-module-tabs" className="flex gap-1 mt-4">
           {TABS.map(t => {
             const Icon = t.icon;
             const active = tab === t.id;

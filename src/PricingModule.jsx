@@ -924,7 +924,7 @@ export default function PricingModule() {
       </div>
 
       {/* Tab bar */}
-      <div className="border-b border-gray-800 bg-gray-950 px-6 overflow-x-auto">
+      <div id="kernal-module-tabs" className="border-b border-gray-800 bg-gray-950 px-6 overflow-x-auto">
         <div className="flex gap-1 min-w-max">
           {TABS.map(t => (
             <button key={t.id} onClick={() => setActiveTab(t.id)}

@@ -984,7 +984,7 @@ export default function SettingsModule() {
         </div>
 
         {/* Tab bar */}
-        <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1 mb-6">
+        <div id="kernal-module-tabs" className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1 mb-6">
           {TABS.map(t => (
             <button
               key={t.id}

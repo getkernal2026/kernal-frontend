@@ -993,7 +993,7 @@ function AccountDetailSection({ customer, orders, activities, onBack, onStartOrd
       </div>
 
       {/* Sub-tabs */}
-      <div className="flex gap-1 border-b border-gray-800">
+      <div id="kernal-module-tabs" className="flex gap-1 border-b border-gray-800">
         {[
           { id: 'overview', label: 'Overview',    icon: Eye },
           { id: 'orders',   label: 'Orders',      icon: Package, count: orders.length },

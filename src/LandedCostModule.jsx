@@ -576,7 +576,7 @@ export default function LandedCostModule() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 22, borderBottom: '1px solid #1f2937', paddingBottom: 0 }}>
+      <div id="kernal-module-tabs" style={{ display: 'flex', gap: 4, marginBottom: 22, borderBottom: '1px solid #1f2937', paddingBottom: 0 }}>
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             style={{ background: 'none', border: 'none', borderBottom: tab === t.id ? '2px solid #60a5fa' : '2px solid transparent', color: tab === t.id ? '#60a5fa' : '#6b7280', padding: '8px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginBottom: -1, transition: 'color .15s' }}>

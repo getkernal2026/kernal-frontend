@@ -62,7 +62,7 @@ export const TOURS = {
         body: "Each row is a SKU with live stock counts. Rows in amber or red are at or below reorder point. Click any row to see lot details, expiry dates, cost history, and lot-level traceability.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'Search, Filter & Export',
         body: "Search by SKU, name, barcode, or category. Filter by warehouse or stock status. Use the Export button to pull a CSV of your current catalog at any time.",
@@ -93,7 +93,7 @@ export const TOURS = {
         body: "Each row is an AI-generated reorder suggestion. The recommended order quantity accounts for your current stock, open purchase orders, forecasted demand, and your target days-of-supply.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'Tabs, Filters & AI Insights',
         body: "Switch tabs for AI Insights (buying rationale and AI uplift vs. rule-based), Demand Forecast (SKU-level projections), Suggested POs (ready-to-send purchase orders), and Min/Max Settings. Filter the Replenishment Queue by status — Stockout, Critical, Reorder Now — to focus on what needs ordering today.",
@@ -118,7 +118,7 @@ export const TOURS = {
         body: "The Fulfillment board tracks every outbound sales order through four stages — Pending (queued to pick), Active Picking (picker assigned, in progress), Packed / Ready (staged for the route), and Shipped (handed off to the driver). Use the action buttons on each card to advance orders through the workflow.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'Putaway, Pick Tasks & Floor Map',
         body: "Switch to the Putaway tab to direct associates to the correct bin location after a shipment arrives — each task shows the suggested zone and slot. The Pick Tasks tab lists all open picking jobs with item locations. The Floor Map tab gives a visual overview of zone utilization across your warehouse.",
@@ -143,7 +143,7 @@ export const TOURS = {
         body: "The Receive tab guides associates through scanning inbound shipments. Each item scanned records the lot number, expiry date, and receiving quantity against the open PO — no manual data entry, no paper receiving sheets.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'Putaway, Pick & Cycle Count',
         body: "Switch to Putaway to direct product to the correct bin location after receiving. The Pick tab lists all open pick tasks assigned to the logged-in associate with item locations. Use Cycle Count to perform spot-count audits on specific bin locations without shutting down the warehouse.",
@@ -168,7 +168,7 @@ export const TOURS = {
         body: "Today's routes are shown at the top — how many stops are assigned, which drivers are out, and which deliveries are completed, in progress, or have exceptions (missed stops, damage reports).",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'Dispatcher & Driver Views',
         body: "The Dispatcher view has Route Planning (assign stops to drivers, optimize stop sequences) and Live GPS Tracking (real-time vehicle positions with stop-by-stop progress). Switch to the Driver view to see the mobile dispatch interface — exactly how drivers see their assigned stops, capture signatures, and log exceptions from their phone.",
@@ -193,7 +193,7 @@ export const TOURS = {
         body: "Each vehicle on the map shows its current location, speed, assigned route, and driver. Click any vehicle to see today's completed stops, remaining stops, and estimated arrival at each customer.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'Route Optimizer, Fleet Status & Traccar Hub',
         body: "The Route Optimizer tab recalculates the most efficient stop sequence based on traffic, time windows, and vehicle capacity. Fleet Status gives a summary of each vehicle's current activity and health. The Traccar Hub tab is the direct interface to your Traccar GPS server for device configuration and raw telemetry.",
@@ -244,7 +244,7 @@ export const TOURS = {
         body: "Orders placed through the B2B portal appear here in real time. Each order shows the customer, order total, requested delivery date, and status. Portal orders flow directly into the fulfillment workflow.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'Catalog, Standing Orders & Account',
         body: "Use the Catalog tab to let customers browse your full product list with their contract pricing applied. The Standing tab manages recurring orders — set up a weekly or scheduled delivery that auto-generates without manual re-entry. The Account tab shows the customer's order history, open invoices, and delivery preferences.",
@@ -269,7 +269,7 @@ export const TOURS = {
         body: "The Today tab is your rep's daily dashboard — visits scheduled, orders placed today, and outstanding follow-ups. All activities, check-ins, and orders from the day are logged here automatically.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'Map, Accounts, New Order & Leads',
         body: "Switch to the Map tab for a geographic view of your territory with customer pins. The Accounts tab lists all your active customers. Use New Order to place an order on the spot for any customer. The Leads tab tracks prospects, and My Performance shows your sales metrics vs. quota.",
@@ -294,7 +294,7 @@ export const TOURS = {
         body: "Each price book is a set of rules that applies to a group of customers. Assign a customer to a tier and their pricing updates immediately across all order channels — portal, field sales, and phone.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'Contracts, Promotions & Price Simulator',
         body: "For customers with negotiated contract prices, use the Contracts tab to lock specific item prices for a date range. The Promotions tab manages time-limited markdowns and special offers across customer segments. The Price Simulator lets you model any pricing change and see the margin impact before applying it.",
@@ -320,7 +320,7 @@ export const TOURS = {
         body: "The Dashboard shows your purchasing activity at a glance — open POs by status, total spend this period, top vendors, and POs pending your approval. Click any status card to drill into the matching purchase orders.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'PO Builder, Vendor Directory & More',
         body: "Use the PO Builder tab to create a new purchase order — select a vendor, add line items, and send for approval in one flow. The Purchase Orders tab lists all active POs with status. The Vendor Directory manages contact info and payment terms. Returns (RTVs) tracks product sent back to vendors, and Rebates manages earned vendor rebates.",
@@ -345,7 +345,7 @@ export const TOURS = {
         body: "The Shipments tab lists every inbound shipment with its vendor invoice and linked PO. Switch to Cost Entry to add the additional charges for that shipment — Ocean/Air Freight, Import Duty/Tariff, Customs Broker Fee, Cargo Insurance, Port Handling/Drayage, or Other.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'Allocation Methods',
         body: "The Allocation tab prorates landed costs across the SKUs in the shipment. Choose By Value (proportional to line item cost), By Weight (proportional to item weight), or By Quantity (equal per unit). Different charge types often use different methods — duties typically go by value, freight by weight.",
@@ -370,7 +370,7 @@ export const TOURS = {
         body: "All customer invoices appear here with real-time status — Open, Partial, Paid, or Overdue. The summary bar shows today's total AR balance and the overdue amount that needs collection action.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'Close-Out, Payments, AP Match & Reports',
         body: "Switch tabs for Payments (ACH and card collections), Daily Close-Out (match driver cash to route manifests), AP Match (three-way PO vs. receipt vs. vendor invoice to catch billing errors), and Reports (AR aging, P&L, and cash flow). The General Ledger module handles your full chart of accounts.",
@@ -395,7 +395,7 @@ export const TOURS = {
         body: "The main view shows your chart of accounts with running balances. Every invoice, payment, PO, and payroll entry posts here automatically. You can also create manual adjusting entries.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'Periods, Trial Balance & Financials',
         body: "The Periods tab manages your fiscal calendar — lock a period to prevent further posting once reconciled. The Trial Balance tab shows debit/credit totals by account for any period. For P&L, Balance Sheet, and Cash Flow statements, use the Reports tab in the Accounting module.",
@@ -420,7 +420,7 @@ export const TOURS = {
         body: "This is your personal queue of items waiting for your decision. Each item shows what it is, who submitted it, the amount or impact, and the deadline (if any). Click to review the full detail and approve or reject.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'Submissions, History & Rules',
         body: "My Submissions shows items you have sent for approval and their current status. History is the complete archive of every approved or rejected request. The Rules tab is where you define every approval threshold — the dollar amount, the document type (PO, credit release, discount), and which roles must approve in sequence.",
@@ -446,7 +446,7 @@ export const TOURS = {
         body: "For every lot of food in your system, Kernel tracks the full chain of custody from supplier to customer — the Key Data Elements (KDEs) and Critical Tracking Events (CTEs) required by FSMA Rule 204.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'PACA, Allergens & Audit Log',
         body: "Switch tabs for PACA dispute tracking (produce payment deadlines), allergen management (Big 9 labeling compliance), cold chain temperature logs, and the immutable audit journal for every data change.",
@@ -471,7 +471,7 @@ export const TOURS = {
         body: "The Business Profile tab is where you set your company name, address, tax ID, and FDA registration number. These appear on every printed document — POs, invoices, and recall letters. Update them once and they update everywhere.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'Feature Flags, Modules & Roles',
         body: "Use the Feature Toggles tab to enable or disable specific capabilities. Module Visibility controls which tabs appear in the sidebar. Role Profiles sets the default permissions for each job type.",
@@ -496,8 +496,8 @@ export const TOURS = {
         body: "The user list shows every team member with their role, last login, and active status. Click any user to edit their role, change their email, or apply per-user permission overrides.",
       },
       {
-        targetId: 'kernal-topbar',
-        position: 'bottom',
+        targetId: 'kernal-main',
+        position: null,
         title: 'Roles & Permission Overrides',
         body: "Each role has a default permission set defined in Settings → Role Profiles. In User Management, you can grant or restrict individual permissions for any user on top of their role defaults.",
       },
@@ -522,8 +522,8 @@ export const TOURS = {
         body: 'Try questions like: "What\'s our margin on the Tampa route this week?", "Which customers haven\'t ordered in 30 days?", or "What\'s our current inventory value for frozen beef?" — Kernel answers immediately.',
       },
       {
-        targetId: 'kernal-topbar',
-        position: 'bottom',
+        targetId: 'kernal-main',
+        position: null,
         title: 'Query History & Pinned Answers',
         body: "Your recent queries are saved in history. Pin any answer to your dashboard for quick access. Complex queries can be saved as named reports in the Report Builder module.",
       },
@@ -547,7 +547,7 @@ export const TOURS = {
         body: "The report library shows all saved reports — your custom ones and Kernel's built-in templates. Click any report to run it instantly with the latest data, or edit it to change fields, filters, or grouping.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'Build, Schedule & Export',
         body: "Click + New Report to drag-and-drop fields from any module into a custom view. Set a schedule (daily, weekly, monthly) and Kernel emails the report as CSV or PDF automatically.",
@@ -573,7 +573,7 @@ export const TOURS = {
         body: "Each connected integration shows its sync status, last successful run, and the number of records synced. A red status means the connection needs attention — click it to see the error and reconnect.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'Add & Configure Connectors',
         body: "Click + Add Integration to browse the connector catalog. Each connector walks you through OAuth authorization — no API keys to copy or paste. Sync direction and field mapping are configurable.",
@@ -598,7 +598,7 @@ export const TOURS = {
         body: "All inbound and outbound EDI transactions appear here. Inbound 850s (customer POs) become Kernel orders automatically. Outbound 810s (invoices) are generated from delivered orders and transmitted on schedule.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'Trading Partners & Acknowledgements',
         body: "The Trading Partners tab manages your EDI connections per partner — ISA/GS identifiers, transmission schedules, and document types. The 997 Functional Acknowledgement is handled automatically.",
@@ -623,7 +623,7 @@ export const TOURS = {
         body: "Create and manage API credentials here. Each key has a scope (read-only or read-write), a name, and a last-used timestamp. Rotate or revoke keys instantly if a credential is compromised.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'API Explorer, Webhooks & Event Log',
         body: "The API Explorer tab lets you browse and test every endpoint interactively against your live data. The Webhooks tab configures real-time event delivery to any URL — subscribe to events like order created, invoice paid, or stock below reorder. The Event Log tab shows every API call and webhook delivery attempt with its status and payload.",
@@ -648,7 +648,7 @@ export const TOURS = {
         body: "All incoming orders from connected channels appear here, tagged by source. Each order shows channel, customer, items ordered, payment status, and current fulfillment status in Kernel.",
       },
       {
-        targetId: 'kernal-topbar',
+        targetId: 'kernal-module-tabs',
         position: 'bottom',
         title: 'Channel Settings & Catalog Sync',
         body: "The Channels tab manages each connected store — sync frequency, order import rules, and inventory export settings. The Catalog Sync tab maps your Kernel SKUs to the product IDs in each channel.",

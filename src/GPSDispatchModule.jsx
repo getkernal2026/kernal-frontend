@@ -710,7 +710,7 @@ export default function GPSDispatchModule() {
         </div>
 
         {/* Tab nav */}
-        <div className="flex gap-1">
+        <div id="kernal-module-tabs" className="flex gap-1">
           {TABS.map(({ id, label, icon: Icon }) => (
             <button key={id} onClick={() => setTab(id)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${

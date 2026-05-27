@@ -2358,7 +2358,7 @@ export default function LossPreventionModule() {
           <p className="text-sm text-gray-500 mt-0.5">Audit journal, inventory lockdown gates, and per-employee activity for internal investigations.</p>
         </div>
 
-        <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1">
+        <div id="kernal-module-tabs" className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1">
           {tabs.map(t => {
             const Icon = t.Icon;
             const isActive = tab === t.id;

@@ -1226,7 +1226,7 @@ export default function InventoryModule() {
           </div>
 
           {/* TABS */}
-          <div className="flex border-b border-gray-800 overflow-x-auto">
+          <div id="kernal-module-tabs" className="flex border-b border-gray-800 overflow-x-auto">
             {tabs.map(({ id, Icon, label }) => (
               <button key={id} onClick={() => setActiveTab(id)}
                 className={activeTab === id ? UI.tabActive : UI.tabInactive}>
