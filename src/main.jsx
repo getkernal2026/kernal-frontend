@@ -19,6 +19,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 }
 import { MOCK_INVENTORY } from './shared/mockInventory.js';
 
+import SuperAdminModule         from './SuperAdminModule.jsx';
 import InventoryModule          from './InventoryModule.jsx';
 import LogisticsModule          from './LogisticsModule.jsx';
 import ProcurementModule        from './ProcurementModule.jsx';
@@ -1345,6 +1346,19 @@ function AuthGate() {
   }
 
   if (!authUser) return <LoginScreen />;
+
+  // Superadmin users get the owner portal — not the normal app
+  if (authUser.user_metadata?.role === 'superadmin') {
+    return (
+      <SuperAdminModule
+        authUser={authUser}
+        onSignOut={async () => {
+          const { supabase } = await import('./lib/supabase.js');
+          await supabase.auth.signOut();
+        }}
+      />
+    );
+  }
 
   return <KernalShell />;
 }

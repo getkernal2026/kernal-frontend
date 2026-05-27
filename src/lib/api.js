@@ -98,4 +98,24 @@ export const api = {
     updateUser:   (id, body)     => authFetch(`/api/v1/admin/users/${id}`, { method: 'PATCH',  body: JSON.stringify(body) }),
     deactivateUser: (id)         => authFetch(`/api/v1/admin/users/${id}`, { method: 'DELETE' }),
   },
+
+  // ── Superadmin (requires superadmin role) ─────────────────────────────────
+  superadmin: {
+    // Stats
+    getStats:       ()           => authFetch('/api/v1/superadmin/stats'),
+
+    // Tenants
+    listTenants:    ()           => authFetch('/api/v1/superadmin/tenants'),
+    createTenant:   (body)       => authFetch('/api/v1/superadmin/tenants', { method: 'POST',   body: JSON.stringify(body) }),
+    updateTenant:   (id, body)   => authFetch(`/api/v1/superadmin/tenants/${id}`, { method: 'PATCH',  body: JSON.stringify(body) }),
+
+    // Users (cross-tenant)
+    listUsers:      (params = {}) => authFetch(`/api/v1/superadmin/users${qs(params)}`),
+    updateUser:     (id, body)    => authFetch(`/api/v1/superadmin/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+    // Billing
+    getInvoices:    (tenantId)   => authFetch(`/api/v1/superadmin/tenants/${tenantId}/invoices`),
+    attachBilling:  (tenantId, body) => authFetch(`/api/v1/superadmin/tenants/${tenantId}/billing/attach`, { method: 'POST', body: JSON.stringify(body) }),
+    cancelBilling:  (tenantId)   => authFetch(`/api/v1/superadmin/tenants/${tenantId}/billing/cancel`, { method: 'DELETE' }),
+  },
 };
