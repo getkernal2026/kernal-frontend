@@ -5,6 +5,7 @@ import { UI } from './ui.js';
 import { Modal, ModalOverlay, Overlay, ModalBox, ModalHeader, DocModalHeader } from './shared/Modal.jsx';
 
 import { TODAY, StatusBadge, PrintButton, ExportButton } from './shared/components.jsx';
+import { DEMO_MODE } from './lib/demoMode.js';
 
 import {
   LayoutDashboard, Building2, Users, CheckSquare, Landmark, BarChart3,
@@ -881,10 +882,10 @@ export default function AccountingModule() {
   const [verifiedStops,  setVerifiedStops]  = useState({});   // { [stopId]: true }
   const [signedRoutes,   setSignedRoutes]   = useState({});   // { [driverId]: true }
   const [expandedDriver, setExpandedDriver] = useState(null); // driverId string
-  const [vendors, setVendors]       = useState(INIT_VENDORS);
-  const [bankAccounts, setBankAccounts] = useState(INIT_BANK_ACCOUNTS);
-  const [checks, setChecks]         = useState(INIT_CHECKS);
-  const [invoices, setInvoices]     = useState(INIT_INVOICES);
+  const [vendors, setVendors]       = useState(DEMO_MODE ? INIT_VENDORS : []);
+  const [bankAccounts, setBankAccounts] = useState(DEMO_MODE ? INIT_BANK_ACCOUNTS : []);
+  const [checks, setChecks]         = useState(DEMO_MODE ? INIT_CHECKS : []);
+  const [invoices, setInvoices]     = useState(DEMO_MODE ? INIT_INVOICES : []);
 
   // ── Drain pending invoices pushed from Logistics (catch-weight billing) ──
   // The hand-off pattern: Logistics → addPendingInvoice(); useEffect here
@@ -928,12 +929,12 @@ export default function AccountingModule() {
     });
     setInvoices(prev => [...normalized, ...prev]);
   }, [pendingInvoices, consumePendingInvoices]);
-  const [expenses, setExpenses]     = useState(INIT_EXPENSES);
-  const [reconciliations, setReconciliations] = useState(INIT_RECONCILIATIONS);
+  const [expenses, setExpenses]     = useState(DEMO_MODE ? INIT_EXPENSES : []);
+  const [reconciliations, setReconciliations] = useState(DEMO_MODE ? INIT_RECONCILIATIONS : []);
 
   // ── Three-Way Match state ────────────────────────────────────────────────────
-  const [goodsReceipts, setGoodsReceipts] = useState(INIT_GOODS_RECEIPTS);
-  const [vendorBills,   setVendorBills]   = useState(INIT_VENDOR_BILLS);
+  const [goodsReceipts, setGoodsReceipts] = useState(DEMO_MODE ? INIT_GOODS_RECEIPTS : []);
+  const [vendorBills,   setVendorBills]   = useState(DEMO_MODE ? INIT_VENDOR_BILLS : []);
   const [matchFilter,   setMatchFilter]   = useState('all');   // 'all'|'matched'|'exception'|'pending'
   const [matchDetailId, setMatchDetailId] = useState(null);    // poNumber of expanded row
 
@@ -950,8 +951,8 @@ export default function AccountingModule() {
   const [profitFilter, setProfitFilter]   = useState('All');
 
   // ── payment processing state ─────────────────────────────────────────────────
-  const [paymentMethods, setPaymentMethods]         = useState(INIT_PAYMENT_METHODS);
-  const [paymentTxns,    setPaymentTxns]            = useState(INIT_PAYMENT_TRANSACTIONS);
+  const [paymentMethods, setPaymentMethods]         = useState(DEMO_MODE ? INIT_PAYMENT_METHODS : []);
+  const [paymentTxns,    setPaymentTxns]            = useState(DEMO_MODE ? INIT_PAYMENT_TRANSACTIONS : []);
   const [paySubTab,      setPaySubTab]              = useState('transactions'); // 'transactions'|'methods'|'portal'
   const [payTxnFilter,   setPayTxnFilter]           = useState('All');   // All|Settled|Processing|Pending|Failed
   const [payTxnSearch,   setPayTxnSearch]           = useState('');

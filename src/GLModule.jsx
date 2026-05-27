@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useKernal } from './KernalContext.jsx';
+import { DEMO_MODE } from './lib/demoMode.js';
 import {
   BookOpen, Plus, ChevronDown, ChevronRight, ChevronUp,
   Lock, Unlock, FileText, AlertTriangle, CheckCircle2,
@@ -1064,9 +1065,9 @@ export default function GLModule() {
   const { activeUser } = useKernal();
 
   const [activeTab,    setActiveTab]    = useState('coa');
-  const [accounts,     setAccounts]     = useState(INITIAL_ACCOUNTS);
-  const [journals,     setJournals]     = useState(INITIAL_JOURNALS);
-  const [periods,      setPeriods]      = useState(INITIAL_PERIODS);
+  const [accounts,     setAccounts]     = useState(DEMO_MODE ? INITIAL_ACCOUNTS : []);
+  const [journals,     setJournals]     = useState(DEMO_MODE ? INITIAL_JOURNALS : []);
+  const [periods,      setPeriods]      = useState(DEMO_MODE ? INITIAL_PERIODS : []);
   const [activePeriod, setActivePeriod] = useState('FY26-05');
   const [showNewJE,    setShowNewJE]    = useState(false);
   const [drilldown,    setDrilldown]    = useState(null); // account object

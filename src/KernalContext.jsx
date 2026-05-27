@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from './lib/supabase.js';
 import { api } from './lib/api.js';
+import { DEMO_MODE } from './lib/demoMode.js';
 
 
 // ── Company Information ───────────────────────────────────────────────────────
@@ -491,6 +492,27 @@ export function KernalProvider({ children }) {
   const login  = (email, password) => supabase.auth.signInWithPassword({ email, password });
   const logout = ()                => supabase.auth.signOut();
 
+  // In production (non-demo) mode: once the auth user is known, seed a minimal
+  // user entry so the rest of the app has an activeUser to work with.
+  // Role + full_name come from user_metadata written at invite time.
+  useEffect(() => {
+    if (DEMO_MODE || !authUser) return;
+    const meta = authUser.user_metadata || {};
+    setUsers(prev => {
+      const exists = prev.find(u => u.id === authUser.id);
+      if (exists) return prev;
+      return [{
+        id:       authUser.id,
+        name:     meta.full_name || authUser.email,
+        email:    authUser.email,
+        role:     meta.role || 'admin',
+        active:   true,
+        overrides: {},
+      }, ...prev];
+    });
+    setActiveUserId(authUser.id);
+  }, [authUser]);
+
   // ── Live API data (populated once auth is ready) ──────────────────────────
   // These mirror the backend tables and are available to all modules via context.
   // Modules may still maintain their own enriched local state; these are the
@@ -546,12 +568,12 @@ export function KernalProvider({ children }) {
   const refreshOrders    = () => api.orders.list({ limit: 100 }).then(r => setApiOrders(r.data || []));
 
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
-  const [users,    setUsers]    = useState(INITIAL_USERS);
+  const [users,    setUsers]    = useState(DEMO_MODE ? INITIAL_USERS : []);
   // Live copy of role permission profiles — editable by admin at runtime
   const [roleProfiles, setRoleProfiles] = useState(() => ({ ...ROLE_PERMISSIONS }));
   const [draftReorderPOs, setDraftReorderPOs] = useState([]);
-  const [approvalRequests, setApprovalRequests] = useState(INITIAL_APPROVAL_REQUESTS);
-  const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
+  const [approvalRequests, setApprovalRequests] = useState(DEMO_MODE ? INITIAL_APPROVAL_REQUESTS : []);
+  const [notifications, setNotifications] = useState(DEMO_MODE ? INITIAL_NOTIFICATIONS : []);
   // ── Pending invoices — Logistics pushes a delivered-order invoice payload here,
   // Accounting drains it on mount and adds entries to its local AR state. ───
   const [pendingInvoices, setPendingInvoices] = useState([]);
@@ -562,10 +584,11 @@ export function KernalProvider({ children }) {
   const [quickCreateAction, setQuickCreateAction] = useState(null);
   // ── Audit log — append-only event stream for Loss Prevention. Modules emit
   // events via logAudit(); the Loss Prevention portal reads them. ─────────
-  const [auditLog, setAuditLog] = useState(INITIAL_AUDIT_LOG);
+  const [auditLog, setAuditLog] = useState(DEMO_MODE ? INITIAL_AUDIT_LOG : []);
   // ── Document Attachments — keyed by recordId (e.g. 'PO-AP-0881', 'CUST-101')
   // Each entry: { id, name, size, mimeType, dataUrl, uploadedBy, uploadedAt, tag }
   const [attachments, setAttachments] = useState(() => {
+    if (!DEMO_MODE) return {};
     const mock = (id, name, size, mimeType, uploadedBy, uploadedAt, tag) =>
       ({ id, name, size, mimeType, dataUrl: null, uploadedBy, uploadedAt, tag, isMock: true });
     return {
@@ -685,7 +708,9 @@ export function KernalProvider({ children }) {
   // Filtered views used by the Loss Prevention portal
   const auditLogForUser = (userId) => auditLog.filter(e => e.userId === userId);
   const auditLogForModule = (moduleId) => auditLog.filter(e => e.moduleId === moduleId);
-  const [activeUserId, setActiveUserId] = useState('U001'); // start as admin (Carlos)
+  // Demo mode: start as the first mock user (U001 = Carlos M.).
+  // Production: null until authUser is loaded; effect below resolves to the real user id.
+  const [activeUserId, setActiveUserId] = useState(DEMO_MODE ? 'U001' : null);
 
   const activeUser = users.find(u => u.id === activeUserId) || users[0];
 

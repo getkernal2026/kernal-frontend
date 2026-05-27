@@ -7,6 +7,7 @@ import AttachmentsPanel from './shared/AttachmentsPanel.jsx';
 import RecordHistory from './shared/RecordHistory.jsx';
 
 import { TODAY, StatusBadge, PrintButton, ExportButton } from './shared/components.jsx';
+import { DEMO_MODE } from './lib/demoMode.js';
 
 import {
   ShoppingCart, Package, Truck, AlertTriangle, CheckCircle,
@@ -1582,12 +1583,12 @@ export default function ProcurementModule() {
       clearQuickCreateAction();
     }
   }, [quickCreateAction, clearQuickCreateAction]);
-  const [purchaseOrders, setPurchaseOrders] = useState(INITIAL_POS);
-  const [vendors] = useState(INITIAL_VENDORS);
-  const [aiUpdates, setAiUpdates] = useState(INITIAL_AI_UPDATES);
-  const [rtvs, setRtvs] = useState(INITIAL_RTVS);
-  const [rebateAgreements, setRebateAgreements] = useState(INIT_REBATE_AGREEMENTS);
-  const [rebateClaims, setRebateClaims]         = useState(INIT_REBATE_CLAIMS);
+  const [purchaseOrders, setPurchaseOrders] = useState(DEMO_MODE ? INITIAL_POS : []);
+  const [vendors] = useState(DEMO_MODE ? INITIAL_VENDORS : []);
+  const [aiUpdates, setAiUpdates] = useState(DEMO_MODE ? INITIAL_AI_UPDATES : []);
+  const [rtvs, setRtvs] = useState(DEMO_MODE ? INITIAL_RTVS : []);
+  const [rebateAgreements, setRebateAgreements] = useState(DEMO_MODE ? INIT_REBATE_AGREEMENTS : []);
+  const [rebateClaims, setRebateClaims]         = useState(DEMO_MODE ? INIT_REBATE_CLAIMS : []);
 
   // Modal targets
   const [receivingTarget, setReceivingTarget] = useState(null);

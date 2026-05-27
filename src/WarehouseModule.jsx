@@ -10,6 +10,7 @@ import { useKernal } from './KernalContext.jsx';
 import { UI } from './ui.js';
 import { TODAY, StatusBadge } from './shared/components.jsx';
 import { MOCK_INVENTORY, INVENTORY_BY_ID } from './shared/mockInventory.js';
+import { DEMO_MODE } from './lib/demoMode.js';
 
 import {
   PackageSearch, Truck, PackageCheck, ClipboardList, Search,
@@ -1037,18 +1038,18 @@ function InventoryByLocationTab({ locations }) {
 // ─── ASSOCIATE PORTAL ─────────────────────────────────────────────────────────
 export default function WarehouseModule() {
   const [activeTab, setActiveTab]              = useState('fulfillment');
-  const [orders, setOrders]                    = useState(INIT_ORDERS);
+  const [orders, setOrders]                    = useState(DEMO_MODE ? INIT_ORDERS : []);
   const [searchQuery, setSearchQuery]          = useState('');
   const [packingModalOrder, setPackingModalOrder] = useState(null);
   const [packingData, setPackingData]          = useState({});
   const [toast, setToast]                      = useState(null);
 
-  const [locationStock, setLocationStock]      = useState(INITIAL_STOCK);
+  const [locationStock, setLocationStock]      = useState(DEMO_MODE ? INITIAL_STOCK : {});
   const locations = useMemo(() => buildLocations(locationStock), [locationStock]);
 
   // Lifted task state — shared across tabs + associate portal
-  const [pickTasks,    setPickTasks]    = useState(INITIAL_PICK_TASKS);
-  const [putawayTasks, setPutawayTasks] = useState(INITIAL_PUTAWAY);
+  const [pickTasks,    setPickTasks]    = useState(DEMO_MODE ? INITIAL_PICK_TASKS : []);
+  const [putawayTasks, setPutawayTasks] = useState(DEMO_MODE ? INITIAL_PUTAWAY : []);
 
   const showToast = useCallback((msg, type = 'success') => {
     setToast({ msg, type });

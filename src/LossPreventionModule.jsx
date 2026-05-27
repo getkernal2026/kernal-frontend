@@ -12,6 +12,7 @@ import {
   Thermometer, Wifi, WifiOff, Radio, Zap, Download, X,
 } from 'lucide-react';
 import { ALLERGEN_DATA, BIG_9, CUSTOMER_ALLERGEN_EXPOSURE } from './shared/allergenData.js';
+import { DEMO_MODE } from './lib/demoMode.js';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 const fmtRel = (iso) => {
@@ -1312,9 +1313,9 @@ function PacaTab() {
   const [expandedInv, setExpandedInv] = useState(null);
   const [expandedRej, setExpandedRej] = useState(null);
   const [expandedDis, setExpandedDis] = useState(null);
-  const [invoices, setInvoices]       = useState(INIT_PACA_INVOICES);
-  const [rejections, setRejections]   = useState(INIT_PACA_REJECTIONS);
-  const [disputes, setDisputes]       = useState(INIT_PACA_DISPUTES);
+  const [invoices, setInvoices]       = useState(DEMO_MODE ? INIT_PACA_INVOICES : []);
+  const [rejections, setRejections]   = useState(DEMO_MODE ? INIT_PACA_REJECTIONS : []);
+  const [disputes, setDisputes]       = useState(DEMO_MODE ? INIT_PACA_DISPUTES : []);
   const [showTrustModal, setShowTrustModal] = useState(false);
 
   const fmt$ = v => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(v);
@@ -1784,8 +1785,8 @@ const HACCP_LOT_META = {
 
 function ColdChainTab() {
   const [coldSubTab,  setColdSubTab]  = useState('monitor');
-  const [sensors,     setSensors]     = useState(INIT_COLD_SENSORS);
-  const [tempLog,     setTempLog]     = useState(INIT_TEMP_LOG);
+  const [sensors,     setSensors]     = useState(DEMO_MODE ? INIT_COLD_SENSORS : []);
+  const [tempLog,     setTempLog]     = useState(DEMO_MODE ? INIT_TEMP_LOG : []);
   const [logFilter,   setLogFilter]   = useState('All');
   const [logLotFilter, setLogLotFilter] = useState('All');
   const [haccpLot,    setHaccpLot]    = useState('LOT-G-CRITICAL');

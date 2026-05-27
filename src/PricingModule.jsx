@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useKernal } from './KernalContext.jsx';
+import { DEMO_MODE } from './lib/demoMode.js';
 import {
   Tag, BookOpen, FileText, Calculator, Plus,
   X, ChevronDown, ChevronUp, Calendar, Users, TrendingDown,
@@ -864,9 +865,9 @@ export default function PricingModule() {
   const { activeUser, logAudit } = useKernal();
 
   const [activeTab,  setActiveTab]  = useState('books');
-  const [priceBooks, setPriceBooks] = useState(INIT_PRICE_BOOKS);
-  const [contracts,  setContracts]  = useState(INIT_CONTRACTS);
-  const [promos,     setPromos]     = useState(INIT_PROMOS);
+  const [priceBooks, setPriceBooks] = useState(DEMO_MODE ? INIT_PRICE_BOOKS : []);
+  const [contracts,  setContracts]  = useState(DEMO_MODE ? INIT_CONTRACTS : []);
+  const [promos,     setPromos]     = useState(DEMO_MODE ? INIT_PROMOS : []);
   const [toast,      setToast]      = useState(null);
 
   const showToast = (message, type = 'success') => {

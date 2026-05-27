@@ -5,6 +5,7 @@ import { Overlay, ModalBox, ModalHeader } from './shared/Modal.jsx';
 import { TODAY } from './shared/components.jsx';
 import { MOCK_INVENTORY } from './shared/mockInventory.js';
 import { REP_RATES, MONTHLY_HISTORY, calcOrderCommission, QUALIFYING_STATUSES } from './shared/commissionData.js';
+import { DEMO_MODE } from './lib/demoMode.js';
 
 import {
   Home, Map as MapIcon, Building2, ShoppingCart, MapPin, TrendingUp,
@@ -297,10 +298,10 @@ export default function FieldSalesPortal() {
   const [showChangeRequest,  setShowChangeRequest]  = useState(false);
 
   // Data state
-  const [customers,  setCustomers]   = useState(INITIAL_CUSTOMERS);
-  const [orders,     setOrders]      = useState(INITIAL_ORDERS);
-  const [leads,      setLeads]       = useState(INITIAL_LEADS);
-  const [activities, setActivities]  = useState(INITIAL_ACTIVITIES);
+  const [customers,  setCustomers]   = useState(DEMO_MODE ? INITIAL_CUSTOMERS : []);
+  const [orders,     setOrders]      = useState(DEMO_MODE ? INITIAL_ORDERS : []);
+  const [leads,      setLeads]       = useState(DEMO_MODE ? INITIAL_LEADS : []);
+  const [activities, setActivities]  = useState(DEMO_MODE ? INITIAL_ACTIVITIES : []);
   const [payments,   setPayments]    = useState([]);     // collected payments
   const [cart,       setCart]        = useState({});     // sku -> { qty, unitPrice, customPrice? }
   const [cartCustomerId, setCartCustomerId] = useState(null);

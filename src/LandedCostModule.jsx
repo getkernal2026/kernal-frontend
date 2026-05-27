@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useKernal } from './KernalContext.jsx';
+import { DEMO_MODE } from './lib/demoMode.js';
 import {
   Anchor, Ship, DollarSign, Package, BarChart2, Globe,
   Plus, X, ChevronRight, Info, TrendingUp,
@@ -547,7 +548,7 @@ function ReportsTab({ shipments }) {
 export default function LandedCostModule() {
   const { can } = useKernal();
   const [tab, setTab]           = useState('shipments');
-  const [shipments, setShipments] = useState(INIT_SHIPMENTS);
+  const [shipments, setShipments] = useState(DEMO_MODE ? INIT_SHIPMENTS : []);
   const [selectedId, setSelectedId] = useState('SHP-2026-001');
 
   const tabs = [

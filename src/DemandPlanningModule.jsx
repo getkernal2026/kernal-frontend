@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useKernal } from './KernalContext.jsx';
 import { MOCK_INVENTORY } from './shared/mockInventory.js';
+import { DEMO_MODE } from './lib/demoMode.js';
 import {
   TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2,
   ShoppingCart, Package, BarChart3, Settings2, ChevronDown, ChevronUp,
@@ -1085,7 +1086,7 @@ function AIInsightsTab({ enriched, onAddToPO, addedToPO }) {
 export default function DemandPlanningModule() {
   const { activeUser } = useKernal();
   const [activeTab, setActiveTab] = useState('queue');
-  const [config, setConfig] = useState(INITIAL_DEMAND_CONFIG);
+  const [config, setConfig] = useState(DEMO_MODE ? INITIAL_DEMAND_CONFIG : []);
   const [addedToPO, setAddedToPO] = useState(new Set());
   const [toast, setToast] = useState(null);
 

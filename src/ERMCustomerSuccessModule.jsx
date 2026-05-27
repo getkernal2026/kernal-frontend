@@ -9,6 +9,7 @@ import RecordHistory from './shared/RecordHistory.jsx';
 import { TODAY, StatusBadge, PrintButton, ExportButton } from './shared/components.jsx';
 
 import { MOCK_INVENTORY, INVENTORY_BY_ID, INVENTORY_BY_SKU } from './shared/mockInventory.js';
+import { DEMO_MODE } from './lib/demoMode.js';
 
 import {
   Search, ArrowLeft, Save, Settings, TrendingUp, TrendingDown, Package, Truck, User, RefreshCw,
@@ -383,7 +384,7 @@ export default function ERMCustomerSuccessModule() {
   const creditTermsEnabled     = settings.features?.creditTerms !== false;
   const pricingTiers = settings.pricing?.tiers || [];
   const tierMeta = (tierId) => pricingTiers.find(t => t.id === tierId) || { label: tierId, color: 'text-gray-400', bg: 'bg-gray-700/60' };
-  const [customers, setCustomers]             = useState(MOCK_CUSTOMERS);
+  const [customers, setCustomers]             = useState(DEMO_MODE ? MOCK_CUSTOMERS : []);
   const [searchQuery, setSearchQuery]         = useState('');
   const [statusFilter, setStatusFilter]       = useState('All');
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
@@ -397,9 +398,9 @@ export default function ERMCustomerSuccessModule() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   // ── Customer Rebate state ─────────────────────────────────────────────────
-  const [customerPrograms, setCustomerPrograms] = useState(INIT_CUSTOMER_PROGRAMS);
-  const [customerAccruals, setCustomerAccruals] = useState(INIT_CUSTOMER_ACCRUALS);
-  const [creditMemos, setCreditMemos]           = useState(INIT_CREDIT_MEMOS);
+  const [customerPrograms, setCustomerPrograms] = useState(DEMO_MODE ? INIT_CUSTOMER_PROGRAMS : []);
+  const [customerAccruals, setCustomerAccruals] = useState(DEMO_MODE ? INIT_CUSTOMER_ACCRUALS : []);
+  const [creditMemos, setCreditMemos]           = useState(DEMO_MODE ? INIT_CREDIT_MEMOS : []);
   const [rebateSubTab, setRebateSubTab]         = useState('programs'); // 'programs'|'accruals'|'memos'
   const [rebateProgramFilter, setRebateProgramFilter] = useState('Active');
   const [rebateMemoFilter, setRebateMemoFilter]       = useState('All');

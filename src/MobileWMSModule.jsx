@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useKernal } from './KernalContext.jsx';
+import { DEMO_MODE } from './lib/demoMode.js';
 import {
   Smartphone, ScanBarcode, PackageCheck, MoveRight, ClipboardList,
   Check, X, AlertTriangle, Clock, ChevronRight, ChevronDown,
@@ -683,10 +684,10 @@ export default function MobileWMSModule() {
   const { can } = useKernal();
   const [tab, setTab] = useState('receive');
 
-  const [receiveTasks, setReceiveTasks] = useState(INIT_RECEIVE_TASKS);
-  const [putawayTasks, setPutawayTasks] = useState(INIT_PUTAWAY_TASKS);
-  const [waves, setWaves]               = useState(INIT_WAVES);
-  const [cycleCounts, setCycleCounts]   = useState(INIT_CYCLE_COUNTS);
+  const [receiveTasks, setReceiveTasks] = useState(DEMO_MODE ? INIT_RECEIVE_TASKS : []);
+  const [putawayTasks, setPutawayTasks] = useState(DEMO_MODE ? INIT_PUTAWAY_TASKS : []);
+  const [waves, setWaves]               = useState(DEMO_MODE ? INIT_WAVES : []);
+  const [cycleCounts, setCycleCounts]   = useState(DEMO_MODE ? INIT_CYCLE_COUNTS : []);
 
   const tabs = [
     { id: 'receive', label: 'Receive',     Icon: PackageCheck    },

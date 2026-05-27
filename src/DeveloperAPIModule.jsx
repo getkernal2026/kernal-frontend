@@ -8,6 +8,7 @@ import {
   Shield, BookOpen, Braces, Play,
 } from 'lucide-react';
 import { useKernal } from './KernalContext.jsx';
+import { DEMO_MODE } from './lib/demoMode.js';
 
 // ── Local Company Info (Rolldown IIFE TDZ fix) ───────────────────────────────
 const COMPANY_INFO = {
@@ -207,7 +208,7 @@ function fmtTs(ts) {
 
 // ═══ Sub-tab: API Keys ════════════════════════════════════════════════════════
 function ApiKeysTab({ isDark }) {
-  const [keys, setKeys]               = useState(INIT_API_KEYS);
+  const [keys, setKeys]               = useState(DEMO_MODE ? INIT_API_KEYS : []);
   const [revealId, setRevealId]       = useState(null);
   const [copiedId, setCopiedId]       = useState(null);
   const [showModal, setShowModal]     = useState(false);
@@ -580,7 +581,7 @@ function ApiExplorerTab({ isDark }) {
 
 // ═══ Sub-tab: Webhooks ════════════════════════════════════════════════════════
 function WebhooksTab({ isDark }) {
-  const [webhooks, setWebhooks]   = useState(INIT_WEBHOOKS);
+  const [webhooks, setWebhooks]   = useState(DEMO_MODE ? INIT_WEBHOOKS : []);
   const [showModal, setShowModal] = useState(false);
   const [testingId, setTestingId] = useState(null);
   const [testedId, setTestedId]   = useState(null);
@@ -811,7 +812,7 @@ function WebhooksTab({ isDark }) {
 
 // ═══ Sub-tab: Event Log ═══════════════════════════════════════════════════════
 function EventLogTab({ isDark }) {
-  const [events]                        = useState(INIT_EVENT_LOG);
+  const [events]                        = useState(DEMO_MODE ? INIT_EVENT_LOG : []);
   const [typeFilter, setTypeFilter]     = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [expandedEvt, setExpandedEvt]   = useState(null);

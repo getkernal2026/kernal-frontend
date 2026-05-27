@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useKernal } from './KernalContext.jsx';
 import { UI } from './ui.js';
+import { DEMO_MODE } from './lib/demoMode.js';
 
 const fmtMoney = v => '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -170,10 +171,10 @@ export default function EDIModule() {
   const access = can('edi');
 
   const [tab, setTab]             = useState('dashboard');
-  const [pos850, setPos850]       = useState(INIT_850);
-  const [outbound, setOutbound]   = useState(INIT_OUTBOUND);
-  const [partners]                = useState(INIT_PARTNERS);
-  const [txnLog, setTxnLog]       = useState(INIT_LOG);
+  const [pos850, setPos850]       = useState(DEMO_MODE ? INIT_850 : []);
+  const [outbound, setOutbound]   = useState(DEMO_MODE ? INIT_OUTBOUND : []);
+  const [partners]                = useState(DEMO_MODE ? INIT_PARTNERS : []);
+  const [txnLog, setTxnLog]       = useState(DEMO_MODE ? INIT_LOG : []);
   const [selected850, setSelected850] = useState(null);
   const [logDirFilter, setLogDirFilter] = useState('all');
   const [logTypeFilter, setLogTypeFilter] = useState('all');

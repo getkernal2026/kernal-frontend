@@ -7,6 +7,7 @@ import { TODAY, StatusBadge, PrintButton, ExportButton } from './shared/componen
 import AttachmentsPanel from './shared/AttachmentsPanel.jsx';
 import RecordHistory from './shared/RecordHistory.jsx';
 import { ALLERGEN_DATA, BIG_9 } from './shared/allergenData.js';
+import { DEMO_MODE } from './lib/demoMode.js';
 
 import {
   Search, Plus, Package, AlertCircle, Check,
@@ -902,8 +903,8 @@ export default function InventoryModule() {
   const fsmaEnabled       = settings.features.fsmaTraceability;
   const customerPricing   = settings.features.customerPricing;
 
-  const [inventory, setInventory]       = useState(initialInventory);
-  const [transfers, setTransfers]       = useState(INIT_TRANSFERS);
+  const [inventory, setInventory]       = useState(DEMO_MODE ? initialInventory : []);
+  const [transfers, setTransfers]       = useState(DEMO_MODE ? INIT_TRANSFERS : []);
   const [activeTab, setActiveTab]       = useState('inventory');
   const [generatedPOs,  setGeneratedPOs]  = useState({});    // { sku: poNumber } — tracks which SKUs have a PO in flight
   const [reorderToast,  setReorderToast]  = useState(null);  // { msg, count }

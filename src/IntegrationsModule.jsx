@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useKernal } from './KernalContext.jsx';
 import { UI } from './ui.js';
+import { DEMO_MODE } from './lib/demoMode.js';
 
 import {
   Link2, RefreshCw, CheckCircle2, XCircle, AlertCircle, Clock,
@@ -928,7 +929,7 @@ export default function IntegrationsModule() {
 
   const [syncConfig, setSyncConfig] = useState(initSyncConfig);
   const [mapping, setMapping]       = useState(DEFAULT_MAPPING_QBO);
-  const [syncLog, setSyncLog]       = useState(MOCK_SYNC_LOG);
+  const [syncLog, setSyncLog]       = useState(DEMO_MODE ? MOCK_SYNC_LOG : []);
   const [showSyncModal, setShowSyncModal] = useState(false);
 
   // When connection changes, reset mapping defaults

@@ -7,6 +7,7 @@ import {
   CircleCheck, CircleDot,
 } from 'lucide-react';
 import { useKernal } from './KernalContext.jsx';
+import { DEMO_MODE } from './lib/demoMode.js';
 
 // ── Local Company Info (Rolldown IIFE TDZ fix) ────────────────────────────────
 const COMPANY_INFO = {
@@ -169,7 +170,7 @@ function AmazonLogo({ size = 22 }) {
 
 // ── Sub-tab: Channels ─────────────────────────────────────────────────────────
 function ChannelsTab({ isDark }) {
-  const [channels, setChannels] = useState(INIT_CHANNELS);
+  const [channels, setChannels] = useState(DEMO_MODE ? INIT_CHANNELS : []);
   const [syncing, setSyncing]   = useState(null);
   const [toast, setToast]       = useState(null);
 
@@ -311,7 +312,7 @@ function ChannelsTab({ isDark }) {
 
 // ── Sub-tab: Catalog Sync ─────────────────────────────────────────────────────
 function CatalogTab({ isDark }) {
-  const [catalog, setCatalog] = useState(INIT_CATALOG);
+  const [catalog, setCatalog] = useState(DEMO_MODE ? INIT_CATALOG : []);
   const [search, setSearch]   = useState('');
   const [catFilter, setCatFilter] = useState('All');
   const [syncing, setSyncing] = useState(null);
@@ -442,7 +443,7 @@ function CatalogTab({ isDark }) {
 
 // ── Sub-tab: Orders ────────────────────────────────────────────────────────────
 function OrdersTab({ isDark }) {
-  const [orders, setOrders]       = useState(INIT_CHANNEL_ORDERS);
+  const [orders, setOrders]       = useState(DEMO_MODE ? INIT_CHANNEL_ORDERS : []);
   const [statusFilter, setFilter] = useState('All');
   const [expanded, setExpanded]   = useState(null);
   const [importing, setImporting] = useState(null);

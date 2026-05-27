@@ -17,6 +17,7 @@ import { UI } from './ui.js';
 
 import { TODAY, StatusBadge, PrintButton, ExportButton } from './shared/components.jsx';
 import AttachmentsPanel from './shared/AttachmentsPanel.jsx';
+import { DEMO_MODE } from './lib/demoMode.js';
 
 // ─────────────────────────────────────────────
 // KERNAL DESIGN SYSTEM — UI_CLASSES
@@ -268,8 +269,8 @@ export default function LogisticsModule() {
   // Managers and admins may switch freely; drivers are locked to driver view only.
   const isDriver = activeUser?.role === 'driver';
   const [role, setRole] = useState(() => isDriver ? 'driver' : 'dispatcher');
-  const [orders, setOrders] = useState(MOCK_PACKED_ORDERS);
-  const [fleet,  setFleet]  = useState(MOCK_FLEET);
+  const [orders, setOrders] = useState(DEMO_MODE ? MOCK_PACKED_ORDERS : []);
+  const [fleet,  setFleet]  = useState(DEMO_MODE ? MOCK_FLEET : []);
 
   const [isOnline, setIsOnline] = useState(true);
 

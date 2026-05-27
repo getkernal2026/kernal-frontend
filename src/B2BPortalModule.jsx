@@ -15,6 +15,7 @@ import { Modal, ModalOverlay, Overlay, ModalBox, ModalHeader, DocModalHeader } f
 import { TODAY, StatusBadge, PrintButton, ExportButton } from './shared/components.jsx';
 
 import { MOCK_INVENTORY, INVENTORY_BY_ID, INVENTORY_BY_SKU } from './shared/mockInventory.js';
+import { DEMO_MODE } from './lib/demoMode.js';
 
 // ─── Design System Tokens ─────────────────────────────────────────────────────
 // FIX #10: UI constants object — consistent with Inventory, Logistics, Procurement
@@ -203,7 +204,7 @@ export default function B2BPortalModule() {
     ? pricingTiers.find(t => t.id === CUSTOMER.pricingTier)
     : null;
   const [activeTab, setActiveTab]           = useState('guide');
-  const [standingOrders, setStandingOrders] = useState(INITIAL_STANDING_ORDERS);
+  const [standingOrders, setStandingOrders] = useState(DEMO_MODE ? INITIAL_STANDING_ORDERS : []);
   const [showStandingModal, setShowStandingModal] = useState(false);
   const [editingStanding, setEditingStanding]     = useState(null);
   const [cart, setCart]                     = useState({});
