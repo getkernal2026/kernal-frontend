@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: './',   // Relative paths — makes the build work when opened directly from Finder (file://)
   build: {
-    outDir: "/tmp/kernal-build74",
+    outDir: "dist",
     emptyOutDir: true,
     // Disable Rolldown's identifier minification — it recycles short names across
     // React internals and app modules when the bundle is large, causing
