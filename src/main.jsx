@@ -1324,6 +1324,116 @@ function LoginScreen() {
   );
 }
 
+// ── Force Password Change ─────────────────────────────────────────────────────
+// Shown when authUser.user_metadata.must_change_password === true.
+// Uses the client-side Supabase SDK to update the password and clear the flag,
+// which triggers onAuthStateChange and refreshes authUser automatically.
+function ForcePasswordChange({ authUser }) {
+  const [pwd, setPwd]   = useState('');
+  const [conf, setConf] = useState('');
+  const [err, setErr]   = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setErr(null);
+    if (pwd.length < 8)  return setErr('Password must be at least 8 characters.');
+    if (pwd !== conf)    return setErr('Passwords do not match.');
+    setBusy(true);
+    try {
+      const { supabase: sb } = await import('./lib/supabase.js');
+      const { error } = await sb.auth.updateUser({
+        password: pwd,
+        data: { must_change_password: false },
+      });
+      if (error) throw error;
+      // authUser will refresh via onAuthStateChange → re-render with normal app
+    } catch (e) {
+      setErr(e.message);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{
+      minHeight: '100vh', background: '#030712', display: 'flex',
+      alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif',
+    }}>
+      <div style={{
+        background: '#111827', border: '1px solid #374151', borderRadius: 12,
+        padding: '2rem', width: '100%', maxWidth: 400,
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <p style={{ fontSize: 32, marginBottom: 8 }}>🔒</p>
+          <h1 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: 0 }}>
+            Set Your Password
+          </h1>
+          <p style={{ color: '#9ca3af', fontSize: 14, marginTop: 8 }}>
+            Welcome! You need to create a new password before continuing.
+          </p>
+          <p style={{ color: '#6b7280', fontSize: 12, marginTop: 4 }}>
+            Signed in as <span style={{ color: '#d1d5db' }}>{authUser?.email}</span>
+          </p>
+        </div>
+
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <label style={{ display: 'block', color: '#9ca3af', fontSize: 12, marginBottom: 6 }}>
+              New Password
+            </label>
+            <input
+              type="password"
+              value={pwd}
+              onChange={(e) => setPwd(e.target.value)}
+              required
+              minLength={8}
+              placeholder="At least 8 characters"
+              style={{
+                width: '100%', background: '#1f2937', border: '1px solid #374151',
+                color: '#fff', borderRadius: 6, padding: '10px 12px', fontSize: 14,
+                outline: 'none', boxSizing: 'border-box',
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', color: '#9ca3af', fontSize: 12, marginBottom: 6 }}>
+              Confirm Password
+            </label>
+            <input
+              type="password"
+              value={conf}
+              onChange={(e) => setConf(e.target.value)}
+              required
+              placeholder="Re-enter password"
+              style={{
+                width: '100%', background: '#1f2937', border: '1px solid #374151',
+                color: '#fff', borderRadius: 6, padding: '10px 12px', fontSize: 14,
+                outline: 'none', boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
+          {err && (
+            <p style={{ color: '#f87171', fontSize: 13, margin: 0 }}>{err}</p>
+          )}
+
+          <button
+            type="submit"
+            disabled={busy}
+            style={{
+              background: busy ? '#1d4ed8' : '#2563eb', color: '#fff', border: 'none',
+              borderRadius: 6, padding: '11px 0', fontSize: 14, fontWeight: 600,
+              cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.8 : 1,
+            }}
+          >
+            {busy ? 'Saving…' : 'Set Password & Continue'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Auth Gate — shows spinner → login → app ───────────────────────────────────
 function AuthGate() {
   const { authLoading, authUser } = useKernal();
@@ -1346,6 +1456,11 @@ function AuthGate() {
   }
 
   if (!authUser) return <LoginScreen />;
+
+  // Force password change if the flag is set (new accounts created by superadmin)
+  if (authUser.user_metadata?.must_change_password === true) {
+    return <ForcePasswordChange authUser={authUser} />;
+  }
 
   // Superadmin users get the owner portal — not the normal app
   if (authUser.user_metadata?.role === 'superadmin') {

@@ -87,13 +87,13 @@ function OverviewTab() {
 
 // ── Tab: Tenants ──────────────────────────────────────────────────────────────
 function TenantsTab() {
-  const [tenants, setTenants]   = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState(null);
+  const [tenants, setTenants]       = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [editTenant, setEditTenant] = useState(null);
-  const [saving, setSaving]     = useState(false);
-  const [search, setSearch]     = useState('');
+  const [inviteTarget, setInviteTarget] = useState(null); // tenant to add a user to
+  const [search, setSearch]         = useState('');
 
   const load = useCallback(() => {
     setLoading(true);
@@ -257,6 +257,100 @@ function TenantsTab() {
     );
   }
 
+  // ── Add-user-to-tenant modal ─────────────────────────────────────────────
+  function InviteUserModal({ tenant, onClose, onCreated }) {
+    const [form, setForm] = useState({ full_name: '', email: '', role: 'admin', job_class: '' });
+    const [err, setErr]   = useState(null);
+    const [busy, setBusy] = useState(false);
+    const [done, setDone] = useState(false);
+
+    const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+    const submit = async (e) => {
+      e.preventDefault();
+      setBusy(true); setErr(null);
+      try {
+        await api.superadmin.inviteUser({
+          tenant_id: tenant.id,
+          email:     form.email,
+          full_name: form.full_name,
+          role:      form.role,
+          job_class: form.job_class || undefined,
+        });
+        setDone(true);
+        onCreated();
+      } catch (e) {
+        setErr(e.message);
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+        <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-md space-y-4">
+          {done ? (
+            <>
+              <div className="text-center py-4">
+                <p className="text-2xl mb-2">✅</p>
+                <p className="text-white font-semibold">User created!</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  They can log in with their email and the default password <span className="font-mono text-amber-300">password</span>.
+                  They will be required to set a new password on first login.
+                </p>
+              </div>
+              <div className="flex justify-center">
+                <button onClick={onClose} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded font-medium">Done</button>
+              </div>
+            </>
+          ) : (
+            <form onSubmit={submit} className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Add User</h3>
+                <p className="text-sm text-gray-400 mt-0.5">Tenant: <span className="text-white">{tenant.name}</span></p>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Full Name *</label>
+                <input value={form.full_name} onChange={set('full_name')} required
+                  className="w-full bg-gray-800 border border-gray-600 text-white rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Email *</label>
+                <input value={form.email} onChange={set('email')} type="email" required
+                  className="w-full bg-gray-800 border border-gray-600 text-white rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Role *</label>
+                <select value={form.role} onChange={set('role')}
+                  className="w-full bg-gray-800 border border-gray-600 text-white rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                  {['viewer', 'staff', 'warehouse', 'manager', 'admin'].map((r) => (
+                    <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Job Title (optional)</label>
+                <input value={form.job_class} onChange={set('job_class')} placeholder="e.g. Warehouse Lead"
+                  className="w-full bg-gray-800 border border-gray-600 text-white rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+              </div>
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded px-3 py-2 text-xs text-amber-300">
+                Default password: <span className="font-mono font-bold">password</span> — user will be forced to change it on first login.
+              </div>
+              {err && <p className="text-red-400 text-sm">{err}</p>}
+              <div className="flex gap-2 justify-end pt-1">
+                <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
+                <button type="submit" disabled={busy}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded font-medium disabled:opacity-50">
+                  {busy ? 'Creating…' : 'Create User'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (loading) return <div className="text-gray-400 p-6">Loading tenants…</div>;
   if (error)   return <div className="text-red-400 p-6">Error: {error}</div>;
 
@@ -297,8 +391,12 @@ function TenantsTab() {
                 <td className="py-3 pr-4 text-gray-300">{t.user_count}</td>
                 <td className="py-3 pr-4 text-gray-400 text-xs">{fmtDate(t.created_at)}</td>
                 <td className="py-3">
-                  <button onClick={() => setEditTenant(t)}
-                    className="text-xs text-blue-400 hover:text-blue-300">Edit</button>
+                  <div className="flex gap-3">
+                    <button onClick={() => setInviteTarget(t)}
+                      className="text-xs text-emerald-400 hover:text-emerald-300">+ User</button>
+                    <button onClick={() => setEditTenant(t)}
+                      className="text-xs text-blue-400 hover:text-blue-300">Edit</button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -309,8 +407,9 @@ function TenantsTab() {
         </table>
       </div>
 
-      {showCreate && <CreateForm onClose={() => setShowCreate(false)} onCreated={load} />}
-      {editTenant && <EditModal tenant={editTenant} onClose={() => setEditTenant(null)} onSaved={load} />}
+      {showCreate  && <CreateForm onClose={() => setShowCreate(false)} onCreated={load} />}
+      {editTenant  && <EditModal tenant={editTenant} onClose={() => setEditTenant(null)} onSaved={load} />}
+      {inviteTarget && <InviteUserModal tenant={inviteTarget} onClose={() => setInviteTarget(null)} onCreated={load} />}
     </div>
   );
 }
@@ -323,6 +422,7 @@ function UsersTab({ tenants }) {
   const [filterTenant, setFilterTenant] = useState('');
   const [search, setSearch]       = useState('');
   const [editUser, setEditUser]   = useState(null);
+  const [resetTarget, setResetTarget] = useState(null); // user to reset password for
 
   const load = useCallback(() => {
     setLoading(true);
@@ -402,6 +502,79 @@ function UsersTab({ tenants }) {
     );
   }
 
+  // ── Reset password modal ─────────────────────────────────────────────────
+  function ResetPasswordModal({ user, onClose }) {
+    const [pwd, setPwd]   = useState('');
+    const [conf, setConf] = useState('');
+    const [err, setErr]   = useState(null);
+    const [busy, setBusy] = useState(false);
+    const [done, setDone] = useState(false);
+
+    const submit = async (e) => {
+      e.preventDefault();
+      if (pwd.length < 6)    return setErr('Password must be at least 6 characters.');
+      if (pwd !== conf)      return setErr('Passwords do not match.');
+      setBusy(true); setErr(null);
+      try {
+        await api.superadmin.resetPassword(user.id, pwd);
+        setDone(true);
+      } catch (e) {
+        setErr(e.message);
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+        <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-sm space-y-4">
+          {done ? (
+            <>
+              <div className="text-center py-4">
+                <p className="text-2xl mb-2">🔑</p>
+                <p className="text-white font-semibold">Password reset!</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  {user.full_name || user.email} will be required to set a new password on next login.
+                </p>
+              </div>
+              <div className="flex justify-center">
+                <button onClick={onClose} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded font-medium">Done</button>
+              </div>
+            </>
+          ) : (
+            <form onSubmit={submit} className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Reset Password</h3>
+                <p className="text-sm text-gray-400 mt-0.5">{user.full_name || '—'} · {user.email}</p>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">New Password</label>
+                <input value={pwd} onChange={(e) => setPwd(e.target.value)} type="password" required minLength={6}
+                  placeholder="Min. 6 characters"
+                  className="w-full bg-gray-800 border border-gray-600 text-white rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Confirm Password</label>
+                <input value={conf} onChange={(e) => setConf(e.target.value)} type="password" required
+                  placeholder="Re-enter password"
+                  className="w-full bg-gray-800 border border-gray-600 text-white rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+              </div>
+              <p className="text-xs text-amber-300/80">The user will be forced to choose a new password on their next login.</p>
+              {err && <p className="text-red-400 text-sm">{err}</p>}
+              <div className="flex gap-2 justify-end pt-1">
+                <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
+                <button type="submit" disabled={busy}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm rounded font-medium disabled:opacity-50">
+                  {busy ? 'Resetting…' : 'Reset Password'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (loading) return <div className="text-gray-400 p-6">Loading users…</div>;
   if (error)   return <div className="text-red-400 p-6">Error: {error}</div>;
 
@@ -447,8 +620,12 @@ function UsersTab({ tenants }) {
                 </td>
                 <td className="py-3 pr-4 text-gray-400 text-xs">{fmtDate(u.created_at)}</td>
                 <td className="py-3">
-                  <button onClick={() => setEditUser(u)}
-                    className="text-xs text-blue-400 hover:text-blue-300">Edit</button>
+                  <div className="flex gap-3">
+                    <button onClick={() => setResetTarget(u)}
+                      className="text-xs text-amber-400 hover:text-amber-300">Reset Pwd</button>
+                    <button onClick={() => setEditUser(u)}
+                      className="text-xs text-blue-400 hover:text-blue-300">Edit</button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -459,7 +636,8 @@ function UsersTab({ tenants }) {
         </table>
       </div>
 
-      {editUser && <EditUserModal user={editUser} onClose={() => setEditUser(null)} onSaved={load} />}
+      {editUser    && <EditUserModal user={editUser} onClose={() => setEditUser(null)} onSaved={load} />}
+      {resetTarget && <ResetPasswordModal user={resetTarget} onClose={() => setResetTarget(null)} />}
     </div>
   );
 }

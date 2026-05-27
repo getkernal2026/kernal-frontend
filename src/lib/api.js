@@ -111,7 +111,9 @@ export const api = {
 
     // Users (cross-tenant)
     listUsers:      (params = {}) => authFetch(`/api/v1/superadmin/users${qs(params)}`),
+    inviteUser:     (body)        => authFetch('/api/v1/superadmin/users/invite', { method: 'POST', body: JSON.stringify(body) }),
     updateUser:     (id, body)    => authFetch(`/api/v1/superadmin/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    resetPassword:  (id, password) => authFetch(`/api/v1/superadmin/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ password }) }),
 
     // Billing
     getInvoices:    (tenantId)   => authFetch(`/api/v1/superadmin/tenants/${tenantId}/invoices`),
