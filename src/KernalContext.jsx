@@ -222,15 +222,15 @@ const DEFAULT_SETTINGS = {
     licenseNumber: 'FL-FD-2024-0047',
   },
   features: {
-    refrigeratedFoods:  false,
-    frozenFoods:        false,
+    refrigeratedFoods:  true,
+    frozenFoods:        true,
     catchWeightItems:   true,
     codCollections:     true,
     lotTracking:        true,
     routeOptimization:  true,
     etaNotifications:   true,
     osdPhotoEvidence:   true,
-    temperatureLogging: false,
+    temperatureLogging: true,
     b2bPortalEnabled:   true,
     fieldSalesEnabled:  true,
     crmEnabled:         true,
@@ -242,11 +242,11 @@ const DEFAULT_SETTINGS = {
     creditHoldEnforcement: true, // Credit hold flag blocks B2B ordering
     minShelfLifeEnforcement: true, // Block picks when FEFO lot < min shelf life days
     // ── Pricing ────────────────────────────────────────────
-    customerPricing:    false,  // Customer-specific price tiers per account
+    customerPricing:    true,   // Customer-specific price tiers per account
     // ── Workflow ──────────────────────────────────────────
     approvalWorkflows:  true,   // Enable approval routing for POs, credit holds, discounts, account changes
     // ── Loss Prevention ───────────────────────────────────
-    strictInventoryControl: false,  // When ON: scanner IN/OUT requires linked PO/order; Library lot edits admin-only for non-admins
+    strictInventoryControl: true,   // When ON: scanner IN/OUT requires linked PO/order; Library lot edits admin-only for non-admins
     // ── Operations ────────────────────────────────────────
     multiLocation:     true,  // Multiple warehouse locations — location switcher + inter-location transfers
     barcodeScanning:   true,  // Barcode/scanner tool for inventory IN/OUT operations
