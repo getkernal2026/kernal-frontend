@@ -1,9 +1,22 @@
 import { StrictMode, useState, Suspense, Component, useMemo, useEffect, useRef, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
+import * as Sentry from '@sentry/react';
 import './index.css';
 
 import { KernalProvider, useKernal, ROLES, LOCATIONS, PLANS, ADDONS } from './KernalContext.jsx';
 import { captureError, addBreadcrumb, setAppContext, initGlobalHandlers } from './ErrorReporter.js';
+
+// ── Sentry ────────────────────────────────────────────────────────────────────
+if (import.meta.env.VITE_SENTRY_DSN) {
+  Sentry.init({
+    dsn: import.meta.env.VITE_SENTRY_DSN,
+    environment: import.meta.env.MODE,
+    integrations: [Sentry.browserTracingIntegration()],
+    tracesSampleRate: import.meta.env.PROD ? 0.2 : 1.0,
+    // Don't send errors in development unless DSN is explicitly set
+    enabled: !!import.meta.env.VITE_SENTRY_DSN,
+  });
+}
 import { MOCK_INVENTORY } from './shared/mockInventory.js';
 
 import InventoryModule          from './InventoryModule.jsx';
