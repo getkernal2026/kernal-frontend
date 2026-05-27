@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   KERNAL LIGHT MODE
+   When .kernal-light is applied to the root div, the Tailwind gray palette is
+   reversed so every module's bg-gray-*, text-gray-*, border-gray-* class
+   automatically renders in light-mode colours.
+
+   Mapping (dark value → light equivalent):
+     gray-950 (darkest surface)  →  gray-50  (lightest bg)
+     gray-900 (card surface)     →  gray-100
+     gray-800 (input/inner)      →  gray-200
+     gray-700 (borders)          →  gray-300
+     gray-600 (subtle)           →  gray-400
+     gray-500 (muted)            →  gray-500  (neutral pivot, unchanged)
+     gray-400 (secondary text)   →  gray-600
+     gray-300 (medium text)      →  gray-700
+     gray-200 (text)             →  gray-800
+     gray-100 (primary text)     →  gray-900
+     gray-50  (near-white text)  →  gray-950
+────────────────────────────────────────────────────────────────────────────── */
+.kernal-light {
+  /* ── Gray scale reversal (dark → light surfaces) ── */
+  --color-gray-950: oklch(98.5% .002 247.839);
+  --color-gray-900: oklch(96.7% .003 264.542);
+  --color-gray-800: oklch(92.8% .006 264.531);
+  --color-gray-700: oklch(87.2% .01  258.338);
+  --color-gray-600: oklch(70.7% .022 261.325);
+  --color-gray-500: oklch(55.1% .027 264.364);
+  --color-gray-400: oklch(44.6% .03  256.802);
+  --color-gray-300: oklch(37.3% .034 259.733);
+  --color-gray-200: oklch(27.8% .033 256.848);
+  --color-gray-100: oklch(21%   .034 264.665);
+  --color-gray-50:  oklch(13%   .028 261.692);
+
+  /* ── Semantic accent colors — darkened for light-bg contrast ──
+     Light mode uses light surfaces, so the -400/-500 variants designed
+     for dark backgrounds wash out. Map them to their -600/-700 siblings
+     so text-cyan-500, text-emerald-400 etc. stay legible on white.      */
+
+  /* Cyan  (primary brand — most impactful) */
+  --color-cyan-300: oklch(71.6% .153 214.16);   /* was 300, now ≈ 500  */
+  --color-cyan-400: oklch(60.9% .126 221.72);   /* was 400, now ≈ 600  */
+  --color-cyan-500: oklch(52.0% .105 221.72);   /* was 500, now ≈ 700  */
+
+  /* Emerald / Green  (success, reconciled, active) */
+  --color-emerald-300: oklch(66.0% .140 163.44); /* ≈ emerald-500 dark */
+  --color-emerald-400: oklch(54.7% .128 163.44); /* ≈ emerald-600      */
+  --color-emerald-500: oklch(46.2% .112 163.44); /* ≈ emerald-700      */
+
+  /* Rose  (alerts, negative, overdue) */
+  --color-rose-300: oklch(64.5% .204  15.34);   /* ≈ rose-500         */
+  --color-rose-400: oklch(57.1% .197  14.54);   /* ≈ rose-600         */
+  --color-rose-500: oklch(50.5% .183  14.31);   /* ≈ rose-700         */
+
+  /* Amber  (warnings, COD, catch-weight) — worst offender on white */
+  --color-amber-300: oklch(66.6% .152  73.07);  /* ≈ amber-600        */
+  --color-amber-400: oklch(56.4% .133  72.38);  /* ≈ amber-700        */
+  --color-amber-500: oklch(48.0% .115  72.00);  /* ≈ amber-800        */
+
+  /* Sky  (info badges, cold-chain) */
+  --color-sky-300: oklch(67.0% .148 232.00);    /* ≈ sky-500          */
+  --color-sky-400: oklch(55.0% .129 232.65);    /* ≈ sky-600          */
+  --color-sky-500: oklch(47.0% .108 232.65);    /* ≈ sky-700          */
+
+  /* Purple  (contract pricing tier) */
+  --color-purple-300: oklch(65.0% .195 292.00); /* ≈ purple-500       */
+  --color-purple-400: oklch(55.8% .180 285.75); /* ≈ purple-600       */
+  --color-purple-500: oklch(47.5% .158 285.00); /* ≈ purple-700       */
+}
