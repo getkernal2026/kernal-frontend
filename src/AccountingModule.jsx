@@ -6,6 +6,7 @@ import { Modal, ModalOverlay, Overlay, ModalBox, ModalHeader, DocModalHeader } f
 
 import { TODAY, StatusBadge, PrintButton, ExportButton } from './shared/components.jsx';
 import { DEMO_MODE } from './lib/demoMode.js';
+import { api } from './lib/api.js';
 
 import {
   LayoutDashboard, Building2, Users, CheckSquare, Landmark, BarChart3,
@@ -887,6 +888,60 @@ export default function AccountingModule() {
   const [checks, setChecks]         = useState(DEMO_MODE ? INIT_CHECKS : []);
   const [invoices, setInvoices]     = useState(DEMO_MODE ? INIT_INVOICES : []);
 
+  // ── API error toast ──────────────────────────────────────────────────────────
+  const [apiToast, setApiToast] = useState(null);
+  const showApiToast = (msg) => { setApiToast(msg); setTimeout(() => setApiToast(null), 4000); };
+
+  // ── Map API invoice row → local shape ────────────────────────────────────────
+  const mapApiInvoice = (row) => ({
+    _id:        row.id,
+    id:         row.invoice_number,
+    date:       row.issue_date || TODAY,
+    dueDate:    row.due_date   || '',
+    customerId: row.customer_id   || null,
+    customer:   row.customer_name || '',
+    billTo: {
+      address: row.bill_to_address || '',
+      city:    row.bill_to_city    || '',
+      contact: row.bill_to_name    || '',
+      email:   row.bill_to_email   || '',
+    },
+    terms:    row.payment_terms || 'Net 30',
+    source:   row.source        || 'Manual',
+    glCode:   row.gl_code       || '4000',
+    notes:    row.notes         || '',
+    items:    (row.invoice_line_items || []).map(li => ({
+      _lineId:         li.id,
+      sku:             li.sku              || '',
+      description:     li.description      || '',
+      uom:             li.uom              || 'ea',
+      qty:             Number(li.quantity) || 0,
+      unitPrice:       Number(li.unit_price) || 0,
+      total:           Number(li.line_total)  || 0,
+      isCatchWeight:   !!li.is_catch_weight,
+      pricePerLb:      li.price_per_lb     ? Number(li.price_per_lb)     : undefined,
+      casesOrdered:    li.cases_ordered    ? Number(li.cases_ordered)    : undefined,
+      actualWeight:    li.actual_weight    ? Number(li.actual_weight)    : undefined,
+      estimatedWeight: li.estimated_weight ? Number(li.estimated_weight) : undefined,
+    })),
+    subtotal: Number(row.subtotal)    || 0,
+    taxRate:  Number(row.tax_rate)    || 0,
+    tax:      Number(row.tax)         || 0,
+    freight:  Number(row.freight)     || 0,
+    amount:   Number(row.total)       || 0,
+    paid:     Number(row.paid_amount) || 0,
+    status:   row.status              || 'Open',
+    orderId:  row.order_id            || null,
+  });
+
+  // ── Seed invoices from API on mount ──────────────────────────────────────────
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    api.accounting.invoices.list({ limit: 500 })
+      .then(r => { if (r.data?.length) setInvoices(r.data.map(mapApiInvoice)); })
+      .catch(() => {});
+  }, []);
+
   // ── Drain pending invoices pushed from Logistics (catch-weight billing) ──
   // The hand-off pattern: Logistics → addPendingInvoice(); useEffect here
   // picks them up, normalizes shape, computes a due date, and prepends them
@@ -1268,6 +1323,43 @@ export default function AccountingModule() {
     } else {
       closeModal();
     }
+
+    // ── Live API: persist invoice + line items ────────────────────────────────
+    if (!DEMO_MODE) {
+      api.accounting.invoices.create({
+        invoice_number:  newInv.id,
+        customer_id:     cust._id || null,
+        customer_name:   cust.name,
+        source:          b.source || 'Manual',
+        payment_terms:   b.terms  || 'Net 30',
+        gl_code:         b.glCode || '4000',
+        issue_date:      b.date,
+        due_date:        dueDate,
+        tax_rate:        Number(b.taxRate) || 0,
+        freight:         Number(b.freight) || 0,
+        bill_to_name:    cust.contact || '',
+        bill_to_address: cust.address || '',
+        bill_to_city:    cust.city    || '',
+        bill_to_email:   cust.email   || '',
+        notes:           b.notes || '',
+        items: items.map(it => ({
+          sku:        it.sku,
+          description:it.description,
+          uom:        it.uom,
+          quantity:   it.qty,
+          unit_price: it.unitPrice,
+          line_total: it.total,
+          is_catch_weight:  it.isCatchWeight  || false,
+          price_per_lb:     it.pricePerLb     || null,
+          cases_ordered:    it.casesOrdered   || null,
+          actual_weight:    it.actualWeight   || null,
+          estimated_weight: it.estimatedWeight|| null,
+        })),
+      }).then(created => {
+        // UUID swap: replace the temp local id with the backend id
+        setInvoices(prev => prev.map(i => i.id === newInv.id ? { ...i, _id: created.id } : i));
+      }).catch(err => showApiToast(`Invoice saved locally — sync failed: ${err.message}`));
+    }
   }, [invBuilder, closeModal, showToast, logAudit]);
 
   const handleRecordPayment = useCallback((e) => {
@@ -1296,6 +1388,12 @@ export default function AccountingModule() {
     });
     showToast(`Payment of ${fmt(pmt)} recorded`);
     closeModal();
+
+    // ── Live API: record payment ──────────────────────────────────────────────
+    if (!DEMO_MODE && inv._id) {
+      api.accounting.invoices.recordPayment(inv._id, pmt)
+        .catch(err => showApiToast(`Payment saved locally — sync failed: ${err.message}`));
+    }
   }, [modal.invoice, payForm.amount, closeModal, showToast, logAudit]);
 
   const handleCreateExpense = useCallback((e) => {
@@ -5443,6 +5541,13 @@ export default function AccountingModule() {
             : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
         }`}>
           <CheckCircle2 size={16} /> {toast.msg}
+        </div>
+      )}
+
+      {/* ── API Sync Error Toast ── */}
+      {apiToast && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-rose-900/90 border border-rose-500/40 text-rose-200 text-sm px-4 py-2 rounded-lg shadow-xl">
+          <AlertCircle className="w-4 h-4 shrink-0" />{apiToast}
         </div>
       )}
     </div>

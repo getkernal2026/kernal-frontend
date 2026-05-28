@@ -215,6 +215,20 @@ export const api = {
     },
   },
 
+  // ── Accounting ────────────────────────────────────────────────────────────
+  accounting: {
+    invoices: {
+      list:         (params = {}) => authFetch(`/api/v1/accounting/invoices${qs(params)}`),
+      get:          (id)           => authFetch(`/api/v1/accounting/invoices/${id}`),
+      create:       (body)         => authFetch('/api/v1/accounting/invoices', { method: 'POST',  body: JSON.stringify(body) }),
+      update:       (id, body)     => authFetch(`/api/v1/accounting/invoices/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+      updateStatus: (id, status)   => authFetch(`/api/v1/accounting/invoices/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+      recordPayment:(id, amount)   => authFetch(`/api/v1/accounting/invoices/${id}/payment`, { method: 'PATCH', body: JSON.stringify({ amount }) }),
+      addLine:      (id, body)     => authFetch(`/api/v1/accounting/invoices/${id}/lines`, { method: 'POST',  body: JSON.stringify(body) }),
+      deleteLine:   (id, lineId)   => authFetch(`/api/v1/accounting/invoices/${id}/lines/${lineId}`, { method: 'DELETE' }),
+    },
+  },
+
   // ── Superadmin (requires superadmin role) ─────────────────────────────────
   superadmin: {
     // Stats
