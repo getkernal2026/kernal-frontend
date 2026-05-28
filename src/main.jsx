@@ -842,7 +842,16 @@ function Sidebar({ isDark, collapsed, onToggleCollapse, visibleTabs, activeTabId
 // ── Shell ─────────────────────────────────────────────────────────────────────
 function KernalShell() {
   const { can, activeUser, activeUserId, settings, pendingApprovalsForUser, isModuleUnlocked } = useKernal();
-  const [active, setActive]  = useState('inventory');
+  // ── Hash-based deep linking ──────────────────────────────────────────────────
+  // kernal-frontend.vercel.app/#mobilewms  → opens Mobile WMS directly
+  // Any valid module id works:  /#logistics  /#inventory  /#accounting  etc.
+  const getInitialModule = () => {
+    const hash = window.location.hash.replace('#', '').trim();
+    if (hash && ALL_TABS.some(t => t.id === hash)) return hash;
+    return 'inventory';
+  };
+
+  const [active, setActive]  = useState(getInitialModule);
   const [isDark, setIsDark]  = useState(true);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -866,6 +875,8 @@ function KernalShell() {
   const handleNavigate = useCallback((tabId) => {
     const tab = ALL_TABS.find(t => t.id === tabId);
     addBreadcrumb('navigation', `navigate → ${tab?.label || tabId}`);
+    // Keep URL hash in sync so users can bookmark / share direct module links
+    window.location.hash = tabId;
     setActive(tabId);
   }, []);
 
@@ -1501,6 +1512,15 @@ class AppErrorBoundary extends Component {
     }
     return this.props.children;
   }
+}
+
+// ── Service Worker registration (PWA install support) ────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // SW registration failure is non-fatal — app works fine without it
+    });
+  });
 }
 
 // ── Root ──────────────────────────────────────────────────────────────────────

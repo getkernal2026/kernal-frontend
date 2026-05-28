@@ -1,0 +1,53 @@
+{
+  "name": "Kernel ERM",
+  "short_name": "Kernel",
+  "description": "Food distribution ERM — Inventory, WMS, Logistics, and more",
+  "start_url": "/?source=pwa",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b111b",
+  "theme_color": "#22d3ee",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icons/favicon-32.png",
+      "sizes": "32x32",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Mobile WMS",
+      "short_name": "WMS",
+      "description": "Receive, putaway, pick, and cycle count",
+      "url": "/#mobilewms",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Delivery Operations",
+      "short_name": "Dispatch",
+      "description": "Driver dispatch and route management",
+      "url": "/#logistics",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
