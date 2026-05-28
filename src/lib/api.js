@@ -366,6 +366,18 @@ export const api = {
     query: (q) => authFetch('/api/v1/nlquery', { method: 'POST', body: JSON.stringify({ query: q }) }),
   },
 
+  // ── Driver Close-out / Daily Reconciliation ───────────────────────────────
+  closeout: {
+    list:           (date)               => authFetch(`/api/v1/closeout${date ? `?date=${date}` : ''}`),
+    get:            (routeId)            => authFetch(`/api/v1/closeout/${routeId}`),
+    create:         (body)               => authFetch('/api/v1/closeout', { method: 'POST', body: JSON.stringify(body) }),
+    updateRoute:    (routeId, body)      => authFetch(`/api/v1/closeout/${routeId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    updateStop:     (routeId, stopId, body) => authFetch(`/api/v1/closeout/${routeId}/stops/${stopId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    signOff:        (routeId, body)      => authFetch(`/api/v1/closeout/${routeId}/signoff`, { method: 'POST', body: JSON.stringify(body || {}) }),
+    undoSignOff:    (routeId)            => authFetch(`/api/v1/closeout/${routeId}/signoff`, { method: 'DELETE' }),
+    depositSummary: (date)               => authFetch(`/api/v1/closeout/deposit-summary${date ? `?date=${date}` : ''}`),
+  },
+
   // ── Superadmin (requires superadmin role) ─────────────────────────────────
   superadmin: {
     // Stats

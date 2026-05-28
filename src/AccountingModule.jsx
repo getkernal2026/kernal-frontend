@@ -880,6 +880,8 @@ export default function AccountingModule() {
   // ── core state ──────────────────────────────────────────────────────────────
   const [tab, setTab]               = useState('dashboard');
   // Daily Close-out reconciliation state
+  const [closeoutRoutes,  setCloseoutRoutes]  = useState(DEMO_MODE ? CLOSEOUT_DRIVERS : []);
+  const [closeoutLoading, setCloseoutLoading] = useState(false);
   const [verifiedStops,  setVerifiedStops]  = useState({});   // { [stopId]: true }
   const [signedRoutes,   setSignedRoutes]   = useState({});   // { [driverId]: true }
   const [expandedDriver, setExpandedDriver] = useState(null); // driverId string
@@ -941,6 +943,32 @@ export default function AccountingModule() {
       .then(r => { if (r.data?.length) setInvoices(r.data.map(mapApiInvoice)); })
       .catch(() => {});
   }, []);
+
+  // ── Load today's close-out routes from API ────────────────────────────────
+  const loadCloseoutRoutes = useCallback((date) => {
+    if (DEMO_MODE) return;
+    setCloseoutLoading(true);
+    api.closeout.list(date || null)
+      .then(routes => {
+        if (!Array.isArray(routes)) return;
+        setCloseoutRoutes(routes);
+        // Hydrate verifiedStops + signedRoutes from persisted DB state
+        const newVerified = {};
+        const newSigned   = {};
+        for (const r of routes) {
+          if (r.status === 'reconciled') newSigned[r.id] = true;
+          for (const s of r.stops || []) {
+            if (s.verified) newVerified[s.id] = true;
+          }
+        }
+        setVerifiedStops(newVerified);
+        setSignedRoutes(newSigned);
+      })
+      .catch(() => {})
+      .finally(() => setCloseoutLoading(false));
+  }, []);
+
+  useEffect(() => { loadCloseoutRoutes(); }, [loadCloseoutRoutes]);
 
   // ── Chart of Accounts — live state (falls back to GL_ACCOUNTS seed in DEMO) ─
   const [glAccounts, setGlAccounts] = useState(GL_ACCOUNTS);
@@ -5322,26 +5350,62 @@ export default function AccountingModule() {
   function renderCloseout() {
     const fmtC = n => '$' + Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 
-    const toggleVerify = (stopId) =>
-      setVerifiedStops(prev => ({ ...prev, [stopId]: !prev[stopId] }));
+    const toggleVerify = (stopId, routeId) => {
+      const nextVal = !verifiedStops[stopId];
+      setVerifiedStops(prev => ({ ...prev, [stopId]: nextVal }));
+      if (!DEMO_MODE) {
+        api.closeout.updateStop(routeId, stopId, { verified: nextVal })
+          .catch(() => setVerifiedStops(prev => ({ ...prev, [stopId]: !nextVal }))); // rollback on error
+      }
+    };
 
-    const toggleSignOff = (driverId) =>
-      setSignedRoutes(prev => ({ ...prev, [driverId]: !prev[driverId] }));
+    const toggleSignOff = (routeId) => {
+      const isSigned = !!signedRoutes[routeId];
+      if (isSigned) {
+        // Undo sign-off
+        setSignedRoutes(prev => ({ ...prev, [routeId]: false }));
+        if (!DEMO_MODE) {
+          api.closeout.undoSignOff(routeId)
+            .then(updated => setCloseoutRoutes(prev => prev.map(r => r.id === routeId ? { ...r, ...updated, stops: r.stops } : r)))
+            .catch(() => setSignedRoutes(prev => ({ ...prev, [routeId]: true })));
+        }
+      } else {
+        // Sign off
+        setSignedRoutes(prev => ({ ...prev, [routeId]: true }));
+        if (!DEMO_MODE) {
+          api.closeout.signOff(routeId)
+            .then(updated => setCloseoutRoutes(prev => prev.map(r => r.id === routeId ? { ...r, ...updated, stops: r.stops } : r)))
+            .catch(() => setSignedRoutes(prev => ({ ...prev, [routeId]: false })));
+        }
+      }
+    };
 
     const allStopsVerified = (driver) =>
       driver.stops.filter(s => s.deliveryStatus !== 'returned' && s.deliveryStatus !== 'pending')
         .every(s => verifiedStops[s.id]);
 
+    // Map API snake_case stop fields to camelCase for coDriverTotals + display
+    const normalizeStop = s => ({
+      ...s,
+      cashCollected:  Number(s.cash_collected  ?? s.cashCollected  ?? 0),
+      checkCollected: Number(s.check_collected ?? s.checkCollected ?? 0),
+      checkNumber:    s.check_number ?? s.checkNumber ?? '',
+      invoiceAmt:     Number(s.invoice_amt ?? s.invoiceAmt ?? 0),
+      deliveryStatus: s.delivery_status ?? s.deliveryStatus ?? 'pending',
+    });
+    const normalizeRoute = r => ({ ...r, stops: (r.stops || []).map(normalizeStop) });
+    const routes = closeoutRoutes.map(normalizeRoute);
+
     // Deposit only counts signed-off routes
-    const signedDrivers   = CLOSEOUT_DRIVERS.filter(d => signedRoutes[d.id]);
-    const pendingDrivers  = CLOSEOUT_DRIVERS.filter(d => d.status === 'out');
+    const signedDrivers   = routes.filter(d => signedRoutes[d.id]);
+    const pendingDrivers  = routes.filter(d => d.status === 'out');
     const totalCash_c     = signedDrivers.reduce((s,d)=>s+coDriverTotals(d).cash,0);
     const totalChecks_c   = signedDrivers.reduce((s,d)=>s+coDriverTotals(d).checks,0);
     const totalDeposit    = totalCash_c + totalChecks_c;
-    const totalInvoiced   = CLOSEOUT_DRIVERS.reduce((s,d)=>s+coDriverTotals(d).invoiced,0);
-    const totalReturned   = CLOSEOUT_DRIVERS.filter(d=>d.status!=='out').reduce((s,d)=>s+coDriverTotals(d).undelivered,0);
-    const checkItems      = signedDrivers.flatMap(d =>
-      d.stops.filter(s=>s.checkNumber&&s.checkCollected>0).map(s=>({driver:d.name,...s}))
+    const totalInvoiced   = routes.reduce((s,d)=>s+coDriverTotals(d).invoiced,0);
+    const totalReturned   = routes.filter(d=>d.status!=='out').reduce((s,d)=>s+coDriverTotals(d).undelivered,0);
+    const checkItems = signedDrivers.flatMap(d =>
+      d.stops.filter(s=>s.checkNumber&&s.checkCollected>0).map(s=>({driver:d.driver_name||d.name,...s}))
     );
 
     const payTypeLabel = stop => {
@@ -5361,7 +5425,7 @@ export default function AccountingModule() {
           </div>
           <div className="text-right shrink-0">
             <p className="text-xs text-gray-500 uppercase tracking-wide">Routes Signed Off</p>
-            <p className="text-2xl font-black text-cyan-400">{Object.values(signedRoutes).filter(Boolean).length} / {CLOSEOUT_DRIVERS.filter(d=>d.status!=='out').length}</p>
+            <p className="text-2xl font-black text-cyan-400">{Object.values(signedRoutes).filter(Boolean).length} / {closeoutRoutes.filter(d=>d.status!=='out').length}</p>
           </div>
         </div>
 
@@ -5373,8 +5437,9 @@ export default function AccountingModule() {
         )}
 
         {/* ── Per-Driver Reconciliation Cards ── */}
+        {closeoutLoading && <div className="text-center py-8 text-gray-500 text-sm">Loading today's routes…</div>}
         <div className="space-y-4">
-          {CLOSEOUT_DRIVERS.map(driver => {
+          {routes.map(driver => {
             const t         = coDriverTotals(driver);
             const isOut     = driver.status === 'out';
             const isSigned  = !!signedRoutes[driver.id];
@@ -5389,7 +5454,7 @@ export default function AccountingModule() {
                 <div className="p-4 flex items-center gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-1">
-                      <p className="text-sm font-bold text-gray-100">{driver.name}</p>
+                      <p className="text-sm font-bold text-gray-100">{driver.driver_name || driver.name}</p>
                       <CoDriverBadge status={driver.status} />
                       {isSigned && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400">✓ Signed Off</span>}
                     </div>
@@ -5454,7 +5519,7 @@ export default function AccountingModule() {
                               <td className="px-4 py-3">
                                 {canVerify ? (
                                   <button
-                                    onClick={() => toggleVerify(stop.id)}
+                                    onClick={() => toggleVerify(stop.id, driver.id)}
                                     className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border transition-colors ${
                                       isVerified
                                         ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25'
