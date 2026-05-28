@@ -522,12 +522,12 @@ function FleetStatusView({ routes, tick, isDark }) {
 
 // ── Traccar Hub ─────────────────────────────────────────────────────────────────
 function TraccarHubView({ routes, tick, isDark }) {
-  const [pings, setPings] = useState(() => [
+  const [pings, setPings] = useState(() => DEMO_MODE ? [
     { id:1, truck:'Truck #1', plate:'XK-4821', color:'#22d3ee', lat:27.9512, lng:-82.4601, speed:23, signal:'4G LTE', ts:'10:23:14.892', battery:87 },
     { id:2, truck:'Truck #2', plate:'MR-7734', color:'#a78bfa', lat:27.9579, lng:-82.4453, speed:0,  signal:'4G LTE', ts:'10:23:17.445', battery:62 },
     { id:3, truck:'Truck #3', plate:'TL-2265', color:'#34d399', lat:27.9487, lng:-82.5119, speed:31, signal:'4G LTE', ts:'10:23:19.112', battery:74 },
     { id:4, truck:'Truck #4', plate:'BA-9981', color:'#fbbf24', lat:27.9650, lng:-82.4690, speed:28, signal:'4G LTE', ts:'10:23:21.778', battery:91 },
-  ]);
+  ] : []);
 
   // Simulate incoming pings every ~3 seconds
   useEffect(() => {
