@@ -361,6 +361,11 @@ export const api = {
     update: (id, body)     => authFetch(`/api/v1/approvals/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   },
 
+  // ── NL Query ──────────────────────────────────────────────────────────────
+  nlquery: {
+    query: (q) => authFetch('/api/v1/nlquery', { method: 'POST', body: JSON.stringify({ query: q }) }),
+  },
+
   // ── Superadmin (requires superadmin role) ─────────────────────────────────
   superadmin: {
     // Stats

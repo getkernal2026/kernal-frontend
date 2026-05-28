@@ -1,10 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useKernal } from './KernalContext.jsx';
+import { api } from './lib/api.js';
 import {
   Sparkles, Send, Clock, TrendingUp, Package, DollarSign,
   Truck, Users, ShoppingCart, AlertTriangle, ChevronRight,
   BarChart3, Table2, Zap, RefreshCw, X,
 } from 'lucide-react';
+
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 
 // ─── Suggested queries ────────────────────────────────────────────────────────
 const SUGGESTIONS = [
@@ -302,8 +305,20 @@ function ResultCard({ result }) {
           <span style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>Query not recognized</span>
         </div>
         <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>
-          Try rephrasing. Example: "Top customers by gross margin", "Open invoices over 45 days", or "Inventory below reorder point".
+          {result.errorMsg || 'Try rephrasing. Example: "Top customers by gross margin", "Open invoices over 45 days", or "Inventory below reorder point".'}
         </p>
+      </div>
+    );
+  }
+
+  if (result.type === 'empty') {
+    return (
+      <div style={{ background: '#0d1117', border: '1px solid #1f2937', borderRadius: 12, padding: '18px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <Zap size={14} color="#34d399" />
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>{result.title}</span>
+        </div>
+        <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>{result.message}</p>
       </div>
     );
   }
@@ -431,12 +446,35 @@ export default function NLQueryModule() {
     setMessages(prev => [...prev, { role: 'user', text: q }]);
     setHistory(prev => [q, ...prev.filter(h => h !== q)].slice(0, 8));
     setThinking(true);
-    const delay = 900 + Math.random() * 800;
-    setTimeout(() => {
-      const result = buildResult(q);
-      setThinking(false);
-      setMessages(prev => [...prev, { role: 'assistant', result }]);
-    }, delay);
+
+    if (DEMO_MODE) {
+      // Demo mode: use local pattern matching with simulated delay
+      const delay = 900 + Math.random() * 800;
+      setTimeout(() => {
+        const result = buildResult(q);
+        setThinking(false);
+        setMessages(prev => [...prev, { role: 'assistant', result }]);
+      }, delay);
+    } else {
+      // Live mode: call the real AI-powered backend
+      api.nlquery.query(q)
+        .then(res => {
+          setThinking(false);
+          const result = res.data || { type: 'unknown', query: q };
+          setMessages(prev => [...prev, { role: 'assistant', result }]);
+        })
+        .catch(err => {
+          setThinking(false);
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            result: {
+              type: 'unknown',
+              query: q,
+              errorMsg: err.message || 'Query failed. Please try again.',
+            },
+          }]);
+        });
+    }
   };
 
   const handleKey = (e) => {
