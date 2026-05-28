@@ -244,6 +244,16 @@ export const api = {
     },
   },
 
+  // ── WMS ──────────────────────────────────────────────────────────────────
+  wms: {
+    tasks: {
+      list:   (params = {}) => authFetch(`/api/v1/wms/tasks${qs(params)}`),
+      get:    (id)           => authFetch(`/api/v1/wms/tasks/${id}`),
+      create: (body)         => authFetch('/api/v1/wms/tasks', { method: 'POST',  body: JSON.stringify(body) }),
+      update: (id, body)     => authFetch(`/api/v1/wms/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    },
+  },
+
   // ── Superadmin (requires superadmin role) ─────────────────────────────────
   superadmin: {
     // Stats

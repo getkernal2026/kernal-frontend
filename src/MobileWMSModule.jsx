@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useKernal } from './KernalContext.jsx';
 import { DEMO_MODE } from './lib/demoMode.js';
+import { api } from './lib/api.js';
 import {
   Smartphone, ScanBarcode, PackageCheck, MoveRight, ClipboardList,
   Check, X, AlertTriangle, Clock, Barcode, ArrowRight, Zap,
@@ -428,7 +429,7 @@ function Toast({ toast }) {
 }
 
 // ─── Receive Tab ──────────────────────────────────────────────────────────────
-function ReceiveTab({ tasks, setTasks, can }) {
+function ReceiveTab({ tasks, setTasks, can, apiInventory, showApiToast }) {
   const [selId,          setSelId         ] = useState('RT-002');
   const [activeScanLine, setActiveScanLine] = useState(null);
   const [showNewTask,    setShowNewTask   ] = useState(false);
@@ -446,6 +447,11 @@ function ReceiveTab({ tasks, setTasks, can }) {
 
   const handleScan = (lineId) => {
     setActiveScanLine(null);
+
+    // Capture data before optimistic update for API call
+    const currentTask = tasks.find(t => t.id === selId);
+    const line        = currentTask?.lines.find(l => l.id === lineId);
+
     setTasks(prev => prev.map(t => {
       if (t.id !== selId) return t;
       const lines = t.lines.map(l =>
@@ -455,6 +461,31 @@ function ReceiveTab({ tasks, setTasks, can }) {
       return { ...t, lines, status: allDone ? 'complete' : 'in_progress' };
     }));
     notify('Line received ✓');
+
+    if (!DEMO_MODE && line) {
+      const qty = line.expectedQty || 0;
+      // Log WMS task
+      api.wms.tasks.create({
+        type:          'receive',
+        status:        'Completed',
+        sku:           line.sku           || null,
+        lot_id:        line.lot           || null,
+        quantity:      qty,
+        location_to:   currentTask.supplier || null,
+        notes:         `PO: ${currentTask.poId}`,
+        completed_at:  new Date().toISOString(),
+      }).catch(err => showApiToast?.(`WMS sync failed: ${err.message}`));
+
+      // Adjust inventory stock
+      const invItem = apiInventory?.find(i => i.sku === line.sku);
+      if (invItem?.id) {
+        api.inventory.adjust(invItem.id, {
+          delta:  qty,
+          reason: 'wms_receive',
+          lot_id: line.lot || null,
+        }).catch(err => console.warn('[Kernal] Inventory adjust failed:', err.message));
+      }
+    }
   };
 
   const handleNewTask = (task) => {
@@ -578,7 +609,7 @@ function ReceiveTab({ tasks, setTasks, can }) {
 }
 
 // ─── Putaway Tab ──────────────────────────────────────────────────────────────
-function PutawayTab({ tasks, setTasks, can }) {
+function PutawayTab({ tasks, setTasks, can, showApiToast }) {
   const [selId,    setSelId   ] = useState('PA-001');
   const [scanStep, setScanStep] = useState('idle'); // idle | bin_scan
   const [toast,    setToast   ] = useState(null);
@@ -599,11 +630,25 @@ function PutawayTab({ tasks, setTasks, can }) {
 
   const handleScanBin = () => {
     // Bin label validated by ScannerInput — complete putaway
+    const currentTask = task; // captured from render scope
     setScanStep('idle');
     setTasks(prev => prev.map(t => t.id === selId ? { ...t, status: 'complete' } : t));
     notify('Putaway confirmed ✓');
     const nextPending = tasks.find(t => t.id !== selId && t.status !== 'complete');
     if (nextPending) setSelId(nextPending.id);
+
+    if (!DEMO_MODE && currentTask) {
+      api.wms.tasks.create({
+        type:          'putaway',
+        status:        'Completed',
+        sku:           currentTask.sku           || null,
+        lot_id:        currentTask.lot           || null,
+        quantity:      currentTask.qty           || null,
+        location_from: currentTask.from          || null,
+        location_to:   currentTask.to            || null,
+        completed_at:  new Date().toISOString(),
+      }).catch(err => showApiToast?.(`WMS sync failed: ${err.message}`));
+    }
   };
 
   const assigned = tasks.filter(t => t.status === 'assigned').length;
@@ -726,7 +771,7 @@ function PutawayTab({ tasks, setTasks, can }) {
 }
 
 // ─── Pick Tab ─────────────────────────────────────────────────────────────────
-function PickTab({ waves, setWaves, can }) {
+function PickTab({ waves, setWaves, can, showApiToast }) {
   const [selId,          setSelId         ] = useState('WV-2026-089');
   const [activeScanPick, setActiveScanPick] = useState(null);
   const [toast,          setToast         ] = useState(null);
@@ -741,6 +786,10 @@ function PickTab({ waves, setWaves, can }) {
   };
 
   const handleScanPick = (pickId) => {
+    // Capture data before optimistic update
+    const currentWave = waves.find(w => w.id === selId);
+    const pick        = currentWave?.picks.find(p => p.id === pickId);
+
     setActiveScanPick(null);
     setWaves(prev => prev.map(w => {
       if (w.id !== selId) return w;
@@ -750,6 +799,18 @@ function PickTab({ waves, setWaves, can }) {
       return { ...w, picks, status: allPicked ? 'complete' : 'in_progress', completedAt: allPicked ? now : w.completedAt };
     }));
     notify('Pick confirmed ✓');
+
+    if (!DEMO_MODE && pick) {
+      api.wms.tasks.create({
+        type:          'pick',
+        status:        'Completed',
+        sku:           pick.sku        || null,
+        quantity:      pick.qty        || null,
+        location_from: pick.bin        || null,
+        notes:         `Wave: ${currentWave.id}, Order: ${currentWave.soId}`,
+        completed_at:  new Date().toISOString(),
+      }).catch(err => showApiToast?.(`WMS sync failed: ${err.message}`));
+    }
   };
 
   const inProgressWaves = waves.filter(w => w.status === 'in_progress').length;
@@ -878,7 +939,7 @@ function PickTab({ waves, setWaves, can }) {
 }
 
 // ─── Cycle Count Tab ──────────────────────────────────────────────────────────
-function CycleCountTab({ counts, setCounts, can }) {
+function CycleCountTab({ counts, setCounts, can, apiInventory, showApiToast }) {
   const [selId,      setSelId     ] = useState('CC-002');
   const [inputQty,   setInputQty  ] = useState('');
   const [binScanned, setBinScanned] = useState(false);
@@ -906,6 +967,30 @@ function CycleCountTab({ counts, setCounts, can }) {
     setCounts(prev => prev.map(c => c.id === selId ? { ...c, countedQty: qty, discrepancy: disc, status } : c));
     setInputQty('');
     notify(disc === 0 ? 'Count matches expected ✓' : `Discrepancy: ${disc > 0 ? '+' : ''}${disc} units`, disc === 0);
+
+    if (!DEMO_MODE) {
+      // Log cycle count task
+      api.wms.tasks.create({
+        type:          'cycle_count',
+        status:        'Completed',
+        sku:           count.sku      || null,
+        quantity:      qty,
+        location_from: count.bin      || null,
+        notes:         disc !== 0 ? `discrepancy: ${disc > 0 ? '+' : ''}${disc}` : null,
+        completed_at:  new Date().toISOString(),
+      }).catch(err => showApiToast?.(`WMS sync failed: ${err.message}`));
+
+      // If discrepancy, adjust inventory to match counted qty
+      if (disc !== 0) {
+        const invItem = apiInventory?.find(i => i.sku === count.sku);
+        if (invItem?.id) {
+          api.inventory.adjust(invItem.id, {
+            delta:  disc,
+            reason: 'cycle_count_adjustment',
+          }).catch(err => console.warn('[Kernal] Inventory adjust failed:', err.message));
+        }
+      }
+    }
   };
 
   const assigned = counts.filter(c => c.status === 'assigned').length;
@@ -1049,38 +1134,18 @@ function CycleCountTab({ counts, setCounts, can }) {
 
 // ─── Main Export ──────────────────────────────────────────────────────────────
 export default function MobileWMSModule() {
-  const { can } = useKernal();
+  const { can, apiInventory } = useKernal();
   const [tab, setTab] = useState('receive');
 
-  // ── State with localStorage persistence (production only) ──────────────────
-  const [receiveTasks, setReceiveTasks] = useState(() => {
-    if (DEMO_MODE) return INIT_RECEIVE_TASKS;
-    try { const s = localStorage.getItem('kernel_wms_receive'); return s ? JSON.parse(s) : []; }
-    catch { return []; }
-  });
+  // ── API toast ──────────────────────────────────────────────────────────────
+  const [apiToast, setApiToast] = useState(null);
+  const showApiToast = (msg) => { setApiToast(msg); setTimeout(() => setApiToast(null), 4000); };
 
-  const [putawayTasks, setPutawayTasks] = useState(() => {
-    if (DEMO_MODE) return INIT_PUTAWAY_TASKS;
-    try { const s = localStorage.getItem('kernel_wms_putaway'); return s ? JSON.parse(s) : []; }
-    catch { return []; }
-  });
-
-  const [waves, setWaves] = useState(() => {
-    if (DEMO_MODE) return INIT_WAVES;
-    try { const s = localStorage.getItem('kernel_wms_waves'); return s ? JSON.parse(s) : []; }
-    catch { return []; }
-  });
-
-  const [cycleCounts, setCycleCounts] = useState(() => {
-    if (DEMO_MODE) return INIT_CYCLE_COUNTS;
-    try { const s = localStorage.getItem('kernel_wms_cycle'); return s ? JSON.parse(s) : []; }
-    catch { return []; }
-  });
-
-  useEffect(() => { if (!DEMO_MODE) localStorage.setItem('kernel_wms_receive', JSON.stringify(receiveTasks)); }, [receiveTasks]);
-  useEffect(() => { if (!DEMO_MODE) localStorage.setItem('kernel_wms_putaway', JSON.stringify(putawayTasks)); }, [putawayTasks]);
-  useEffect(() => { if (!DEMO_MODE) localStorage.setItem('kernel_wms_waves',   JSON.stringify(waves));        }, [waves]);
-  useEffect(() => { if (!DEMO_MODE) localStorage.setItem('kernel_wms_cycle',   JSON.stringify(cycleCounts));  }, [cycleCounts]);
+  // ── State — DEMO uses seed data; live uses empty (tasks come from scanning) ─
+  const [receiveTasks, setReceiveTasks] = useState(DEMO_MODE ? INIT_RECEIVE_TASKS : []);
+  const [putawayTasks, setPutawayTasks] = useState(DEMO_MODE ? INIT_PUTAWAY_TASKS : []);
+  const [waves,        setWaves       ] = useState(DEMO_MODE ? INIT_WAVES         : []);
+  const [cycleCounts,  setCycleCounts ] = useState(DEMO_MODE ? INIT_CYCLE_COUNTS  : []);
 
   // ── Tab definitions ────────────────────────────────────────────────────────
   const tabs = [
@@ -1127,10 +1192,17 @@ export default function MobileWMSModule() {
         ))}
       </div>
 
-      {tab === 'receive' && <ReceiveTab    tasks={receiveTasks} setTasks={setReceiveTasks} can={can} />}
-      {tab === 'putaway' && <PutawayTab    tasks={putawayTasks} setTasks={setPutawayTasks} can={can} />}
-      {tab === 'pick'    && <PickTab       waves={waves}        setWaves={setWaves}        can={can} />}
-      {tab === 'cycle'   && <CycleCountTab counts={cycleCounts} setCounts={setCycleCounts}  can={can} />}
+      {tab === 'receive' && <ReceiveTab    tasks={receiveTasks} setTasks={setReceiveTasks} can={can} apiInventory={apiInventory} showApiToast={showApiToast} />}
+      {tab === 'putaway' && <PutawayTab    tasks={putawayTasks} setTasks={setPutawayTasks} can={can} showApiToast={showApiToast} />}
+      {tab === 'pick'    && <PickTab       waves={waves}        setWaves={setWaves}        can={can} showApiToast={showApiToast} />}
+      {tab === 'cycle'   && <CycleCountTab counts={cycleCounts} setCounts={setCycleCounts}  can={can} apiInventory={apiInventory} showApiToast={showApiToast} />}
+
+      {/* API error toast */}
+      {apiToast && (
+        <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 9999, background: 'rgba(244,63,94,.15)', border: '1px solid rgba(244,63,94,.3)', color: '#fb7185', padding: '9px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600 }}>
+          {apiToast}
+        </div>
+      )}
     </div>
   );
 }
