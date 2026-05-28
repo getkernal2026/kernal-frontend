@@ -5,6 +5,7 @@ import {
   ChevronRight, Package, Scan, ScanBarcode, Camera, X,
   CreditCard, FileText, Truck, Clock, UserCircle, RotateCcw,
   FileWarning, Box, MapPin, PenTool, Sparkles, RefreshCw, Repeat, Pause, Play, Trash2, AlertCircle,
+  Eye, EyeOff, Lock, Mail,
 } from 'lucide-react';
 import { useKernal } from './KernalContext.jsx';
 
@@ -17,27 +18,146 @@ import { TODAY, StatusBadge, PrintButton, ExportButton } from './shared/componen
 import { MOCK_INVENTORY, INVENTORY_BY_ID, INVENTORY_BY_SKU } from './shared/mockInventory.js';
 import { DEMO_MODE } from './lib/demoMode.js';
 
-// ─── Design System Tokens ─────────────────────────────────────────────────────
-// FIX #10: UI constants object — consistent with Inventory, Logistics, Procurement
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const CUSTOMER = {
-  id: 'CUST-501',
-  name: "Joe's Steakhouse — Downtown",
-  creditLimit: 50000,
-  availableCredit: 12500,
-  creditHold: false,
-  arAging: { days90: 0 },
-  terms: 'Net-30',
-  route: 'Route-12',
-  deliveryDays: [2, 4], // Tue, Thu
-  contractPricing: { 3: 79.00 },
-};
-
-const ORDER_GUIDE_IDS = [3, 45];
-
-const INVOICES = [
-  { id: 'INV-1029', date: '2026-03-15', dueDate: '2026-04-14', amount: 1250.00, status: 'Overdue' },
-  { id: 'INV-1045', date: '2026-04-01', dueDate: '2026-05-01', amount: 3400.00, status: 'Open' },
+// ─── Mock Customers ───────────────────────────────────────────────────────────
+const DEMO_CUSTOMERS = [
+  {
+    id: 'CUST-501',
+    name: "Joe's Steakhouse — Downtown",
+    email: 'joe@joessteakhouse.com',
+    password: 'demo123',
+    creditLimit: 50000,
+    availableCredit: 12500,
+    creditHold: false,
+    arAging: { days90: 0 },
+    terms: 'Net-30',
+    route: 'Route-12',
+    deliveryDays: [2, 4],
+    contractPricing: { 3: 79.00 },
+    orderGuideIds: [3, 45],
+    pricingTier: null,
+    invoices: [
+      { id: 'INV-1029', date: '2026-03-15', dueDate: '2026-04-14', amount: 1250.00, status: 'Overdue' },
+      { id: 'INV-1045', date: '2026-04-01', dueDate: '2026-05-01', amount: 3400.00, status: 'Open' },
+    ],
+    initialOrders: [
+      {
+        id: 'SO-9882', date: '2026-04-20', total: 450.00, status: 'Shipped',
+        lineItems: [
+          { id: 3,  qty: 5, price: 79.00 },
+          { id: 45, qty: 1, price: 35.00 },
+        ],
+      },
+    ],
+    initialReturns: [
+      { id: 'RMA-1029', orderId: 'SO-9801', date: '2026-04-10', amount: 158.00, status: 'Credited' },
+    ],
+    initialStandingOrders: [
+      {
+        id: 'SO-TPL-001', name: 'Weekly Protein Run', frequency: 'Weekly', dayOfWeek: 2,
+        nextGenDate: '2026-05-27', status: 'Active', items: [{ id: 3, qty: 10 }, { id: 45, qty: 5 }], createdDate: '2026-01-15',
+      },
+      {
+        id: 'SO-TPL-002', name: 'Bi-Weekly Dry Goods', frequency: 'Bi-weekly', dayOfWeek: 4,
+        nextGenDate: '2026-06-04', status: 'Paused', items: [{ id: 78, qty: 8 }], createdDate: '2026-02-03',
+      },
+    ],
+  },
+  {
+    id: 'CUST-502',
+    name: 'City School District',
+    email: 'orders@cityschools.edu',
+    password: 'demo123',
+    creditLimit: 200000,
+    availableCredit: 87500,
+    creditHold: false,
+    arAging: { days90: 0 },
+    terms: 'Net-45',
+    route: 'Route-7',
+    deliveryDays: [1, 3, 5],
+    contractPricing: { 45: 28.50, 78: 14.00 },
+    orderGuideIds: [45, 78],
+    pricingTier: null,
+    invoices: [
+      { id: 'INV-2110', date: '2026-04-10', dueDate: '2026-05-25', amount: 8420.00, status: 'Open' },
+    ],
+    initialOrders: [
+      {
+        id: 'SO-8801', date: '2026-04-18', total: 2340.00, status: 'Delivered',
+        lineItems: [
+          { id: 45, qty: 40, price: 28.50 },
+          { id: 78, qty: 30, price: 14.00 },
+        ],
+      },
+    ],
+    initialReturns: [],
+    initialStandingOrders: [
+      {
+        id: 'SO-TPL-010', name: 'Monday Produce Run', frequency: 'Weekly', dayOfWeek: 1,
+        nextGenDate: '2026-06-01', status: 'Active', items: [{ id: 45, qty: 50 }, { id: 78, qty: 40 }], createdDate: '2026-01-20',
+      },
+    ],
+  },
+  {
+    id: 'CUST-503',
+    name: 'Harbor View Hotel',
+    email: 'procurement@harborview.com',
+    password: 'demo123',
+    creditLimit: 100000,
+    availableCredit: 0,
+    creditHold: true,
+    arAging: { days90: 14200 },
+    terms: 'Net-30',
+    route: 'Route-3',
+    deliveryDays: [2, 5],
+    contractPricing: {},
+    orderGuideIds: [3, 45, 78],
+    pricingTier: null,
+    invoices: [
+      { id: 'INV-3001', date: '2026-02-01', dueDate: '2026-03-03', amount: 14200.00, status: 'Overdue' },
+      { id: 'INV-3015', date: '2026-03-15', dueDate: '2026-04-14', amount: 5300.00, status: 'Overdue' },
+    ],
+    initialOrders: [
+      {
+        id: 'SO-7720', date: '2026-02-14', total: 14200.00, status: 'Delivered',
+        lineItems: [
+          { id: 3, qty: 100, price: 85.00 },
+          { id: 45, qty: 80, price: 35.00 },
+        ],
+      },
+    ],
+    initialReturns: [],
+    initialStandingOrders: [],
+  },
+  {
+    id: 'CUST-504',
+    name: 'Bayou Grill & Pub',
+    email: 'bayougrill@email.com',
+    password: 'demo123',
+    creditLimit: 25000,
+    availableCredit: 24100,
+    creditHold: false,
+    arAging: { days90: 0 },
+    terms: 'Net-15',
+    route: 'Route-9',
+    deliveryDays: [3, 6],
+    contractPricing: { 205: 12.00 },
+    orderGuideIds: [205, 3],
+    pricingTier: null,
+    invoices: [
+      { id: 'INV-4002', date: '2026-05-10', dueDate: '2026-05-25', amount: 900.00, status: 'Open' },
+    ],
+    initialOrders: [
+      {
+        id: 'SO-6610', date: '2026-05-08', total: 900.00, status: 'Pending',
+        lineItems: [
+          { id: 205, qty: 20, price: 12.00 },
+          { id: 3,   qty: 5,  price: 85.00 },
+        ],
+      },
+    ],
+    initialReturns: [],
+    initialStandingOrders: [],
+  },
 ];
 
 const RETURN_REASONS = [
@@ -47,32 +167,8 @@ const RETURN_REASONS = [
   'Quality Issue',
 ];
 
-const INITIAL_STANDING_ORDERS = [
-  {
-    id: 'SO-TPL-001',
-    name: 'Weekly Protein Run',
-    frequency: 'Weekly',
-    dayOfWeek: 2,
-    nextGenDate: '2026-05-27',
-    status: 'Active',
-    items: [{ id: 3, qty: 10 }, { id: 45, qty: 5 }],
-    createdDate: '2026-01-15',
-  },
-  {
-    id: 'SO-TPL-002',
-    name: 'Bi-Weekly Dry Goods',
-    frequency: 'Bi-weekly',
-    dayOfWeek: 4,
-    nextGenDate: '2026-06-04',
-    status: 'Paused',
-    items: [{ id: 78, qty: 8 }],
-    createdDate: '2026-02-03',
-  },
-];
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// ATP: physical non-held stock minus allocated (Pending/Pending Approval orders)
 const getAvailableStock = (item, allOrders) => {
   const physical = item.lots
     .filter(l => !l.qcHold)
@@ -88,15 +184,15 @@ const getAvailableStock = (item, allOrders) => {
   return Math.max(0, physical - allocated);
 };
 
-const getItemPrice = item => CUSTOMER.contractPricing[item.id] ?? item.price;
+const getItemPrice = (item, contractPricing = {}, tierMultiplier = 1.0) =>
+  contractPricing[item.id] != null ? contractPricing[item.id] : item.price * tierMultiplier;
 
-// FIX #6: Use real current date instead of hardcoded 2026-04-22
-const getNextDeliveryDate = () => {
+const getNextDeliveryDate = (deliveryDays = []) => {
   const today = new Date();
   for (let i = 1; i <= 7; i++) {
     const candidate = new Date(today);
     candidate.setDate(today.getDate() + i);
-    if (CUSTOMER.deliveryDays.includes(candidate.getDay())) {
+    if (deliveryDays.includes(candidate.getDay())) {
       return candidate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
     }
   }
@@ -105,13 +201,329 @@ const getNextDeliveryDate = () => {
 
 const fmt = n => `$${Number(n || 0).toFixed(2)}`;
 
-// ─── ModalWrapper ─────────────────────────────────────────────────────────────
-// FIX #5: Overlay changed from `absolute inset-0` to `fixed inset-0`
-// so modals cover the full viewport (including the sticky nav bar) consistently.
+// ─── Login Screen ─────────────────────────────────────────────────────────────
+function LoginScreen({ onLogin }) {
+  const [email, setEmail]       = useState('');
+  const [password, setPassword] = useState('');
+  const [showPw, setShowPw]     = useState(false);
+  const [error, setError]       = useState('');
+  const [loading, setLoading]   = useState(false);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    setTimeout(() => {
+      const customer = DEMO_CUSTOMERS.find(
+        c => c.email.toLowerCase() === email.trim().toLowerCase() && c.password === password
+      );
+      setLoading(false);
+      if (customer) {
+        onLogin(customer);
+      } else {
+        setError('Invalid email or password. Try one of the demo accounts below.');
+      }
+    }, 700);
+  };
+
+  const quickFill = (customer) => {
+    setEmail(customer.email);
+    setPassword(customer.password);
+    setError('');
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6">
+      {/* Branding */}
+      <div className="mb-10 text-center">
+        <div className="flex items-center justify-center gap-3 mb-3">
+          <Box size={32} className="text-cyan-500" />
+          <span className="text-3xl font-black uppercase tracking-widest text-cyan-500">Kernel</span>
+        </div>
+        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">B2B Order Portal</p>
+      </div>
+
+      {/* Login card */}
+      <div className="w-full max-w-sm bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden">
+        <div className="p-6 border-b border-gray-800">
+          <h2 className="text-lg font-bold text-gray-100 tracking-wide">Sign In</h2>
+          <p className="text-xs text-gray-500 mt-1">Enter your account credentials to continue.</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Email */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5">Email</label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" size={16} />
+              <input
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+                placeholder="you@company.com"
+                className={`${UI.input} pl-10`}
+              />
+            </div>
+          </div>
+
+          {/* Password */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5">Password</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" size={16} />
+              <input
+                type={showPw ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                className={`${UI.input} pl-10 pr-10`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-400 transition-colors"
+              >
+                {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="flex items-start gap-2 bg-rose-500/10 border border-rose-500/30 rounded-xl px-4 py-3">
+              <AlertTriangle size={14} className="text-rose-400 shrink-0 mt-0.5" />
+              <p className="text-xs text-rose-400 font-medium leading-relaxed">{error}</p>
+            </div>
+          )}
+
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3.5 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-60 text-gray-950 font-bold text-sm uppercase tracking-widest rounded-xl transition-colors shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <span className="w-4 h-4 border-2 border-gray-950/30 border-t-gray-950 rounded-full animate-spin" />
+            ) : (
+              'Sign In'
+            )}
+          </button>
+        </form>
+
+        {/* Demo accounts */}
+        <div className="px-6 pb-6 border-t border-gray-800 pt-5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-3">
+            Demo accounts · all passwords: <span className="text-gray-500 font-mono">demo123</span>
+          </p>
+          <div className="space-y-2">
+            {DEMO_CUSTOMERS.map(c => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => quickFill(c)}
+                className="w-full text-left px-4 py-3 rounded-xl bg-gray-950 border border-gray-800 hover:border-cyan-500/30 hover:bg-gray-900 transition-colors group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-gray-200 group-hover:text-cyan-400 transition-colors truncate pr-2">{c.name}</span>
+                  {c.creditHold && (
+                    <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded-full">
+                      Hold
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-600 font-mono mt-0.5 truncate">{c.email}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Real Barcode Scanner ─────────────────────────────────────────────────────
+function RealBarcodeScanner({ onScan, onClose }) {
+  const videoRef        = useRef(null);
+  const streamRef       = useRef(null);
+  const rafRef          = useRef(null);
+  const onScanRef       = useRef(onScan);
+  onScanRef.current     = onScan;
+
+  const [camError, setCamError]     = useState('');
+  const [supported, setSupported]   = useState(true);
+  const [manualMode, setManualMode] = useState(false);
+  const [manualVal, setManualVal]   = useState('');
+  const [lastScan, setLastScan]     = useState('');
+
+  useEffect(() => {
+    if (!('BarcodeDetector' in window)) {
+      setSupported(false);
+      setManualMode(true);
+      return;
+    }
+
+    let cancelled = false;
+    const detector = new window.BarcodeDetector({ formats: ['qr_code', 'code_128', 'ean_13', 'upc_a', 'code_39', 'data_matrix'] });
+
+    const startCam = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+        scan();
+      } catch (err) {
+        if (!cancelled) {
+          setCamError('Camera access denied. Use manual entry below.');
+          setManualMode(true);
+        }
+      }
+    };
+
+    const scan = () => {
+      if (cancelled || !videoRef.current) return;
+      detector.detect(videoRef.current).then(barcodes => {
+        if (!cancelled && barcodes.length > 0) {
+          const code = barcodes[0].rawValue;
+          setLastScan(code);
+          onScanRef.current(code);
+        }
+        if (!cancelled) rafRef.current = requestAnimationFrame(scan);
+      }).catch(() => {
+        if (!cancelled) rafRef.current = requestAnimationFrame(scan);
+      });
+    };
+
+    startCam();
+
+    return () => {
+      cancelled = true;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+    };
+  }, []);
+
+  const handleManualSubmit = (e) => {
+    e.preventDefault();
+    const v = manualVal.trim();
+    if (!v) return;
+    setLastScan(v);
+    setManualVal('');
+    onScanRef.current(v);
+  };
+
+  return (
+    <div className="flex flex-col bg-gray-950 relative rounded-2xl overflow-hidden">
+      {/* Header overlay */}
+      <div className="absolute top-0 left-0 right-0 p-5 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent z-10">
+        <h3 className="text-cyan-500 font-bold text-xs uppercase tracking-widest flex items-center gap-2">
+          <ScanBarcode className="w-4 h-4" /> Barcode Scanner
+        </h3>
+        <button onClick={onClose} className="text-gray-400 bg-gray-900/80 p-2 rounded-full hover:text-white transition-colors">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Viewfinder */}
+      <div className="flex-1 relative flex items-center justify-center px-6 py-16 overflow-hidden bg-gray-950" style={{ minHeight: 300 }}>
+        {/* Live camera feed */}
+        <video
+          ref={videoRef}
+          muted
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ display: supported && !manualMode ? 'block' : 'none' }}
+        />
+        {/* Darkening vignette */}
+        <div className="absolute inset-0 pointer-events-none" style={{
+          background: 'radial-gradient(ellipse 55% 40% at 50% 50%, transparent 0%, rgba(3,7,18,0.75) 100%)',
+        }} />
+
+        {/* Corner-bracket frame */}
+        <div className="w-full max-w-sm aspect-square border border-cyan-500/30 rounded-3xl relative z-10 flex items-center justify-center">
+          <div className="w-full h-0.5 bg-cyan-500 opacity-80 shadow-[0_0_15px_rgba(6,182,212,0.8)]" />
+          <div className="absolute top-0    left-0  w-12 h-12 border-t-4 border-l-4 border-cyan-500 rounded-tl-3xl -translate-x-px -translate-y-px" />
+          <div className="absolute top-0    right-0 w-12 h-12 border-t-4 border-r-4 border-cyan-500 rounded-tr-3xl  translate-x-px -translate-y-px" />
+          <div className="absolute bottom-0 left-0  w-12 h-12 border-b-4 border-l-4 border-cyan-500 rounded-bl-3xl -translate-x-px  translate-y-px" />
+          <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-cyan-500 rounded-br-3xl  translate-x-px  translate-y-px" />
+
+          {/* Camera error banner inside frame */}
+          {camError && (
+            <div className="absolute inset-x-4 top-4 bg-rose-500/90 text-white text-[11px] font-bold px-4 py-2.5 rounded-xl text-center z-20">
+              {camError}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Bottom panel */}
+      <div className="bg-gray-900 border-t border-gray-800 p-6 text-center space-y-4 z-10">
+        {lastScan && (
+          <p className="text-emerald-400 text-[11px] font-bold uppercase tracking-widest">
+            ✓ Scanned: <span className="font-mono">{lastScan}</span>
+          </p>
+        )}
+
+        {!supported && (
+          <p className="text-amber-400 text-xs font-medium">
+            Camera barcode scanning isn't supported on this browser. Enter barcode manually below.
+          </p>
+        )}
+
+        {/* Manual toggle */}
+        {supported && !camError && (
+          <button
+            onClick={() => setManualMode(v => !v)}
+            className="text-[11px] text-gray-500 hover:text-cyan-400 font-bold uppercase tracking-widest transition-colors"
+          >
+            {manualMode ? '← Use Camera' : 'Enter barcode manually'}
+          </button>
+        )}
+
+        {/* Manual entry form */}
+        {manualMode && (
+          <form onSubmit={handleManualSubmit} className="flex gap-2">
+            <input
+              type="text"
+              value={manualVal}
+              onChange={e => setManualVal(e.target.value)}
+              placeholder="Enter barcode…"
+              autoFocus
+              className={`${UI.input} flex-1 text-sm`}
+            />
+            <button
+              type="submit"
+              className="bg-cyan-500 hover:bg-cyan-400 text-gray-950 font-bold text-xs uppercase tracking-widest px-5 rounded-xl transition-colors"
+            >
+              Add
+            </button>
+          </form>
+        )}
+
+        {!manualMode && supported && !camError && (
+          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">
+            Point camera at product barcode to add to cart.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Product Card ─────────────────────────────────────────────────────────────
-const ProductCard = ({ item, cartQty, availableStock, onUpdate, tierMultiplier = 1.0, customerPricingEnabled = false }) => {
-  const isContract   = !!CUSTOMER.contractPricing[item.id];
-  const currentPrice = getItemPrice(item, tierMultiplier);
+const ProductCard = ({ item, cartQty, availableStock, onUpdate, contractPricing = {}, tierMultiplier = 1.0, customerPricingEnabled = false }) => {
+  const isContract   = contractPricing[item.id] != null;
+  const currentPrice = getItemPrice(item, contractPricing, tierMultiplier);
 
   return (
     <div className={`${UI.card} p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden transition-colors hover:border-cyan-500/30`}>
@@ -192,46 +604,71 @@ const ProductCard = ({ item, cartQty, availableStock, onUpdate, tierMultiplier =
 };
 
 // ─── Main Module ──────────────────────────────────────────────────────────────
-// FIX #9: Renamed from App to B2BPortalModule
 export default function B2BPortalModule() {
   const { settings } = useKernal();
   const customerPricingEnabled = settings.features.customerPricing;
   const pricingTiers = settings.pricing?.tiers || [];
-  const tierMultiplier = customerPricingEnabled
-    ? (pricingTiers.find(t => t.id === CUSTOMER.pricingTier)?.multiplier ?? 1.0)
+
+  // ── Auth state (all hooks BEFORE early return) ────────────────────────────
+  const [currentCustomer, setCurrentCustomer] = useState(() => {
+    try { const s = sessionStorage.getItem('kernel_b2b_session'); return s ? JSON.parse(s) : null; }
+    catch { return null; }
+  });
+
+  // Per-customer tier
+  const tierMultiplier = customerPricingEnabled && currentCustomer
+    ? (pricingTiers.find(t => t.id === currentCustomer.pricingTier)?.multiplier ?? 1.0)
     : 1.0;
-  const tierMeta = customerPricingEnabled
-    ? pricingTiers.find(t => t.id === CUSTOMER.pricingTier)
+  const tierMeta = customerPricingEnabled && currentCustomer
+    ? pricingTiers.find(t => t.id === currentCustomer.pricingTier)
     : null;
-  const [activeTab, setActiveTab]           = useState('guide');
-  const [standingOrders, setStandingOrders] = useState(DEMO_MODE ? INITIAL_STANDING_ORDERS : []);
-  const [showStandingModal, setShowStandingModal] = useState(false);
-  const [editingStanding, setEditingStanding]     = useState(null);
-  const [cart, setCart]                     = useState({});
-  const [searchQuery, setSearchQuery]       = useState('');
-  const [orders, setOrders]                 = useState([
-    {
-      id: 'SO-9882', date: '2026-04-20', total: 450.00, status: 'Shipped',
-      lineItems: [
-        { id: 3,  qty: 5, price: 79.00 },
-        { id: 45, qty: 1, price: 35.00 },
-      ],
-    },
-  ]);
-  const [returns, setReturns]               = useState([
-    { id: 'RMA-1029', orderId: 'SO-9801', date: '2026-04-10', amount: 158.00, status: 'Credited' },
-  ]);
-  const [historyView, setHistoryView]       = useState('orders');
+
+  // ── Per-customer derived state ────────────────────────────────────────────
+  const orderGuideIds = currentCustomer?.orderGuideIds ?? [];
+
+  const [activeTab, setActiveTab]                   = useState('guide');
+  const [standingOrders, setStandingOrders]         = useState([]);
+  const [showStandingModal, setShowStandingModal]   = useState(false);
+  const [editingStanding, setEditingStanding]       = useState(null);
+  const [cart, setCart]                             = useState({});
+  const [searchQuery, setSearchQuery]               = useState('');
+  const [orders, setOrders]                         = useState([]);
+  const [returns, setReturns]                       = useState([]);
+  const [historyView, setHistoryView]               = useState('orders');
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
-  const [isScannerOpen, setIsScannerOpen]   = useState(false);
-  const [toastMessage, setToastMessage]     = useState(null);
-  const [selectedInvoices, setSelectedInvoices] = useState([]);
-  const [returnModalOrder, setReturnModalOrder] = useState(null);
-  const [returnSelections, setReturnSelections] = useState({});
+  const [isScannerOpen, setIsScannerOpen]           = useState(false);
+  const [toastMessage, setToastMessage]             = useState(null);
+  const [selectedInvoices, setSelectedInvoices]     = useState([]);
+  const [returnModalOrder, setReturnModalOrder]     = useState(null);
+  const [returnSelections, setReturnSelections]     = useState({});
   const [signatureModalOpen, setSignatureModalOpen] = useState(false);
-  const [hasSigned, setHasSigned]           = useState(false);
-  const [isDrawing, setIsDrawing]           = useState(false);
+  const [hasSigned, setHasSigned]                   = useState(false);
+  const [isDrawing, setIsDrawing]                   = useState(false);
   const canvasRef = useRef(null);
+
+  // Re-init per-customer data when customer changes (login / session restore / switch)
+  useEffect(() => {
+    if (!currentCustomer) return;
+    setOrders(currentCustomer.initialOrders || []);
+    setReturns(currentCustomer.initialReturns || []);
+    setStandingOrders(DEMO_MODE ? (currentCustomer.initialStandingOrders || []) : []);
+    setCart({});
+    setSelectedInvoices([]);
+    setActiveTab('guide');
+  }, [currentCustomer?.id]);
+
+  // ── Auth handlers ─────────────────────────────────────────────────────────
+  const handleLogin = useCallback((customer) => {
+    setCurrentCustomer(customer);
+    try { sessionStorage.setItem('kernel_b2b_session', JSON.stringify(customer)); } catch {}
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    setCurrentCustomer(null);
+    setOrders([]); setReturns([]); setStandingOrders([]); setCart({});
+    setSelectedInvoices([]); setHasSigned(false);
+    try { sessionStorage.removeItem('kernel_b2b_session'); } catch {}
+  }, []);
 
   // ── Toast ────────────────────────────────────────────────────────────────
   const showToast = useCallback((message, type = 'info') => {
@@ -240,32 +677,6 @@ export default function B2BPortalModule() {
   }, []);
 
   // ── Cart ─────────────────────────────────────────────────────────────────
-  // FIX #2: Stock-limit check and toast moved OUTSIDE the setCart updater
-  // so we never call setState from within another setState updater.
-  const updateCart = useCallback((itemId, delta, stockLimit) => {
-    setCart(prev => {
-      const current = prev[itemId] || 0;
-      const next    = current + delta;
-      if (next < 0) return prev;
-      if (next > stockLimit) return prev; // toast fired below
-      const updated = { ...prev, [itemId]: next };
-      if (next === 0) delete updated[itemId];
-      return updated;
-    });
-
-    // Inform user when trying to exceed stock — outside the updater
-    setCart(prev => {
-      const current = prev[itemId] || 0;
-      const next    = current + delta;
-      if (next > stockLimit && delta > 0) {
-        // Schedule toast after this render
-        setTimeout(() => showToast('Maximum available stock reached.', 'error'), 0);
-      }
-      return prev; // no change this second call — only used for the read
-    });
-  }, [showToast]);
-
-  // Cleaner version — split into read check then write
   const handleCartUpdate = useCallback((itemId, delta, stockLimit) => {
     setCart(prev => {
       const current = prev[itemId] || 0;
@@ -283,21 +694,24 @@ export default function B2BPortalModule() {
 
   const cartCount = Object.values(cart).reduce((a, b) => a + b, 0);
 
+  const contractPricing = currentCustomer?.contractPricing ?? {};
+
   const cartSubtotal = useMemo(() =>
     Object.entries(cart).reduce((total, [id, qty]) => {
       const item = MOCK_INVENTORY.find(i => i.id === parseInt(id));
-      return total + (item ? getItemPrice(item, tierMultiplier) * qty : 0);
+      return total + (item ? getItemPrice(item, contractPricing, tierMultiplier) * qty : 0);
     }, 0),
-  [cart]);
+  [cart, contractPricing, tierMultiplier]);
 
   // ── Checkout ──────────────────────────────────────────────────────────────
-  const onCreditHold = CUSTOMER.creditHold || CUSTOMER.arAging.days90 > 0;
+  const onCreditHold = (currentCustomer?.creditHold || (currentCustomer?.arAging?.days90 ?? 0) > 0) ?? false;
 
   const handleCheckout = useCallback(() => {
-    const exceedsCredit = cartSubtotal > CUSTOMER.availableCredit;
+    if (!currentCustomer) return;
+    const exceedsCredit = cartSubtotal > currentCustomer.availableCredit;
     const lineItems = Object.entries(cart).map(([id, qty]) => {
       const item = MOCK_INVENTORY.find(i => i.id === parseInt(id));
-      return { id: item.id, qty, price: getItemPrice(item, tierMultiplier) };
+      return { id: item.id, qty, price: getItemPrice(item, contractPricing, tierMultiplier) };
     });
     const newOrder = {
       id: `SO-${Math.floor(Math.random() * 9000) + 1000}`,
@@ -307,7 +721,6 @@ export default function B2BPortalModule() {
       lineItems,
     };
 
-    // FIX #3: Functional updater — no stale closure
     setOrders(prev => [newOrder, ...prev]);
     setCart({});
     setHasSigned(false);
@@ -318,7 +731,7 @@ export default function B2BPortalModule() {
       setActiveTab('history');
       setHistoryView('orders');
     }, 3000);
-  }, [cart, cartSubtotal]);
+  }, [cart, cartSubtotal, currentCustomer, contractPricing, tierMultiplier]);
 
   // ── Returns ───────────────────────────────────────────────────────────────
   const handleReturnSelection = useCallback((itemId, field, value) => {
@@ -368,7 +781,7 @@ export default function B2BPortalModule() {
   }, [returnSelections, returnModalOrder, showToast]);
 
   // ── Scanner ───────────────────────────────────────────────────────────────
-  const simulateScan = useCallback((barcode) => {
+  const handleBarcodeScan = useCallback((barcode) => {
     const item = MOCK_INVENTORY.find(i => i.barcode === barcode);
     if (item) {
       const stock = getAvailableStock(item, orders);
@@ -381,9 +794,6 @@ export default function B2BPortalModule() {
   }, [orders, handleCartUpdate, showToast]);
 
   // ── Signature Pad ─────────────────────────────────────────────────────────
-  // FIX #4: Canvas coordinate scaling — canvas internal resolution (600×250)
-  // differs from its CSS display size on most screens. Multiply pointer
-  // coordinates by (internalPx / CSSPx) so strokes land under the cursor.
   const getCanvasCoords = useCallback((e, canvas) => {
     const rect   = canvas.getBoundingClientRect();
     const scaleX = canvas.width  / rect.width;
@@ -424,8 +834,7 @@ export default function B2BPortalModule() {
 
   const clearSignature = useCallback(() => {
     if (!canvasRef.current) return;
-    const canvas = canvasRef.current;
-    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    canvasRef.current.getContext('2d').clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
   }, []);
 
   const saveSignature = useCallback(() => {
@@ -434,12 +843,16 @@ export default function B2BPortalModule() {
   }, []);
 
   // ── Invoice toggle ────────────────────────────────────────────────────────
-  // FIX #8: Functional updater — no stale closure on selectedInvoices
   const toggleInvoice = useCallback((invId) => {
     setSelectedInvoices(prev =>
       prev.includes(invId) ? prev.filter(id => id !== invId) : [...prev, invId]
     );
   }, []);
+
+  // ── AUTH GUARD — must be after all hooks ──────────────────────────────────
+  if (!currentCustomer) return <LoginScreen onLogin={handleLogin} />;
+
+  const customerInvoices = currentCustomer.invoices || [];
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
@@ -467,12 +880,12 @@ export default function B2BPortalModule() {
               <Box size={24} className="text-cyan-500" />
               Kernel
             </h1>
-            <p className="text-xs text-gray-400 mt-1.5 font-medium">B2B Order Portal · {CUSTOMER.name}</p>
-          {customerPricingEnabled && tierMeta && (
-            <span className={`mt-1 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${tierMeta.bg} ${tierMeta.color}`}>
-              {tierMeta.label} Pricing — {Math.round((1 - tierMeta.multiplier) * 100)}% off list
-            </span>
-          )}
+            <p className="text-xs text-gray-400 mt-1.5 font-medium">B2B Order Portal · {currentCustomer.name}</p>
+            {customerPricingEnabled && tierMeta && (
+              <span className={`mt-1 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${tierMeta.bg} ${tierMeta.color}`}>
+                {tierMeta.label} Pricing — {Math.round((1 - tierMeta.multiplier) * 100)}% off list
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -482,7 +895,11 @@ export default function B2BPortalModule() {
               <Scan size={16} />
               <span className="hidden sm:inline">Scan</span>
             </button>
-            <button className="text-gray-500 hover:text-rose-400 transition-colors p-2 bg-gray-900 rounded-full border border-gray-800">
+            <button
+              onClick={handleLogout}
+              className="text-gray-500 hover:text-rose-400 transition-colors p-2 bg-gray-900 rounded-full border border-gray-800"
+              title="Sign out"
+            >
               <LogOut size={16} />
             </button>
           </div>
@@ -497,9 +914,9 @@ export default function B2BPortalModule() {
             <div>
               <span className="text-rose-400 font-bold text-sm">Account on Credit Hold</span>
               <span className="text-rose-300/70 text-xs ml-3">
-                {CUSTOMER.creditHold
+                {currentCustomer.creditHold
                   ? 'This account has been placed on hold by the finance team. New orders are blocked.'
-                  : `This account has $${CUSTOMER.arAging.days90.toLocaleString()} past due 60+ days. Please contact your sales rep to place orders.`}
+                  : `This account has $${currentCustomer.arAging.days90.toLocaleString()} past due 60+ days. Please contact your sales rep to place orders.`}
               </span>
             </div>
           </div>
@@ -519,17 +936,24 @@ export default function B2BPortalModule() {
               <p className="text-gray-500 text-sm">Your customized order guide for fast replenishment.</p>
             </div>
             <div className="space-y-4">
-              {MOCK_INVENTORY.filter(item => ORDER_GUIDE_IDS.includes(item.id)).map(item => (
+              {MOCK_INVENTORY.filter(item => orderGuideIds.includes(item.id)).map(item => (
                 <ProductCard
                   key={item.id}
                   item={item}
                   cartQty={cart[item.id] || 0}
                   availableStock={getAvailableStock(item, orders)}
                   onUpdate={delta => handleCartUpdate(item.id, delta, getAvailableStock(item, orders))}
+                  contractPricing={contractPricing}
                   tierMultiplier={tierMultiplier}
                   customerPricingEnabled={customerPricingEnabled}
                 />
               ))}
+              {orderGuideIds.length === 0 && (
+                <div className="text-center py-16 bg-gray-900/50 rounded-2xl border-2 border-dashed border-gray-800">
+                  <ClipboardList className="mx-auto text-gray-600 mb-5" size={48} />
+                  <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">No order guide items configured.</p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -563,6 +987,7 @@ export default function B2BPortalModule() {
                   cartQty={cart[item.id] || 0}
                   availableStock={getAvailableStock(item, orders)}
                   onUpdate={delta => handleCartUpdate(item.id, delta, getAvailableStock(item, orders))}
+                  contractPricing={contractPricing}
                   tierMultiplier={tierMultiplier}
                   customerPricingEnabled={customerPricingEnabled}
                 />
@@ -600,20 +1025,18 @@ export default function B2BPortalModule() {
                   <div>
                     <h3 className="font-bold text-sky-400 tracking-wide text-lg">Logistics & Delivery</h3>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 mt-2 text-sm text-sky-300/80">
-                      <span className="flex items-center gap-2"><MapPin size={14} /> {CUSTOMER.route}</span>
+                      <span className="flex items-center gap-2"><MapPin size={14} /> {currentCustomer.route}</span>
                       <span className="hidden sm:inline text-sky-500/50">·</span>
                       <span className="flex items-center gap-2"><Clock size={14} /> Cut-off: 4:00 PM</span>
                       <span className="hidden sm:inline text-sky-500/50">·</span>
                       <span className="font-bold text-sky-300 bg-sky-500/20 px-2 py-0.5 rounded text-xs uppercase tracking-widest">
-                        Est: {getNextDeliveryDate()}
+                        Est: {getNextDeliveryDate(currentCustomer.deliveryDays)}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* FIX #1: Cross-sell banner — was `!cart[205]?.qty` (always truthy since
-                    cart stores numbers, not objects). Fixed to `!cart[205]` so the banner
-                    correctly hides once buns are already in the cart. */}
+                {/* Cross-sell banner */}
                 {!cart[205] && (
                   <div className="bg-indigo-500/10 p-5 rounded-2xl border border-indigo-500/30 flex gap-4 items-start shadow-inner">
                     <Sparkles className="text-indigo-400 shrink-0 mt-0.5" size={24} />
@@ -643,7 +1066,7 @@ export default function B2BPortalModule() {
                   {Object.entries(cart).map(([id, qty]) => {
                     const item = MOCK_INVENTORY.find(i => i.id === parseInt(id));
                     if (!item) return null;
-                    const price = getItemPrice(item, tierMultiplier);
+                    const price = getItemPrice(item, contractPricing, tierMultiplier);
                     return (
                       <div key={id} className="p-5 border-b border-gray-800/50 last:border-0 flex justify-between items-center hover:bg-gray-900/50 transition-colors">
                         <div>
@@ -713,7 +1136,7 @@ export default function B2BPortalModule() {
                     </button>
                   </div>
 
-                  {cartSubtotal > CUSTOMER.availableCredit && (
+                  {cartSubtotal > currentCustomer.availableCredit && (
                     <p className="text-center text-xs text-rose-400 mt-4 font-bold uppercase tracking-widest">
                       Order exceeds credit limit — will be routed for approval.
                     </p>
@@ -753,6 +1176,12 @@ export default function B2BPortalModule() {
 
             {historyView === 'orders' ? (
               <div className="space-y-4">
+                {orders.length === 0 && (
+                  <div className="text-center py-16 bg-gray-900/50 rounded-2xl border-2 border-dashed border-gray-800">
+                    <History className="mx-auto text-gray-600 mb-5" size={48} />
+                    <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">No orders on record.</p>
+                  </div>
+                )}
                 {orders.map(order => (
                   <div key={order.id} className={`${UI.card} p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5 hover:border-cyan-500/30 transition-colors`}>
                     <div>
@@ -762,6 +1191,7 @@ export default function B2BPortalModule() {
                           order.status === 'Pending'          ? UI.badgeSky    :
                           order.status === 'Pending Approval' ? UI.badgeAmber  :
                           order.status === 'Shipped'          ? UI.badgeEmerald :
+                          order.status === 'Delivered'        ? UI.badgeEmerald :
                           UI.badgeAmber
                         }>
                           {order.status}
@@ -773,13 +1203,12 @@ export default function B2BPortalModule() {
                     </div>
                     <div className="text-right w-full sm:w-auto flex justify-between sm:flex-col sm:items-end border-t border-gray-800/50 sm:border-0 pt-4 sm:pt-0 gap-3">
                       <span className="font-black text-emerald-400 text-xl tracking-wide">{fmt(order.total)}</span>
-                      {order.status === 'Shipped' && (
+                      {(order.status === 'Shipped' || order.status === 'Delivered') && (
                         <button
                           onClick={() => {
                             setReturnModalOrder(order);
                             const init = {};
                             order.lineItems.forEach(li => {
-                              // FIX #7: Default reason matches first select option 'Damaged/Spoiled'
                               init[li.id] = { selected: false, qty: li.qty, reason: RETURN_REASONS[0], price: li.price };
                             });
                             setReturnSelections(init);
@@ -860,7 +1289,7 @@ export default function B2BPortalModule() {
                   const totalItems = so.items.reduce((s, i) => s + i.qty, 0);
                   const estValue = so.items.reduce((s, li) => {
                     const inv = MOCK_INVENTORY.find(i => i.id === li.id);
-                    return s + (inv ? getItemPrice(inv, tierMultiplier) * li.qty : 0);
+                    return s + (inv ? getItemPrice(inv, contractPricing, tierMultiplier) * li.qty : 0);
                   }, 0);
                   const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
                   return (
@@ -1022,25 +1451,31 @@ export default function B2BPortalModule() {
               <div className="relative z-10">
                 <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-2">Available Credit</p>
                 <h3 className="text-5xl font-black text-gray-100 tracking-tighter mb-6">
-                  ${CUSTOMER.availableCredit.toLocaleString()}
+                  ${currentCustomer.availableCredit.toLocaleString()}
                 </h3>
                 <div className="w-full bg-gray-950 rounded-full h-3 overflow-hidden mb-3 border border-gray-800 shadow-inner">
                   <div
-                    className="bg-cyan-500 h-3 shadow-[0_0_10px_rgba(251,191,36,0.6)]"
-                    style={{ width: `${(CUSTOMER.availableCredit / CUSTOMER.creditLimit) * 100}%` }}
+                    className="bg-cyan-500 h-3 shadow-[0_0_10px_rgba(6,182,212,0.6)]"
+                    style={{ width: `${Math.min(100, (currentCustomer.availableCredit / currentCustomer.creditLimit) * 100)}%` }}
                   />
                 </div>
                 <div className="flex justify-between text-xs font-mono text-gray-500">
                   <span>$0</span>
-                  <span>Limit: ${CUSTOMER.creditLimit.toLocaleString()} · Terms: {CUSTOMER.terms}</span>
+                  <span>Limit: ${currentCustomer.creditLimit.toLocaleString()} · Terms: {currentCustomer.terms}</span>
                 </div>
               </div>
             </div>
 
             {/* Open invoices */}
             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Open Invoices</h3>
+            {customerInvoices.length === 0 && (
+              <div className="text-center py-12 bg-gray-900/50 rounded-2xl border-2 border-dashed border-gray-800">
+                <FileText className="mx-auto text-gray-600 mb-4" size={40} />
+                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">No open invoices.</p>
+              </div>
+            )}
             <div className="space-y-4">
-              {INVOICES.map(inv => {
+              {customerInvoices.map(inv => {
                 const isSelected = selectedInvoices.includes(inv.id);
                 return (
                   <div
@@ -1079,12 +1514,12 @@ export default function B2BPortalModule() {
                     {selectedInvoices.length} invoice{selectedInvoices.length !== 1 ? 's' : ''} selected
                   </span>
                   <span className="font-black text-2xl text-emerald-400 tracking-wide">
-                    {fmt(selectedInvoices.reduce((t, id) => t + (INVOICES.find(i => i.id === id)?.amount || 0), 0))}
+                    {fmt(selectedInvoices.reduce((t, id) => t + (customerInvoices.find(i => i.id === id)?.amount || 0), 0))}
                   </span>
                 </div>
                 <button
                   onClick={() => {
-                    const total = selectedInvoices.reduce((t, id) => t + (INVOICES.find(i => i.id === id)?.amount || 0), 0);
+                    const total = selectedInvoices.reduce((t, id) => t + (customerInvoices.find(i => i.id === id)?.amount || 0), 0);
                     showToast(`Payment of ${fmt(total)} submitted.`, 'success');
                     setSelectedInvoices([]);
                   }}
@@ -1183,7 +1618,6 @@ export default function B2BPortalModule() {
                               ))}
                             </select>
                             <select
-                              // FIX #7: Default aligned to RETURN_REASONS[0] = 'Damaged/Spoiled'
                               value={sel.reason || RETURN_REASONS[0]}
                               onChange={e => handleReturnSelection(li.id, 'reason', e.target.value)}
                               className="text-sm bg-gray-950 border border-gray-800 text-gray-100 rounded-lg p-2 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 outline-none flex-1"
@@ -1212,55 +1646,17 @@ export default function B2BPortalModule() {
       )}
 
       {/* ════════════════════════════════════════════════════════════════════
-          BARCODE SCANNER MODAL
-          Uses ModalWrapper — FIX #5 now uses fixed inset-0 overlay
+          BARCODE SCANNER MODAL — real BarcodeDetector camera scanner
       ════════════════════════════════════════════════════════════════════ */}
       <Modal isOpen={isScannerOpen} onClose={() => setIsScannerOpen(false)} title="" icon={Camera} hideHeader>
-        <div className="flex flex-col bg-gray-950 relative rounded-2xl overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent z-10">
-            <h3 className="text-cyan-500 font-bold text-xs uppercase tracking-widest flex items-center gap-2">
-              <ScanBarcode className="w-4 h-4" /> Barcode Scanner
-            </h3>
-            <button onClick={() => setIsScannerOpen(false)} className="text-gray-400 bg-gray-900 p-2 rounded-full hover:text-white transition-colors">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Viewfinder */}
-          <div className="flex-1 relative flex items-center justify-center px-6 py-16 overflow-hidden bg-gray-950">
-            <div className="absolute inset-0 bg-radial from-gray-800/20 via-gray-950 to-black pointer-events-none" />
-            <div className="w-full max-w-sm aspect-square border border-cyan-500/30 rounded-3xl relative z-10 flex items-center justify-center bg-gray-900/20 backdrop-blur-sm">
-              <div className="w-full h-0.5 bg-cyan-500 opacity-80 shadow-[0_0_15px_rgba(251,191,36,0.8)]" />
-              <div className="absolute top-0    left-0  w-12 h-12 border-t-4 border-l-4 border-cyan-500 rounded-tl-3xl -translate-x-px -translate-y-px" />
-              <div className="absolute top-0    right-0 w-12 h-12 border-t-4 border-r-4 border-cyan-500 rounded-tr-3xl  translate-x-px -translate-y-px" />
-              <div className="absolute bottom-0 left-0  w-12 h-12 border-b-4 border-l-4 border-cyan-500 rounded-bl-3xl -translate-x-px  translate-y-px" />
-              <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-cyan-500 rounded-br-3xl  translate-x-px  translate-y-px" />
-            </div>
-          </div>
-
-          <div className="bg-gray-900 border-t border-gray-800 p-8 text-center space-y-4 z-10">
-            <p className="text-gray-400 text-xs font-bold uppercase tracking-widest leading-relaxed">
-              Align camera with product barcode to add to cart.
-            </p>
-            <button
-              onClick={() => simulateScan('001122334455')}
-              className="w-full bg-emerald-500 hover:bg-emerald-600 text-gray-950 text-xs font-bold uppercase tracking-widest py-4 rounded-2xl flex items-center justify-center gap-3 transition-colors shadow-lg shadow-emerald-500/20"
-            >
-              <Scan size={18} /> Simulate: Scan Ground Beef
-            </button>
-            <button
-              onClick={() => simulateScan('999999999999')}
-              className="w-full bg-gray-950 hover:bg-gray-800 border border-gray-800 text-gray-400 text-xs font-bold uppercase tracking-widest py-4 rounded-2xl transition-colors"
-            >
-              Simulate: Unknown Barcode
-            </button>
-          </div>
-        </div>
+        <RealBarcodeScanner
+          onScan={handleBarcodeScan}
+          onClose={() => setIsScannerOpen(false)}
+        />
       </Modal>
 
       {/* ════════════════════════════════════════════════════════════════════
           SIGNATURE PAD MODAL
-          Uses ModalWrapper — FIX #5 now uses fixed inset-0 overlay
       ════════════════════════════════════════════════════════════════════ */}
       <Modal isOpen={signatureModalOpen} onClose={() => setSignatureModalOpen(false)} title="E-Sign Authorization" icon={PenTool}>
         <div className="flex flex-col bg-gray-950/50">
@@ -1268,10 +1664,6 @@ export default function B2BPortalModule() {
             <p className="text-sm text-gray-400 mb-6 leading-relaxed">
               By signing below you authorize this order and agree to the payment terms on your account.
             </p>
-            {/* FIX #4: Canvas with explicit internal resolution (600×250).
-                The getCanvasCoords helper scales pointer positions by
-                (canvas.width / rect.width) so strokes land under the cursor
-                regardless of CSS display size. */}
             <div className="border border-gray-700 rounded-2xl bg-gray-900/50 overflow-hidden relative shadow-inner" style={{ height: 250 }}>
               <canvas
                 ref={canvasRef}
@@ -1311,8 +1703,6 @@ export default function B2BPortalModule() {
       {/* ════════════════════════════════════════════════════════════════════
           BOTTOM NAVIGATION
       ════════════════════════════════════════════════════════════════════ */}
-      {/* FIX #11: Replaced animate-in / slide-in-from-* (requires tailwindcss-animate)
-          with standard Tailwind transition-colors which work out of the box. */}
       <nav id="kernal-module-tabs" className="bg-gray-900/90 backdrop-blur-xl border-t border-gray-800 fixed bottom-0 w-full z-20 shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
         <div className="max-w-5xl mx-auto flex justify-around px-2">
           {[
