@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useKernal, APPROVAL_FLOW_TYPES, ROLES } from './KernalContext.jsx';
 import { UI } from './ui.js';
 import { Overlay, ModalBox, ModalHeader } from './shared/Modal.jsx';
@@ -6,7 +6,10 @@ import {
   CheckCircle2, XCircle, MessageSquare, Clock, ShoppingCart, Unlock, Percent,
   FileEdit, AlertCircle, Inbox, Send, History as HistoryIcon, Sliders,
   Filter, X, User as UserIcon, ChevronRight, Bell, BellOff, Eye, Package,
+  RefreshCw, Plus, Search, TrendingUp, AlertTriangle,
 } from 'lucide-react';
+
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 const fmt$ = (n) => new Intl.NumberFormat('en-US', { style:'currency', currency:'USD' }).format(Number(n) || 0);
@@ -542,17 +545,202 @@ function RulesTab() {
   );
 }
 
+// ── Stats bar ────────────────────────────────────────────────────────────────
+function StatsBar({ approvalRequests }) {
+  const pending   = useMemo(() => approvalRequests.filter(r => r.status === 'pending'), [approvalRequests]);
+  const approved  = useMemo(() => approvalRequests.filter(r => r.status === 'approved').length, [approvalRequests]);
+  const rejected  = useMemo(() => approvalRequests.filter(r => r.status === 'rejected').length, [approvalRequests]);
+
+  const pendingByFlow = useMemo(() => {
+    const map = {};
+    pending.forEach(r => { map[r.flowType] = (map[r.flowType] || 0) + 1; });
+    return map;
+  }, [pending]);
+
+  const oldestPendingHours = useMemo(() => {
+    if (pending.length === 0) return 0;
+    const oldest = Math.min(...pending.map(r => new Date(r.requestedAt).getTime()));
+    return Math.floor((Date.now() - oldest) / 3_600_000);
+  }, [pending]);
+
+  const urgentThreshold = 48; // hours before showing urgency warning
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+      <div className={`${UI.card} p-4 flex items-center gap-3`}>
+        <div className="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0">
+          <Clock className="w-5 h-5" />
+        </div>
+        <div>
+          <p className="text-2xl font-bold text-gray-100">{pending.length}</p>
+          <p className="text-xs text-gray-500">Pending</p>
+        </div>
+      </div>
+      <div className={`${UI.card} p-4 flex items-center gap-3`}>
+        <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+          <CheckCircle2 className="w-5 h-5" />
+        </div>
+        <div>
+          <p className="text-2xl font-bold text-gray-100">{approved}</p>
+          <p className="text-xs text-gray-500">Approved</p>
+        </div>
+      </div>
+      <div className={`${UI.card} p-4 flex items-center gap-3`}>
+        <div className="w-10 h-10 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center shrink-0">
+          <XCircle className="w-5 h-5" />
+        </div>
+        <div>
+          <p className="text-2xl font-bold text-gray-100">{rejected}</p>
+          <p className="text-xs text-gray-500">Rejected</p>
+        </div>
+      </div>
+      <div className={`${UI.card} p-4`}>
+        {oldestPendingHours >= urgentThreshold ? (
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+            <div>
+              <p className="text-sm font-bold text-amber-400">{oldestPendingHours}h waiting</p>
+              <p className="text-xs text-gray-500">Oldest pending</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-cyan-400 shrink-0" />
+            <div>
+              <p className="text-sm font-bold text-gray-100">
+                {oldestPendingHours > 0 ? `${oldestPendingHours}h` : pending.length > 0 ? '<1h' : '—'}
+              </p>
+              <p className="text-xs text-gray-500">Oldest pending</p>
+            </div>
+          </div>
+        )}
+        {Object.keys(pendingByFlow).length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {Object.entries(pendingByFlow).map(([ft, cnt]) => (
+              <span key={ft} className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-800 text-gray-400 uppercase tracking-wide">
+                {APPROVAL_FLOW_TYPES[ft]?.label?.split(' ')[0] || ft}: {cnt}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── New Request Modal ─────────────────────────────────────────────────────────
+function NewRequestModal({ onClose, onSubmit }) {
+  const [flowType, setFlowType] = useState('po_approval');
+  const [title, setTitle]     = useState('');
+  const [summary, setSummary] = useState('');
+  const [amount, setAmount]   = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const flowMeta = APPROVAL_FLOW_TYPES[flowType];
+  const showAmount = ['po_approval', 'discount_override', 'credit_release'].includes(flowType);
+  const amountLabel = flowType === 'discount_override' ? 'Discount %' : 'Amount ($)';
+
+  const handleSubmit = async () => {
+    if (!title.trim()) return;
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        flowType,
+        title:     title.trim(),
+        summary:   summary.trim(),
+        threshold: showAmount ? (Number(amount) || 0) : 0,
+        payload:   {},
+      });
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Overlay>
+      <ModalBox>
+        <ModalHeader title="Submit Approval Request" icon={Plus} onClose={onClose} />
+        <div className="p-6 space-y-4">
+          <div>
+            <label className={UI.label}>Flow Type</label>
+            <select
+              className={UI.input}
+              value={flowType}
+              onChange={e => setFlowType(e.target.value)}
+            >
+              {Object.entries(APPROVAL_FLOW_TYPES).map(([id, m]) => (
+                <option key={id} value={id}>{m.label}</option>
+              ))}
+            </select>
+            {flowMeta?.description && (
+              <p className="mt-1 text-xs text-gray-500 italic">{flowMeta.description}</p>
+            )}
+          </div>
+          <div>
+            <label className={UI.label}>Title <span className="text-rose-400">*</span></label>
+            <input
+              type="text"
+              className={UI.input}
+              placeholder={`e.g. PO #7892 — US Foods ($8,500)`}
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+            />
+          </div>
+          {showAmount && (
+            <div>
+              <label className={UI.label}>{amountLabel}</label>
+              <input
+                type="number"
+                className={UI.input}
+                placeholder="0"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+              />
+            </div>
+          )}
+          <div>
+            <label className={UI.label}>Summary / Justification</label>
+            <textarea
+              rows={3}
+              className={UI.input}
+              placeholder="Briefly describe why this requires approval…"
+              value={summary}
+              onChange={e => setSummary(e.target.value)}
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-2 border-t border-gray-800">
+            <button onClick={onClose} className={UI.btnGhost}>Cancel</button>
+            <button
+              onClick={handleSubmit}
+              disabled={!title.trim() || submitting}
+              className={`${UI.btnPrimary} ${(!title.trim() || submitting) ? 'opacity-40 cursor-not-allowed' : ''}`}
+            >
+              {submitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              Submit Request
+            </button>
+          </div>
+        </div>
+      </ModalBox>
+    </Overlay>
+  );
+}
+
 // ── Main Module ─────────────────────────────────────────────────────────────
 export default function ApprovalsModule() {
   const {
-    approvalRequests, settings, users, activeUser, activeUserId,
+    approvalRequests, settings, users, activeUser, activeUserId, can,
     pendingApprovalsForUser, approvalsRequestedByUser,
-    decideApproval, cancelApprovalRequest, logAudit,
+    decideApproval, cancelApprovalRequest, submitApprovalRequest, logAudit,
+    refreshApprovals,
   } = useKernal();
 
   const [tab, setTab] = useState('pending');
   const [activeId, setActiveId] = useState(null);
   const [flowFilter, setFlowFilter] = useState('all');
+  const [search, setSearch] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [showNewRequest, setShowNewRequest] = useState(false);
 
   const pendingForMe = useMemo(() => pendingApprovalsForUser(activeUserId), [approvalRequests, activeUserId, settings.approvalRules]);
   const myRequests   = useMemo(() => approvalsRequestedByUser(activeUserId), [approvalRequests, activeUserId]);
@@ -562,11 +750,44 @@ export default function ApprovalsModule() {
                    : tab === 'mine'    ? myRequests
                    : tab === 'history' ? history
                    : [];
-  const filteredList = flowFilter === 'all' ? listForTab : listForTab.filter(r => r.flowType === flowFilter);
+  const filteredList = useMemo(() => {
+    let list = flowFilter === 'all' ? listForTab : listForTab.filter(r => r.flowType === flowFilter);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter(r =>
+        (r.title || '').toLowerCase().includes(q) ||
+        (r.summary || '').toLowerCase().includes(q) ||
+        (r.id || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [listForTab, flowFilter, search]);
+
+  // Resolve display name: users array (demo mode) OR raw requestedBy string (live mode)
+  const resolveName = useCallback((idOrEmail) => {
+    if (!idOrEmail) return 'Unknown';
+    const u = users.find(u => u.id === idOrEmail);
+    if (u) return u.name;
+    // In live mode, requestedBy may be an email or a user UUID
+    if (idOrEmail.includes('@')) return idOrEmail;
+    // UUID — shorten it
+    if (idOrEmail.length > 20) return `User …${idOrEmail.slice(-6)}`;
+    return idOrEmail;
+  }, [users]);
+
+  const handleRefresh = useCallback(() => {
+    if (DEMO_MODE || refreshing) return;
+    setRefreshing(true);
+    try { refreshApprovals(); } finally {
+      setTimeout(() => setRefreshing(false), 1000);
+    }
+  }, [refreshApprovals, refreshing]);
+
+  const canSubmitNew = can('approvals') === 'full';
 
   const active = approvalRequests.find(r => r.id === activeId) || null;
-  const requester = active ? users.find(u => u.id === active.requestedBy) : null;
-  const decider   = active && active.decidedBy ? users.find(u => u.id === active.decidedBy) : null;
+  const requester = active ? { name: resolveName(active.requestedBy) } : null;
+  const decider   = active && active.decidedBy ? { name: resolveName(active.decidedBy) } : null;
 
   const activeRule = active ? settings.approvalRules?.[active.flowType] : null;
   const canDecide = !!(active && activeRule?.approverRoles?.includes(activeUser?.role));
@@ -598,17 +819,38 @@ export default function ApprovalsModule() {
     <div className="min-h-screen bg-gray-950 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6 flex items-start justify-between">
+        <div className="mb-5 flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-xl font-bold text-gray-100 flex items-center gap-2"><Inbox className="w-5 h-5 text-cyan-500" /> Approvals</h1>
             <p className="text-sm text-gray-500 mt-0.5">Central inbox for purchase order, credit hold, discount, and account-change approvals.</p>
           </div>
-          {settings.features?.approvalWorkflows === false && (
-            <span className="px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-bold flex items-center gap-2">
-              <BellOff className="w-3.5 h-3.5" /> Workflows disabled — enable in Settings
-            </span>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {settings.features?.approvalWorkflows === false && (
+              <span className="px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-bold flex items-center gap-2">
+                <BellOff className="w-3.5 h-3.5" /> Workflows disabled — enable in Settings
+              </span>
+            )}
+            {!DEMO_MODE && (
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                title="Refresh approvals"
+                className={`${UI.btnGhost} flex items-center gap-1.5 text-xs`}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            )}
+            {canSubmitNew && (
+              <button onClick={() => setShowNewRequest(true)} className={`${UI.btnPrimary} flex items-center gap-1.5 text-xs`}>
+                <Plus className="w-3.5 h-3.5" /> New Request
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Stats bar */}
+        <StatsBar approvalRequests={approvalRequests} />
 
         {/* Tab bar */}
         <div id="kernal-module-tabs" className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1 mb-4">
@@ -639,21 +881,40 @@ export default function ApprovalsModule() {
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-4" style={{ minHeight: '60vh' }}>
             {/* List */}
             <div className={`${UI.card} lg:col-span-2 overflow-hidden flex flex-col`}>
-              <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Filter className="w-3.5 h-3.5 text-gray-500" />
-                  <select
-                    value={flowFilter}
-                    onChange={e => setFlowFilter(e.target.value)}
-                    className="bg-gray-800 border border-gray-700 text-gray-200 text-xs rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
-                  >
-                    <option value="all">All flow types</option>
-                    {Object.entries(APPROVAL_FLOW_TYPES).map(([id, m]) => (
-                      <option key={id} value={id}>{m.label}</option>
-                    ))}
-                  </select>
+              <div className="px-4 py-3 border-b border-gray-800 space-y-2">
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Search by title or summary…"
+                    className="w-full pl-8 pr-8 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
+                  />
+                  {search && (
+                    <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
-                <span className="text-xs text-gray-500">{filteredList.length} {filteredList.length === 1 ? 'request' : 'requests'}</span>
+                {/* Flow filter + count */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-3.5 h-3.5 text-gray-500" />
+                    <select
+                      value={flowFilter}
+                      onChange={e => setFlowFilter(e.target.value)}
+                      className="bg-gray-800 border border-gray-700 text-gray-200 text-xs rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
+                    >
+                      <option value="all">All flow types</option>
+                      {Object.entries(APPROVAL_FLOW_TYPES).map(([id, m]) => (
+                        <option key={id} value={id}>{m.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <span className="text-xs text-gray-500">{filteredList.length} {filteredList.length === 1 ? 'request' : 'requests'}</span>
+                </div>
               </div>
               <div className="overflow-y-auto flex-1">
                 {filteredList.length === 0 ? (
@@ -696,6 +957,15 @@ export default function ApprovalsModule() {
               )}
             </div>
           </div>
+        )}
+
+        {showNewRequest && (
+          <NewRequestModal
+            onClose={() => setShowNewRequest(false)}
+            onSubmit={({ flowType, title, summary, threshold, payload }) => {
+              submitApprovalRequest({ flowType, title, summary, threshold, payload });
+            }}
+          />
         )}
       </div>
     </div>

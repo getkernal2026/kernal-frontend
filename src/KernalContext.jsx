@@ -588,6 +588,26 @@ export function KernalProvider({ children }) {
       .catch(() => {});
   }, [authUser]);
 
+  // Load approval rules from API on mount (merge with defaults so all keys always exist)
+  useEffect(() => {
+    if (DEMO_MODE || !authUser) return;
+    api.approvals.getRules()
+      .then(remoteRules => {
+        if (remoteRules && typeof remoteRules === 'object' && Object.keys(remoteRules).length > 0) {
+          setSettings(prev => ({
+            ...prev,
+            approvalRules: {
+              ...DEFAULT_APPROVAL_RULES,
+              ...Object.fromEntries(
+                Object.entries(remoteRules).map(([k, v]) => [k, { ...(DEFAULT_APPROVAL_RULES[k] || {}), ...v }])
+              ),
+            },
+          }));
+        }
+      })
+      .catch(() => {});
+  }, [authUser]);
+
   // Convenience refreshers for individual collections
   const refreshProducts  = () => api.products.list({ limit: 500 }).then(r => setApiProducts(r.data  || []));
   const refreshInventory = () => api.inventory.list({ limit: 500 }).then(r => setApiInventory(r.data || []));
@@ -943,13 +963,12 @@ export function KernalProvider({ children }) {
         after:  { status: decision },
         severity: audSev,
       }, ...prev]);
-      // Persist decision to backend
+      // Persist decision to backend via dedicated decide endpoint
       if (!DEMO_MODE && dbId) {
-        api.approvals.update(dbId, {
-          status:     decision,
+        api.approvals.decide(dbId, {
+          decision,
+          note,
           decided_by: updated.decidedBy,
-          decided_at: updated.decidedAt,
-          audit:      updated.audit,
         }).catch(() => {});
       }
     }
@@ -972,7 +991,7 @@ export function KernalProvider({ children }) {
       return updated;
     }));
     if (!DEMO_MODE && dbId) {
-      api.approvals.update(dbId, { status: 'cancelled', audit: newAudit }).catch(() => {});
+      api.approvals.cancel(dbId).catch(() => {});
     }
   };
 
@@ -1010,15 +1029,22 @@ export function KernalProvider({ children }) {
       n.readBy.includes(userId) ? n : { ...n, readBy: [...n.readBy, userId] }
     ));
 
-  // Update an approval rule. Path is just the flow type.
+  // Update an approval rule. Optimistically updates local state then persists to API.
   const updateApprovalRule = (flowType, patch) => {
-    setSettings(prev => ({
-      ...prev,
-      approvalRules: {
-        ...prev.approvalRules,
-        [flowType]: { ...prev.approvalRules[flowType], ...patch },
-      },
-    }));
+    setSettings(prev => {
+      const updated = {
+        ...prev,
+        approvalRules: {
+          ...prev.approvalRules,
+          [flowType]: { ...prev.approvalRules[flowType], ...patch },
+        },
+      };
+      // Persist entire rules object to backend (fire-and-forget)
+      if (!DEMO_MODE) {
+        api.approvals.updateRules(updated.approvalRules).catch(() => {});
+      }
+      return updated;
+    });
   };
 
   // Does this flow type require approval at this threshold value?
@@ -1057,6 +1083,12 @@ export function KernalProvider({ children }) {
       submitApprovalRequest, decideApproval, cancelApprovalRequest,
       pendingApprovalsForUser, approvalsRequestedByUser,
       requiresApproval, updateApprovalRule,
+      refreshApprovals: () => {
+        if (DEMO_MODE) return;
+        api.approvals.list({ limit: 200 })
+          .then(r => { if (r.data) setApprovalRequests(r.data.map(mapApiApproval)); })
+          .catch(() => {});
+      },
       // Notifications
       notifications,
       notificationsForUser, unreadNotificationCountForUser,

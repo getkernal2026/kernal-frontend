@@ -356,9 +356,15 @@ export const api = {
 
   // ── Approvals ─────────────────────────────────────────────────────────────
   approvals: {
-    list:   (params = {}) => authFetch(`/api/v1/approvals${qs(params)}`),
-    create: (body)         => authFetch('/api/v1/approvals', { method: 'POST',  body: JSON.stringify(body) }),
-    update: (id, body)     => authFetch(`/api/v1/approvals/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    stats:       ()             => authFetch('/api/v1/approvals/stats'),
+    getRules:    ()             => authFetch('/api/v1/approvals/rules'),
+    updateRules: (rules)        => authFetch('/api/v1/approvals/rules', { method: 'PUT', body: JSON.stringify({ rules }) }),
+    list:        (params = {})  => authFetch(`/api/v1/approvals${qs(params)}`),
+    get:         (id)           => authFetch(`/api/v1/approvals/${id}`),
+    create:      (body)         => authFetch('/api/v1/approvals', { method: 'POST',  body: JSON.stringify(body) }),
+    update:      (id, body)     => authFetch(`/api/v1/approvals/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    decide:      (id, body)     => authFetch(`/api/v1/approvals/${id}/decide`, { method: 'POST', body: JSON.stringify(body) }),
+    cancel:      (id)           => authFetch(`/api/v1/approvals/${id}`, { method: 'DELETE' }),
   },
 
   // ── NL Query ──────────────────────────────────────────────────────────────
