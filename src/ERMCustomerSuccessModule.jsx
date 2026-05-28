@@ -564,7 +564,7 @@ export default function ERMCustomerSuccessModule() {
   const freshId = () => `CUST-${Math.floor(Math.random() * 9000) + 1000}`;
   const [newCustomerForm, setNewCustomerForm] = useState({
     name: '', dba: '', industry: 'Restaurant & Hospitality', id: freshId(),
-    creditLimit: 10000, terms: 'Net-30',
+    creditLimit: 10000, terms: 'Net-30', pricingTier: 'standard',
     address: { street: '', city: '', state: '', zip: '' },
     contactName: '', contactEmail: '', contactPhone: '', documents: [],
   });
@@ -793,7 +793,7 @@ export default function ERMCustomerSuccessModule() {
       industry: f.industry, address: f.address,
       contacts: [{ id: `c-${Math.random().toString(36).substr(2,9)}`, name: f.contactName || 'Primary Contact',
         title: 'Main Contact', phone: f.contactPhone, email: f.contactEmail, isPrimary: true, portalStatus: 'Not Invited' }],
-      status: 'Active', healthScore: 100, churnRisk: 'Low', pricingTier: 'standard',
+      status: 'Active', healthScore: 100, churnRisk: 'Low', pricingTier: f.pricingTier || 'standard',
       creditLimit: Number(f.creditLimit), availableCredit: Number(f.creditLimit),
       terms: f.terms, route: 'Pending', deliveryDays: [], b2bPortalAccess: false, b2bProfileId: null, lastLogin: null,
       arAging: { current: 0, days30: 0, days60: 0, days90: 0 }, contractPricing: {},
@@ -809,7 +809,8 @@ export default function ERMCustomerSuccessModule() {
     setCustomers(prev => [newRecord, ...prev]);
     setIsAddModalOpen(false);
     setNewCustomerForm({ name: '', dba: '', industry: 'Restaurant & Hospitality', id: freshId(),
-      creditLimit: 10000, terms: 'Net-30', address: { street: '', city: '', state: '', zip: '' },
+      creditLimit: 10000, terms: 'Net-30', pricingTier: 'standard',
+      address: { street: '', city: '', state: '', zip: '' },
       contactName: '', contactEmail: '', contactPhone: '', documents: [] });
     showToast('New customer account created.');
     if (!DEMO_MODE) {
@@ -820,6 +821,7 @@ export default function ERMCustomerSuccessModule() {
         credit_limit:  Number(f.creditLimit),
         available_credit: Number(f.creditLimit),
         payment_terms: f.terms,
+        pricing_tier:  f.pricingTier   || 'standard',
         address_line1: f.address?.street || '',
         city:          f.address?.city   || '',
         state:         f.address?.state  || '',
@@ -1924,8 +1926,8 @@ export default function ERMCustomerSuccessModule() {
                     <div className="mb-4">
                       <label className={UI.label}>Pricing Tier</label>
                       <select
-                        value={editedCustomer.pricingTier || 'standard'}
-                        onChange={e => setEditedCustomer(prev => ({ ...prev, pricingTier: e.target.value }))}
+                        value={newCustomerForm.pricingTier || 'standard'}
+                        onChange={e => { const v = e.target.value; setNewCustomerForm(prev => ({ ...prev, pricingTier: v })); }}
                         className={UI.input}
                       >
                         {pricingTiers.map(t => (
