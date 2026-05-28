@@ -18,6 +18,7 @@ import { UI } from './ui.js';
 import { TODAY, StatusBadge, PrintButton, ExportButton } from './shared/components.jsx';
 import AttachmentsPanel from './shared/AttachmentsPanel.jsx';
 import { DEMO_MODE } from './lib/demoMode.js';
+import { api } from './lib/api.js';
 
 // ─────────────────────────────────────────────
 // KERNAL DESIGN SYSTEM — UI_CLASSES
@@ -272,6 +273,12 @@ export default function LogisticsModule() {
   const [orders, setOrders] = useState(DEMO_MODE ? MOCK_PACKED_ORDERS : []);
   const [fleet,  setFleet]  = useState(DEMO_MODE ? MOCK_FLEET : []);
 
+  // ── Live API: route/stop tracking ────────────────────────────────────────────
+  // activeRouteId  : UUID of the delivery_route row created on dispatch
+  // stopApiIds     : { [localOrderId]: stopUUID } — maps local order IDs → DB stop IDs
+  const [activeRouteId, setActiveRouteId] = useState(null);
+  const [stopApiIds, setStopApiIds]       = useState({});
+
   const [isOnline, setIsOnline] = useState(true);
 
   // Sync queue — persisted to localStorage so it survives tab close
@@ -375,7 +382,7 @@ export default function LogisticsModule() {
       <main className="flex-1 overflow-hidden flex justify-center relative">
         {role === 'dispatcher'
           ? <DispatcherDashboard orders={orders} setOrders={setOrders} fleet={fleet} setFleet={setFleet} triggerETANotification={triggerETANotification} />
-          : <DriverApp orders={orders} setOrders={setOrders} fleet={fleet} isOnline={isOnline} syncQueue={syncQueue} setSyncQueue={setSyncQueue} triggerETANotification={triggerETANotification} />
+          : <DriverApp orders={orders} setOrders={setOrders} fleet={fleet} isOnline={isOnline} syncQueue={syncQueue} setSyncQueue={setSyncQueue} triggerETANotification={triggerETANotification} activeRouteId={activeRouteId} stopApiIds={stopApiIds} />
         }
 
         {/* ETA Toast Notifications */}
@@ -543,6 +550,40 @@ function DispatcherDashboard({ orders, setOrders, fleet, setFleet, triggerETANot
     ));
     setSelectedTruckId(null);
     setPackWeighTarget(null);
+
+    // ── Live API: create delivery_route + stops ───────────────────────────────
+    if (!DEMO_MODE) {
+      const stopPayloads = truck.assignedOrders.map((orderId, idx) => {
+        const o = currentOrders.find(ord => ord.id === orderId) || {};
+        return {
+          stop_number:   idx + 1,
+          customer_name: o.customer  || '',
+          address:       o.address   || '',
+          order_id:      o._apiOrderId || null,
+          status:        'Pending',
+          eta:           o.timeWindow || null,
+        };
+      });
+      api.logistics.routes.create({
+        route_number: `RT-${String(Date.now()).slice(-6)}`,
+        driver_name:  truck.driver   || truck.truckId,
+        truck:        truck.truckId,
+        location_id:  activeLocation !== 'all' ? activeLocation : null,
+        status:       'Dispatched',
+        route_date:   TODAY,
+        total_stops:  stopPayloads.length,
+        stops:        stopPayloads,
+      }).then(created => {
+        setActiveRouteId(created.id);
+        // Build orderId → stopId mapping for POD updates
+        const mapping = {};
+        (created.delivery_stops || []).forEach((s, idx) => {
+          const localId = truck.assignedOrders[idx];
+          if (localId) mapping[localId] = s.id;
+        });
+        setStopApiIds(mapping);
+      }).catch(err => console.warn('[Kernal] Route sync failed:', err.message));
+    }
   };
 
   const getTruckWeight = truck =>
@@ -1231,7 +1272,7 @@ function BillDeliveryModal({ order, onConfirm, onCancel }) {
 // ─────────────────────────────────────────────
 // DRIVER APP (mobile-optimized)
 // ─────────────────────────────────────────────
-function DriverApp({ orders, setOrders, fleet, isOnline, syncQueue, setSyncQueue, triggerETANotification }) {
+function DriverApp({ orders, setOrders, fleet, isOnline, syncQueue, setSyncQueue, triggerETANotification, activeRouteId, stopApiIds }) {
   const { settings } = useKernal();
   const catchWeightEnabled = settings.features.catchWeightItems;
   const coldChainEnabled   = settings.features.refrigeratedFoods || settings.features.frozenFoods;
@@ -1478,6 +1519,25 @@ function DriverApp({ orders, setOrders, fleet, isOnline, syncQueue, setSyncQueue
                 if (payloads) {
                   console.log('%c[MOD 4→MOD 1] INVENTORY PAYLOAD:', 'color:#eab308;font-weight:bold', JSON.stringify(payloads.inventoryPayload, null, 2));
                   console.log('%c[MOD 4→MOD 2] ACCOUNTING PAYLOAD:', 'color:#10b981;font-weight:bold', JSON.stringify(payloads.accountingPayload, null, 2));
+                }
+
+                // ── Live API: persist stop completion ──────────────────────
+                if (!DEMO_MODE && activeRouteId) {
+                  const stopId = stopApiIds?.[updatedOrder.id];
+                  if (stopId) {
+                    const pmt = updatedOrder.paymentCollected;
+                    api.logistics.stops.update(activeRouteId, stopId, {
+                      status:         updatedOrder.status || 'Delivered',
+                      arrived_at:     new Date().toISOString(),
+                      departed_at:    new Date().toISOString(),
+                      delivery_temp_f:updatedOrder.deliveryTempF || null,
+                      payment_type:   pmt?.type   || null,
+                      payment_amount: pmt?.amount  || null,
+                      notes:          payloads
+                        ? `exceptions: ${(payloads.inventoryPayload?.items || []).length} line(s)`
+                        : null,
+                    }).catch(err => console.warn('[Kernal] Stop sync failed:', err.message));
+                  }
                 }
               } else {
                 setSyncQueue(prev => [...prev, { orderId: updatedOrder.id, timestamp: new Date().toISOString(), payloads }]);

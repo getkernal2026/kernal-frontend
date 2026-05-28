@@ -229,6 +229,21 @@ export const api = {
     },
   },
 
+  // ── Logistics ─────────────────────────────────────────────────────────────
+  logistics: {
+    routes: {
+      list:         (params = {}) => authFetch(`/api/v1/logistics/routes${qs(params)}`),
+      get:          (id)           => authFetch(`/api/v1/logistics/routes/${id}`),
+      create:       (body)         => authFetch('/api/v1/logistics/routes', { method: 'POST',  body: JSON.stringify(body) }),
+      updateStatus: (id, status, extra = {}) => authFetch(`/api/v1/logistics/routes/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, ...extra }) }),
+    },
+    stops: {
+      add:    (routeId, body)           => authFetch(`/api/v1/logistics/routes/${routeId}/stops`, { method: 'POST',  body: JSON.stringify(body) }),
+      update: (routeId, stopId, body)   => authFetch(`/api/v1/logistics/routes/${routeId}/stops/${stopId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+      delete: (routeId, stopId)         => authFetch(`/api/v1/logistics/routes/${routeId}/stops/${stopId}`, { method: 'DELETE' }),
+    },
+  },
+
   // ── Superadmin (requires superadmin role) ─────────────────────────────────
   superadmin: {
     // Stats
