@@ -8,6 +8,7 @@ import AttachmentsPanel from './shared/AttachmentsPanel.jsx';
 import RecordHistory from './shared/RecordHistory.jsx';
 import { ALLERGEN_DATA, BIG_9 } from './shared/allergenData.js';
 import { DEMO_MODE } from './lib/demoMode.js';
+import { api } from './lib/api.js';
 
 import {
   Search, Plus, Package, AlertCircle, Check,
@@ -876,7 +877,7 @@ const Sparkline = ({ data, color = '#06b6d4', width = 120, height = 36 }) => {
 };
 
 export default function InventoryModule() {
-  const { settings, draftReorderPOs, addDraftReorderPO, quickCreateAction, clearQuickCreateAction, activeUser, logAudit, activeLocation } = useKernal();
+  const { settings, draftReorderPOs, addDraftReorderPO, quickCreateAction, clearQuickCreateAction, activeUser, logAudit, activeLocation, apiInventory, refreshInventory } = useKernal();
   // Loss Prevention: when strict mode is on and the user isn't an admin,
   // Library lot edits are locked and the scanner requires a linked PO/order id.
   const isAdmin          = activeUser?.role === 'admin';
@@ -905,6 +906,50 @@ export default function InventoryModule() {
 
   const [inventory, setInventory]       = useState(DEMO_MODE ? initialInventory : []);
   const [transfers, setTransfers]       = useState(DEMO_MODE ? INIT_TRANSFERS : []);
+
+  // ── Generic API error toast ───────────────────────────────────
+  const [apiToast, setApiToast] = useState(null);
+  const showApiToast = (msg) => { setApiToast(msg); setTimeout(() => setApiToast(null), 4000); };
+
+  // ── Map a backend inventory+products row → frontend item model ─
+  const mapApiItem = (row) => ({
+    id:            row.id,                                      // inventory UUID — for api.inventory.*
+    _productId:    row.product_id,                              // product UUID — for api.products.*
+    name:          row.products?.name          || '',
+    sku:           row.products?.sku           || '',
+    barcode:       '',
+    category:      row.products?.category      || '',
+    uom:           row.products?.unit_of_measure || 'case',
+    basePrice:     Number(row.products?.price_per_unit) || 0,
+    price:         Number(row.products?.price_per_unit) || 0,
+    costBasis:     Number(row.products?.cost_per_unit)  || 0,
+    unitCost:      Number(row.products?.cost_per_unit)  || 0,
+    physicalStock: Number(row.quantity_on_hand)   || 0,
+    allocatedStock:Number(row.quantity_reserved)  || 0,
+    reorderPoint:  Number(row.reorder_point)      || 0,
+    reorderQty:    Number(row.reorder_qty)        || 0,
+    location:      row.location_id               || '',
+    isCatchWeight: false,
+    leadTimeDays:  3, avgDailyUsage: 0,
+    velocity: 'Medium', trend: 'stable', predictedDemand: 0,
+    lots: row.lot_number ? [{
+      lotId:        row.lot_number,
+      qty:          Number(row.quantity_on_hand) || 0,
+      qcHold:       false,
+      expiry:       row.expiry_date || null,
+      cost:         Number(row.products?.cost_per_unit) || 0,
+      supplier:     null,
+      receivedDate: null,
+    }] : [],
+    locationStock: {},
+    specs: { origin: '', allergens: '', shelfLife: '', storage: '', description: row.products?.description || '' },
+  });
+
+  // ── Seed inventory from live API whenever apiInventory updates ─
+  useEffect(() => {
+    if (DEMO_MODE || !apiInventory?.length) return;
+    setInventory(apiInventory.map(mapApiItem));
+  }, [apiInventory]); // eslint-disable-line react-hooks/exhaustive-deps
   const [activeTab, setActiveTab]       = useState('inventory');
   const [generatedPOs,  setGeneratedPOs]  = useState({});    // { sku: poNumber } — tracks which SKUs have a PO in flight
   const [reorderToast,  setReorderToast]  = useState(null);  // { msg, count }
@@ -1069,18 +1114,35 @@ export default function InventoryModule() {
   // ── CRUD ─────────────────────────────────
   const handleDeleteItem = item => setDeleteTarget(item);
   const confirmDelete    = () => {
-    setInventory(prev => prev.filter(i => i.id !== deleteTarget.id));
+    const target = deleteTarget;
+    setInventory(prev => prev.filter(i => i.id !== target.id));
     setDeleteTarget(null);
+    if (!DEMO_MODE && target._productId) {
+      api.products.delete(target._productId)
+        .catch(err => showApiToast(`Delete failed: ${err.message}`));
+    }
   };
 
   const handleEditClick = item => { setEditingId(item.id); setEditForm({ ...item }); };
   const handleSaveEdit  = () => {
+    const editTarget = inventory.find(i => i.id === editingId);
     setInventory(prev => prev.map(item =>
       item.id === editingId
         ? { ...item, name: editForm.name, sku: editForm.sku, uom: editForm.uom, category: editForm.category, reorder: parseInt(editForm.reorder) || 0, location: editForm.location, minShelfLifeDays: parseInt(editForm.minShelfLifeDays) || 0, isCatchWeight: editForm.isCatchWeight }
         : item
     ));
     setEditingId(null);
+    if (!DEMO_MODE && editTarget?._productId) {
+      api.products.update(editTarget._productId, {
+        name:            editForm.name,
+        category:        editForm.category,
+        unit_of_measure: editForm.uom,
+      }).catch(err => showApiToast(`Save failed: ${err.message}`));
+      api.inventory.update(editingId, {
+        reorder_point: parseInt(editForm.reorder) || 0,
+        location_id:   editForm.location || null,
+      }).catch(err => showApiToast(`Save failed: ${err.message}`));
+    }
   };
 
   const handleAddItem = e => {
@@ -1142,6 +1204,33 @@ export default function InventoryModule() {
     });
     setIsItemModalOpen(false);
     setNewItemForm(emptyNewItem());
+    if (!DEMO_MODE) {
+      api.products.create({
+        sku:             f.sku,
+        name:            f.name,
+        description:     f.specs?.description || '',
+        category:        f.category,
+        unit_of_measure: f.uom,
+        price_per_unit:  price  || null,
+        cost_per_unit:   cost   || null,
+      }).then(prod => api.inventory.create({
+        product_id:      prod.id,
+        quantity_on_hand: initialQty,
+        reorder_point:   reorderPoint || null,
+        reorder_qty:     reorderQty   || null,
+        lot_number:      (f.receiveNow && initialQty > 0) ? (f.initialLotId || null) : null,
+        expiry_date:     (f.receiveNow && initialQty > 0) ? (f.initialExpiry || null) : null,
+      }).then(inv => {
+        // Swap temp numeric id for real UUIDs
+        setInventory(prev => prev.map(i =>
+          i.id === item.id ? { ...i, id: inv.id, _productId: prod.id } : i
+        ));
+        refreshInventory();
+      })).catch(err => {
+        setInventory(prev => prev.filter(i => i.id !== item.id));
+        showApiToast(`Failed to save new SKU: ${err.message}`);
+      });
+    }
   };
 
   // ─────────────────────────────────────────
@@ -1534,6 +1623,7 @@ export default function InventoryModule() {
                 && Math.abs(cwImplied - Number(draft.price)) / Number(draft.price) > 0.1;
 
               const handleSave = () => {
+                const prevPhysical = selectedItem.physicalStock || 0;
                 setInventory(prev => prev.map(i => {
                   if (i.id !== draft.id) return i;
                   const phys = (draft.lots || []).reduce((s, l) => s + (Number(l.qty) || 0), 0);
@@ -1542,7 +1632,7 @@ export default function InventoryModule() {
                 // Audit: roll up the change set as a single event with before/after diff
                 const before = { name: selectedItem.name, price: selectedItem.price, costBasis: selectedItem.costBasis, lots: selectedItem.lots?.length, physicalStock: selectedItem.physicalStock };
                 const after  = { name: draft.name, price: draft.price, costBasis: draft.costBasis, lots: draft.lots?.length, physicalStock };
-                const qtyDelta = (physicalStock - (selectedItem.physicalStock || 0));
+                const qtyDelta = (physicalStock - prevPhysical);
                 logAudit({
                   moduleId: 'inventory',
                   action: 'library.save',
@@ -1552,6 +1642,28 @@ export default function InventoryModule() {
                   severity: Math.abs(qtyDelta) > 10 ? 'warning' : Math.abs(qtyDelta) > 0 ? 'notice' : 'info',
                 });
                 setLibraryDraft({ ...draft, physicalStock });
+                if (!DEMO_MODE && draft._productId) {
+                  api.products.update(draft._productId, {
+                    name:            draft.name,
+                    category:        draft.category,
+                    unit_of_measure: draft.uom,
+                    price_per_unit:  Number(draft.price)     || null,
+                    cost_per_unit:   Number(draft.costBasis) || null,
+                    description:     draft.specs?.description || '',
+                  }).catch(err => showApiToast(`Save failed: ${err.message}`));
+                  if (qtyDelta !== 0) {
+                    api.inventory.adjust(draft.id, {
+                      delta:  qtyDelta,
+                      reason: 'manual_library_edit',
+                    }).catch(err => showApiToast(`Stock adjust failed: ${err.message}`));
+                  } else {
+                    api.inventory.update(draft.id, {
+                      reorder_point: Number(draft.reorderPoint) || null,
+                      reorder_qty:   Number(draft.reorderQty)   || null,
+                      location_id:   draft.location             || null,
+                    }).catch(err => showApiToast(`Save failed: ${err.message}`));
+                  }
+                }
               };
 
               const handleDeleteItem = () => setDeleteTarget(selectedItem);
@@ -3087,6 +3199,13 @@ Remaining in warehouse: ${r.remainingQty} ${r.uom}` },
         );
       })()}
 
+      {/* ── API ERROR TOAST ── */}
+      {apiToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-2 bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-xl px-4 py-2.5 shadow-xl backdrop-blur-md text-sm font-medium pointer-events-none">
+          <AlertCircle className="w-4 h-4 shrink-0" />{apiToast}
+        </div>
+      )}
+
       {/* ── DELETE CONFIRM MODAL ── */}
       {deleteTarget && (
         <DeleteConfirmModal item={deleteTarget} onConfirm={confirmDelete} onCancel={() => setDeleteTarget(null)} />
@@ -3255,6 +3374,19 @@ function BarcodeScannerTool({ inventory, setInventory, onClose }) {
   const removeStaged = id => setStagedChanges(prev => prev.filter(c => c.id !== id));
 
   const handleConfirmChanges = () => {
+    // Fire API adjust calls for each staged change (live mode only)
+    if (!DEMO_MODE) {
+      stagedChanges.forEach(change => {
+        const item = inventory.find(i => i.id === change.itemId);
+        if (!item) return;
+        const delta = change.action === 'IN' ? change.qty : -change.qty;
+        api.inventory.adjust(item.id, {
+          delta,
+          reason: change.reasonCode || change.action,
+        }).catch(() => {}); // Silent — optimistic state already applied
+      });
+    }
+
     setInventory(prev => {
       let updated = prev.map(item => ({ ...item, lots: item.lots.map(l => ({ ...l })) }));
 
