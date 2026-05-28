@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useKernal } from './KernalContext.jsx';
 import { UI } from './ui.js';
+import { DEMO_MODE } from './lib/demoMode.js';
 import {
   MapPin, Truck, Wifi, WifiOff, Navigation, CheckCircle2, Clock, AlertCircle,
   RotateCcw, Zap, Radio, Activity, ChevronDown, ChevronUp, ArrowRight,
@@ -86,6 +87,10 @@ export const INIT_ROUTES = [
     ],
   },
 ];
+
+// Production: show no routes unless DEMO_MODE is on (real GPS data not yet wired).
+// ACTIVE_ROUTES stays exported so LogisticsModule can reference the constant directly.
+const ACTIVE_ROUTES = DEMO_MODE ? INIT_ROUTES : [];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function haversineKm(a, b) {
@@ -217,7 +222,7 @@ export function MapView({ routes, tick, isDark, selectedId, onSelect }) {
       .bindPopup(`<b>${DEPOT.name}</b><br/>${DEPOT.address}`);
 
     // Routes: polylines + stop markers + truck markers
-    INIT_ROUTES.forEach(route => {
+    ACTIVE_ROUTES.forEach(route => {
       const waypoints = [DEPOT, ...route.stops, DEPOT];
       const latlngs = waypoints.map(w => [w.lat, w.lng]);
       L.polyline(latlngs, { color: route.color, weight: 3, opacity: 0.55, dashArray: '6,4' }).addTo(map);
@@ -261,7 +266,7 @@ export function MapView({ routes, tick, isDark, selectedId, onSelect }) {
   // Animate trucks on tick
   useEffect(() => {
     if (!mapRef.current) return;
-    INIT_ROUTES.forEach(route => {
+    ACTIVE_ROUTES.forEach(route => {
       const marker = markersRef.current[route.id];
       if (!marker) return;
       const pos = getTruckPos(route, tick);
@@ -273,7 +278,7 @@ export function MapView({ routes, tick, isDark, selectedId, onSelect }) {
   // Pan to selected route
   useEffect(() => {
     if (!mapRef.current || !selectedId) return;
-    const route = INIT_ROUTES.find(r => r.id === selectedId);
+    const route = ACTIVE_ROUTES.find(r => r.id === selectedId);
     if (!route) return;
     const pos = getTruckPos(route, tick);
     mapRef.current.panTo([pos.lat, pos.lng], { animate: true, duration: 0.8 });
@@ -300,7 +305,7 @@ function RouteOptimizerView({ isDark }) {
   const [optimized, setOptimized] = useState(null);
   const [running, setRunning] = useState(false);
 
-  const route = INIT_ROUTES.find(r => r.id === selectedRouteId);
+  const route = ACTIVE_ROUTES.find(r => r.id === selectedRouteId);
   const origDist = useMemo(() => route ? totalDistance(route.stops) : 0, [route]);
   const optDist  = useMemo(() => optimized ? totalDistance(optimized) : null, [optimized]);
   const saving   = optDist ? ((origDist - optDist) / origDist * 100).toFixed(1) : null;
@@ -327,7 +332,7 @@ function RouteOptimizerView({ isDark }) {
 
       {/* Route selector */}
       <div className="flex gap-2 flex-wrap">
-        {INIT_ROUTES.map(r => (
+        {ACTIVE_ROUTES.map(r => (
           <button key={r.id} onClick={() => { setSelectedRouteId(r.id); setOptimized(null); }}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${selectedRouteId===r.id ? 'border-transparent text-white' : `${card} ${sub}`}`}
             style={selectedRouteId===r.id ? { background: r.color, borderColor: r.color } : {}}>
@@ -527,8 +532,8 @@ function TraccarHubView({ routes, tick, isDark }) {
   // Simulate incoming pings every ~3 seconds
   useEffect(() => {
     if (tick % 2 !== 0) return;
-    const routeIdx = tick % INIT_ROUTES.length;
-    const route = INIT_ROUTES[routeIdx];
+    const routeIdx = tick % ACTIVE_ROUTES.length;
+    const route = ACTIVE_ROUTES[routeIdx];
     const pos = getTruckPos(route, tick);
     const now = new Date();
     const ts = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}.${String(now.getMilliseconds()).padStart(3,'0')}`;
@@ -665,11 +670,11 @@ export default function GPSDispatchModule() {
   const head  = isDark ? 'text-white'    : 'text-slate-900';
 
   // KPI strip totals
-  const enRoute   = INIT_ROUTES.filter(r => r.status === 'en_route').length;
-  const atStop    = INIT_ROUTES.filter(r => r.status === 'at_stop').length;
-  const returning = INIT_ROUTES.filter(r => r.status === 'returning').length;
-  const totalDelivered = INIT_ROUTES.flatMap(r => r.stops).filter(s => s.status === 'delivered').length;
-  const totalStops     = INIT_ROUTES.flatMap(r => r.stops).length;
+  const enRoute   = ACTIVE_ROUTES.filter(r => r.status === 'en_route').length;
+  const atStop    = ACTIVE_ROUTES.filter(r => r.status === 'at_stop').length;
+  const returning = ACTIVE_ROUTES.filter(r => r.status === 'returning').length;
+  const totalDelivered = ACTIVE_ROUTES.flatMap(r => r.stops).filter(s => s.status === 'delivered').length;
+  const totalStops     = ACTIVE_ROUTES.flatMap(r => r.stops).length;
 
   const TABS = [
     { id:'map',       label:'Live Map',        icon: MapPin   },
@@ -728,10 +733,10 @@ export default function GPSDispatchModule() {
       <div className="p-6">
         {tab === 'map' && (
           <div className="space-y-4">
-            <MapView routes={INIT_ROUTES} tick={tick} isDark={isDark} selectedId={selectedId} onSelect={setSelectedId} />
+            <MapView routes={ACTIVE_ROUTES} tick={tick} isDark={isDark} selectedId={selectedId} onSelect={setSelectedId} />
             {/* Route legend below map */}
             <div className="flex flex-wrap gap-2">
-              {INIT_ROUTES.map(r => {
+              {ACTIVE_ROUTES.map(r => {
                 const sm  = STATUS_META[r.status] || STATUS_META.idle;
                 const del = r.stops.filter(s => s.status === 'delivered').length;
                 return (
@@ -753,8 +758,8 @@ export default function GPSDispatchModule() {
           </div>
         )}
         {tab === 'optimizer' && <RouteOptimizerView isDark={isDark} />}
-        {tab === 'fleet'     && <FleetStatusView routes={INIT_ROUTES} tick={tick} isDark={isDark} />}
-        {tab === 'traccar'   && <TraccarHubView  routes={INIT_ROUTES} tick={tick} isDark={isDark} />}
+        {tab === 'fleet'     && <FleetStatusView routes={ACTIVE_ROUTES} tick={tick} isDark={isDark} />}
+        {tab === 'traccar'   && <TraccarHubView  routes={ACTIVE_ROUTES} tick={tick} isDark={isDark} />}
       </div>
     </div>
   );

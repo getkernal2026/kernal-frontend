@@ -228,9 +228,10 @@ function EmbeddedFleetMap({ isDark }) {
     const embeddedMapIntervalHandle = setInterval(() => setTick(prev => prev + 1), 2000);
     return () => clearInterval(embeddedMapIntervalHandle);
   }, []);
+  const _baseRoutes = DEMO_MODE ? INIT_ROUTES : [];
   const visibleRoutes = activeLocation === 'all'
-    ? INIT_ROUTES
-    : INIT_ROUTES.filter(r => r.locationId === activeLocation);
+    ? _baseRoutes
+    : _baseRoutes.filter(r => r.locationId === activeLocation);
   const locMeta = LOCATIONS.find(l => l.id === activeLocation);
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
