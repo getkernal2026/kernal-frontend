@@ -10,6 +10,7 @@ import { TODAY, StatusBadge, PrintButton, ExportButton } from './shared/componen
 
 import { MOCK_INVENTORY, INVENTORY_BY_ID, INVENTORY_BY_SKU } from './shared/mockInventory.js';
 import { DEMO_MODE } from './lib/demoMode.js';
+import { api } from './lib/api.js';
 
 import {
   Search, ArrowLeft, Save, Settings, TrendingUp, TrendingDown, Package, Truck, User, RefreshCw,
@@ -42,7 +43,7 @@ const MOCK_CUSTOMERS = [
     status: 'Active', healthScore: 92, churnRisk: 'Low',
     creditLimit: 50000, availableCredit: 12500, terms: 'Net-30',
     route: 'Route-12', deliveryDays: [2, 4],
-    b2bPortalAccess: true, lastLogin: '2026-04-22T08:15:00Z',
+    b2bPortalAccess: true, b2bProfileId: null, lastLogin: '2026-04-22T08:15:00Z',
     arAging: { current: 37500, days30: 0, days60: 0, days90: 0 }, creditHold: false,
     contractPricing: { '3': 79.00 },
     analytics: { ytdSpend: 145000, lytdSpend: 120000, deliverySuccessRate: 98.5,
@@ -90,7 +91,7 @@ const MOCK_CUSTOMERS = [
     status: 'Active', healthScore: 68, churnRisk: 'Medium', pricingTier: 'preferred',
     creditLimit: 100000, availableCredit: 98000, terms: 'Net-60',
     route: 'Route-03', deliveryDays: [1, 3, 5],
-    b2bPortalAccess: false, lastLogin: null,
+    b2bPortalAccess: false, b2bProfileId: null, lastLogin: null,
     arAging: { current: 1000, days30: 1000, days60: 0, days90: 0 }, creditHold: false,
     contractPricing: {},
     analytics: { ytdSpend: 85000, lytdSpend: 82000, deliverySuccessRate: 94.2,
@@ -129,7 +130,7 @@ const MOCK_CUSTOMERS = [
     status: 'Inactive', healthScore: 24, churnRisk: 'High', pricingTier: 'standard',
     creditLimit: 15000, availableCredit: 0, terms: 'COD',
     route: 'Route-05', deliveryDays: [1, 5],
-    b2bPortalAccess: false, lastLogin: '2025-11-10T14:20:00Z',
+    b2bPortalAccess: false, b2bProfileId: null, lastLogin: '2025-11-10T14:20:00Z',
     arAging: { current: 0, days30: 0, days60: 5000, days90: 10000 }, creditHold: true,
     contractPricing: { '45': 30.00, '78': 19.50 },
     analytics: { ytdSpend: 4500, lytdSpend: 34000, deliverySuccessRate: 88.0,
@@ -397,6 +398,13 @@ export default function ERMCustomerSuccessModule() {
   const [taskModal,     setTaskModal]     = useState({ isOpen: false, task: null });
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
+  // ── B2B Portal setup state (live mode only) ───────────────────────────────
+  // portalSetupOpen: id of the customer whose inline setup form is showing
+  const [portalSetupOpen,   setPortalSetupOpen]   = useState(null);
+  const [portalSetupForm,   setPortalSetupForm]    = useState({ email: '', password: '' });
+  const [portalSetupSaving, setPortalSetupSaving]  = useState(false);
+  const [portalSetupError,  setPortalSetupError]   = useState(null);
+
   // ── Customer Rebate state ─────────────────────────────────────────────────
   const [customerPrograms, setCustomerPrograms] = useState(DEMO_MODE ? INIT_CUSTOMER_PROGRAMS : []);
   const [customerAccruals, setCustomerAccruals] = useState(DEMO_MODE ? INIT_CUSTOMER_ACCRUALS : []);
@@ -626,7 +634,7 @@ export default function ERMCustomerSuccessModule() {
         title: 'Main Contact', phone: f.contactPhone, email: f.contactEmail, isPrimary: true, portalStatus: 'Not Invited' }],
       status: 'Active', healthScore: 100, churnRisk: 'Low', pricingTier: 'standard',
       creditLimit: Number(f.creditLimit), availableCredit: Number(f.creditLimit),
-      terms: f.terms, route: 'Pending', deliveryDays: [], b2bPortalAccess: false, lastLogin: null,
+      terms: f.terms, route: 'Pending', deliveryDays: [], b2bPortalAccess: false, b2bProfileId: null, lastLogin: null,
       arAging: { current: 0, days30: 0, days60: 0, days90: 0 }, contractPricing: {},
       analytics: { ytdSpend: 0, lytdSpend: 0, deliverySuccessRate: 100, topSkus: [] },
       npsData: { score: 0, history: [] },
@@ -1804,7 +1812,77 @@ export default function ERMCustomerSuccessModule() {
     const setField = (field, value) => setEditedCustomer(prev => ({...prev, [field]: value}));
     const setAddrField = (field, value) => setEditedCustomer(prev => ({...prev, address: {...prev.address, [field]: value}}));
 
-    const handleToggleB2B    = () => setEditedCustomer(prev => ({...prev, b2bPortalAccess: !prev.b2bPortalAccess}));
+    // ── Portal access toggle ─────────────────────────────────────────────────
+    // DEMO_MODE: local-state toggle only.
+    // Live mode turning ON: open the inline setup form (email + password).
+    // Live mode turning OFF: call deactivate API if a profile ID is stored.
+    const handleToggleB2B = async () => {
+      if (DEMO_MODE) {
+        setEditedCustomer(prev => ({...prev, b2bPortalAccess: !prev.b2bPortalAccess}));
+        return;
+      }
+      if (ec.b2bPortalAccess) {
+        // Disable: deactivate if we have a real profile
+        if (ec.b2bProfileId) {
+          try {
+            await api.admin.b2bCustomers.deactivate(ec.b2bProfileId);
+            setEditedCustomer(prev => ({...prev, b2bPortalAccess: false, b2bProfileId: null}));
+            setCustomers(prev => prev.map(c => c.id === ec.id ? {...c, b2bPortalAccess: false, b2bProfileId: null} : c));
+            showToast('Portal access deactivated.');
+          } catch (e) {
+            showToast(`Error: ${e.message}`, 'error');
+          }
+        } else {
+          // Was toggled on without ever saving — just flip off
+          setEditedCustomer(prev => ({...prev, b2bPortalAccess: false}));
+        }
+        setPortalSetupOpen(null);
+      } else {
+        // Enable: open the inline setup form, pre-fill from CRM data
+        const primary = ec.contacts?.find(c => c.isPrimary);
+        setPortalSetupForm({
+          email:    primary?.email || '',
+          password: '',
+        });
+        setPortalSetupError(null);
+        setPortalSetupOpen(ec.id);
+      }
+    };
+
+    // ── Submit portal setup form ─────────────────────────────────────────────
+    // Convert CRM day IDs (1=Mon…7=Sun) to B2B schema (0=Sun, 1=Mon…6=Sat)
+    const crmDayToB2B = (d) => d === 7 ? 0 : d;
+    const handlePortalSetupSave = async (e) => {
+      e.preventDefault();
+      if (!portalSetupForm.email || portalSetupForm.password.length < 6) return;
+      setPortalSetupSaving(true); setPortalSetupError(null);
+      try {
+        const res = await api.admin.b2bCustomers.create({
+          email:            portalSetupForm.email,
+          password:         portalSetupForm.password,
+          display_name:     ec.dba || ec.name,
+          credit_limit:     ec.creditLimit     || 0,
+          available_credit: ec.availableCredit || 0,
+          credit_hold:      ec.creditHold      || false,
+          ar_aging_days90:  ec.arAging?.days90 || 0,
+          payment_terms:    ec.terms           || 'Net-30',
+          route:            ec.route           || null,
+          delivery_days:    (ec.deliveryDays   || []).map(crmDayToB2B),
+          pricing_tier:     ec.pricingTier     || 'standard',
+          contract_pricing: {},
+          order_guide_ids:  [],
+        });
+        const profileId = res.data.id;
+        setEditedCustomer(prev => ({...prev, b2bPortalAccess: true, b2bProfileId: profileId}));
+        setCustomers(prev => prev.map(c => c.id === ec.id ? {...c, b2bPortalAccess: true, b2bProfileId: profileId} : c));
+        setPortalSetupOpen(null);
+        showToast(`Portal access granted to ${portalSetupForm.email}`);
+      } catch (err) {
+        setPortalSetupError(err.message);
+      } finally {
+        setPortalSetupSaving(false);
+      }
+    };
     const handleRouteChange  = (v) => setField('route', v);
     const handleDayToggle    = (dayId) => setEditedCustomer(prev => {
       const days = prev.deliveryDays.includes(dayId)
@@ -2134,15 +2212,56 @@ export default function ERMCustomerSuccessModule() {
               <div className={UI.cardPad}>
                 <h3 className={UI.sectionTitle}><Settings className="w-4 h-4 text-cyan-500" /> Platform Access</h3>
                 <div className="space-y-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium text-gray-200 text-sm">Web Portal Access</div>
-                      <div className="text-xs text-gray-500">Allow self-serve ordering via Module 3</div>
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-gray-200 text-sm">Web Portal Access</div>
+                        <div className="text-xs text-gray-500">
+                          {ec.b2bPortalAccess
+                            ? ec.lastLogin
+                              ? `Last login: ${new Date(ec.lastLogin).toLocaleDateString()}`
+                              : 'Active — no logins yet'
+                            : 'Allow self-serve ordering via B2B Portal'}
+                        </div>
+                      </div>
+                      <button onClick={handleToggleB2B}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${ec.b2bPortalAccess ? 'bg-cyan-500' : 'bg-gray-700'}`}>
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-gray-950 transition-transform ${ec.b2bPortalAccess ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
                     </div>
-                    <button onClick={handleToggleB2B}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${ec.b2bPortalAccess ? 'bg-cyan-500' : 'bg-gray-700'}`}>
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-gray-950 transition-transform ${ec.b2bPortalAccess ? 'translate-x-6' : 'translate-x-1'}`} />
-                    </button>
+
+                    {/* Inline portal setup form — appears when toggling ON in live mode */}
+                    {!DEMO_MODE && portalSetupOpen === ec.id && (
+                      <form onSubmit={handlePortalSetupSave} className="mt-3 p-3 rounded-lg bg-gray-800/60 border border-cyan-500/20 space-y-3">
+                        <p className="text-xs text-cyan-400 font-medium">Set up portal login credentials</p>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Login Email</label>
+                          <input required type="email" value={portalSetupForm.email}
+                            onChange={e => setPortalSetupForm(f => ({...f, email: e.target.value}))}
+                            placeholder="orders@customer.com"
+                            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-100 placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Temporary Password <span className="text-gray-600">(min 6 characters)</span></label>
+                          <input required type="password" value={portalSetupForm.password}
+                            onChange={e => setPortalSetupForm(f => ({...f, password: e.target.value}))}
+                            placeholder="Customer will change on first login"
+                            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-100 placeholder-gray-600 focus:outline-none focus:border-cyan-500/50" />
+                        </div>
+                        <p className="text-[10px] text-gray-600">Credit limit, payment terms, route, and delivery days will be pre-filled from this account.</p>
+                        {portalSetupError && <p className="text-xs text-rose-400">{portalSetupError}</p>}
+                        <div className="flex gap-2 justify-end">
+                          <button type="button" onClick={() => setPortalSetupOpen(null)}
+                            className="px-3 py-1.5 rounded-lg bg-gray-700 text-gray-400 text-xs hover:text-gray-200 transition-colors">
+                            Cancel
+                          </button>
+                          <button type="submit" disabled={portalSetupSaving || portalSetupForm.password.length < 6}
+                            className="px-3 py-1.5 rounded-lg bg-cyan-500 text-gray-950 text-xs font-semibold hover:bg-cyan-400 disabled:opacity-50 transition-colors">
+                            {portalSetupSaving ? 'Creating…' : 'Grant Portal Access'}
+                          </button>
+                        </div>
+                      </form>
+                    )}
                   </div>
                   <div className="pt-4 border-t border-gray-800">
                     <label className={UI.label}>Assigned Route (Module 4)</label>
