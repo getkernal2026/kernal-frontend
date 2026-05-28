@@ -825,12 +825,15 @@ export default function ERMCustomerSuccessModule() {
         state:         f.address?.state  || '',
         zip:           f.address?.zip    || '',
       }).then(async res => {
-        const created = mapCustomer(res);
+        const row = res?.data || res;
+        if (!row?.id) return; // guard: unexpected API shape, leave optimistic record
+        const created = mapCustomer(row);
+        if (!created) return; // guard: mapCustomer returned null/undefined
         // Swap the temp record with the real DB-backed one
         setCustomers(prev => prev.map(c => c.id === newRecord.id ? created : c));
         // Create the initial contact if provided
-        if (f.contactName && res.id) {
-          await api.crm.contacts.create(res.id, {
+        if (f.contactName && row.id) {
+          await api.crm.contacts.create(row.id, {
             name:       f.contactName,
             email:      f.contactEmail || null,
             phone:      f.contactPhone || null,
