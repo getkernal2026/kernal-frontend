@@ -378,6 +378,17 @@ export const api = {
     depositSummary: (date)               => authFetch(`/api/v1/closeout/deposit-summary${date ? `?date=${date}` : ''}`),
   },
 
+  // ── Custom Reports ────────────────────────────────────────────────────────
+  reports: {
+    // Fetch live rows for a data source
+    source:      (src)       => authFetch(`/api/v1/reports/sources/${src}`),
+    // Saved report definitions
+    listSaved:   ()           => authFetch('/api/v1/reports/saved'),
+    save:        (body)       => authFetch('/api/v1/reports/saved', { method: 'POST',   body: JSON.stringify(body) }),
+    update:      (id, body)   => authFetch(`/api/v1/reports/saved/${id}`, { method: 'PATCH',  body: JSON.stringify(body) }),
+    deleteSaved: (id)         => authFetch(`/api/v1/reports/saved/${id}`, { method: 'DELETE' }),
+  },
+
   // ── Superadmin (requires superadmin role) ─────────────────────────────────
   superadmin: {
     // Stats

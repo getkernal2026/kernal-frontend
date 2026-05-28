@@ -1,11 +1,14 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useKernal } from './KernalContext.jsx';
 import { UI } from './ui.js';
+import { api } from './lib/api.js';
 import {
   BarChart3, Plus, X, Save, Download, Filter, Package, Users, Truck,
   ShoppingCart, Building2, DollarSign, Star, BookOpen, ChevronUp, ChevronDown,
-  Zap, Layers, Check,
+  Zap, Layers, Check, Trash2, RefreshCw, AlertCircle,
 } from 'lucide-react';
+
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 
 // ─── Data Sources ─────────────────────────────────────────────────────────────
 // Each source has: label, icon, color, bg, description, fields[], rows[]
@@ -353,6 +356,56 @@ export default function CustomReportModule() {
   const [reportName,     setReportName]     = useState('');
   const [hasRun,         setHasRun]         = useState(false);
 
+  // ── Live-data state ─────────────────────────────────────────────────────────
+  const [sourceRows,     setSourceRows]     = useState(null);  // fetched rows for current source
+  const [sourceLoading,  setSourceLoading]  = useState(false);
+  const [sourceError,    setSourceError]    = useState(null);
+  const [savedLoading,   setSavedLoading]   = useState(false);
+  const [saveInFlight,   setSaveInFlight]   = useState(false);
+  const abortRef = useRef(null);
+
+  // ── Load saved reports on mount ─────────────────────────────────────────────
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    setSavedLoading(true);
+    api.reports.listSaved()
+      .then(data => {
+        setSavedReports(data.map(r => ({
+          id:        r.id,
+          name:      r.name,
+          source:    r.source,
+          fields:    r.fields  || [],
+          filters:   r.filters || [],
+          sortField: r.sort_field || '',
+          sortDir:   r.sort_dir   || 'desc',
+          rowCount:  r.last_row_count ?? 0,
+          createdAt: new Date(r.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }),
+        })));
+      })
+      .catch(err => console.warn('[Reports] Failed to load saved reports:', err))
+      .finally(() => setSavedLoading(false));
+  }, []);
+
+  // ── Fetch source rows when source changes (live mode) ──────────────────────
+  useEffect(() => {
+    if (!source || DEMO_MODE) {
+      setSourceRows(null);
+      return;
+    }
+    if (abortRef.current) abortRef.current = false;
+    setSourceLoading(true);
+    setSourceError(null);
+    setSourceRows(null);
+    setResults(null);
+    setHasRun(false);
+    let cancelled = false;
+    api.reports.source(source)
+      .then(rows => { if (!cancelled) setSourceRows(rows); })
+      .catch(err  => { if (!cancelled) setSourceError(err.message || 'Failed to load data'); })
+      .finally(()  => { if (!cancelled) setSourceLoading(false); });
+    return () => { cancelled = true; };
+  }, [source]);
+
   const fmt     = n => new Intl.NumberFormat('en-US', { style:'currency', currency:'USD' }).format(n ?? 0);
   const fmtDate = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '—';
   const fmtVal  = (val, fid) => {
@@ -426,7 +479,8 @@ export default function CustomReportModule() {
   // ── Run report ────────────────────────────────────────────────────────────
   const runReport = useCallback(() => {
     if (!ds) return;
-    let rows = [...ds.rows];
+    // Live mode: use fetched rows; demo mode: use hardcoded seed rows
+    let rows = [...((!DEMO_MODE && sourceRows) ? sourceRows : ds.rows)];
 
     // Apply every filter that has a value
     for (const f of filters) {
@@ -483,20 +537,66 @@ export default function CustomReportModule() {
   }, [ds, filters, sortField, sortDir]);
 
   // ── Save ──────────────────────────────────────────────────────────────────
-  const saveReport = useCallback(() => {
-    if (!source || !reportName.trim()) return;
-    setSavedReports(prev => [{
-      id: `RPT-${Date.now()}`,
-      name: reportName.trim(),
-      source,
-      fields: [...selectedFields],
-      filters: filters.map(f => ({ ...f })),
-      sortField,
-      sortDir,
-      createdAt: new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }),
-      rowCount: results?.length ?? 0,
-    }, ...prev]);
-  }, [source, reportName, selectedFields, filters, sortField, sortDir, results]);
+  const saveReport = useCallback(async () => {
+    if (!source || !reportName.trim() || saveInFlight) return;
+    const rowCount = results?.length ?? 0;
+
+    if (DEMO_MODE) {
+      setSavedReports(prev => [{
+        id: `RPT-${Date.now()}`,
+        name: reportName.trim(),
+        source,
+        fields: [...selectedFields],
+        filters: filters.map(f => ({ ...f })),
+        sortField,
+        sortDir,
+        createdAt: new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }),
+        rowCount,
+      }, ...prev]);
+      return;
+    }
+
+    // Live mode — persist to backend
+    setSaveInFlight(true);
+    try {
+      const created = await api.reports.save({
+        name:           reportName.trim(),
+        source,
+        fields:         [...selectedFields],
+        filters:        filters.map(f => ({ ...f })),
+        sort_field:     sortField || null,
+        sort_dir:       sortDir,
+        last_row_count: rowCount,
+      });
+      setSavedReports(prev => [{
+        id:        created.id,
+        name:      created.name,
+        source:    created.source,
+        fields:    created.fields  || [],
+        filters:   created.filters || [],
+        sortField: created.sort_field || '',
+        sortDir:   created.sort_dir   || 'desc',
+        rowCount:  created.last_row_count ?? 0,
+        createdAt: new Date(created.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }),
+      }, ...prev]);
+    } catch (err) {
+      console.error('[Reports] Save failed:', err);
+    } finally {
+      setSaveInFlight(false);
+    }
+  }, [source, reportName, selectedFields, filters, sortField, sortDir, results, saveInFlight]);
+
+  // ── Delete saved report ────────────────────────────────────────────────────
+  const deleteReport = useCallback(async (id) => {
+    setSavedReports(prev => prev.filter(r => r.id !== id)); // optimistic
+    if (!DEMO_MODE) {
+      try {
+        await api.reports.deleteSaved(id);
+      } catch (err) {
+        console.error('[Reports] Delete failed:', err);
+      }
+    }
+  }, []);
 
   // ── Export CSV ────────────────────────────────────────────────────────────
   const exportCSV = useCallback(() => {
@@ -642,7 +742,7 @@ export default function CustomReportModule() {
                       </div>
                       <p className="text-sm font-bold text-gray-200 group-hover:text-cyan-300 transition-colors">{src.label}</p>
                       <p className="text-xs text-gray-500 mt-1">{src.description}</p>
-                      <p className="text-[10px] text-gray-600 mt-2">{src.fields.length} fields · {src.rows.length} records</p>
+                      <p className="text-[10px] text-gray-600 mt-2">{src.fields.length} fields</p>
                     </button>
                   );
                 })}
@@ -668,13 +768,16 @@ export default function CustomReportModule() {
                     placeholder="Report name…"
                     className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 outline-none focus:border-cyan-500/50 w-44"
                   />
-                  <button onClick={saveReport} disabled={!reportName.trim()}
+                  <button onClick={saveReport} disabled={!reportName.trim() || saveInFlight}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
-                      reportName.trim()
+                      reportName.trim() && !saveInFlight
                         ? 'bg-gray-800 border-gray-700 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-400'
                         : 'opacity-40 cursor-not-allowed bg-gray-800 border-gray-700 text-gray-500'
                     }`}>
-                    <Save className="w-3.5 h-3.5" /> Save
+                    {saveInFlight
+                      ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Saving…</>
+                      : <><Save className="w-3.5 h-3.5" /> Save</>
+                    }
                   </button>
                   <button onClick={runReport}
                     className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-cyan-500 text-gray-950 text-xs font-bold hover:bg-cyan-400 transition-colors shadow-sm shadow-cyan-500/20">
@@ -800,7 +903,26 @@ export default function CustomReportModule() {
 
                 {/* Results pane */}
                 <div className="flex-1 overflow-hidden flex flex-col">
-                  {!hasRun ? (
+                  {/* Loading spinner while fetching source rows */}
+                  {sourceLoading && (
+                    <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-8">
+                      <RefreshCw className="w-8 h-8 text-cyan-500 animate-spin" />
+                      <p className="text-sm text-gray-400">Loading {ds.label} data…</p>
+                    </div>
+                  )}
+                  {/* Source fetch error */}
+                  {!sourceLoading && sourceError && (
+                    <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-8">
+                      <AlertCircle className="w-8 h-8 text-rose-400" />
+                      <p className="text-sm font-semibold text-gray-300">Failed to load data</p>
+                      <p className="text-xs text-gray-500">{sourceError}</p>
+                      <button onClick={() => setSource(s => s)}
+                        className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold transition-colors">
+                        Retry
+                      </button>
+                    </div>
+                  )}
+                  {!hasRun && !sourceLoading && !sourceError ? (
                     <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-8">
                       <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 flex items-center justify-center">
                         <Zap className="w-8 h-8 text-cyan-500" />
@@ -811,7 +933,7 @@ export default function CustomReportModule() {
                         <p className="text-xs text-gray-600 mt-2">
                           {visibleFields.length} column{visibleFields.length !== 1 ? 's' : ''} ·{' '}
                           {filters.filter(f => f.value).length} filter{filters.filter(f => f.value).length !== 1 ? 's' : ''} active ·{' '}
-                          {ds.rows.length} source records
+                          {DEMO_MODE ? ds.rows.length : (sourceRows?.length ?? '…')} source records
                         </p>
                       </div>
                       <button onClick={runReport}
@@ -819,7 +941,7 @@ export default function CustomReportModule() {
                         <Zap className="w-4 h-4" /> Run Report
                       </button>
                     </div>
-                  ) : results && (
+                  ) : results && !sourceLoading && (
                     <div className="flex-1 overflow-hidden flex flex-col">
                       {/* Results toolbar */}
                       <div className="px-4 py-2 border-b border-gray-800 flex items-center gap-3 shrink-0 flex-wrap">
@@ -932,7 +1054,12 @@ export default function CustomReportModule() {
       {/* ── SAVED REPORTS ──────────────────────────────────────────────────── */}
       {view === 'saved' && (
         <div className="flex-1 overflow-auto p-6">
-          {savedReports.length === 0 ? (
+          {savedLoading ? (
+            <div className="flex items-center justify-center h-32 gap-3 text-gray-500">
+              <RefreshCw className="w-5 h-5 animate-spin" />
+              <span className="text-sm">Loading saved reports…</span>
+            </div>
+          ) : savedReports.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
               <div className="w-14 h-14 rounded-2xl bg-gray-800 flex items-center justify-center">
                 <BookOpen className="w-7 h-7 text-gray-600" />
@@ -963,10 +1090,17 @@ export default function CustomReportModule() {
                         {src?.label} · {rpt.fields.length} column{rpt.fields.length !== 1 ? 's' : ''} · {rpt.filters.length} filter{rpt.filters.length !== 1 ? 's' : ''} · {rpt.rowCount} row{rpt.rowCount !== 1 ? 's' : ''} · saved {rpt.createdAt}
                       </p>
                     </div>
-                    <button onClick={() => loadTemplate(rpt)}
-                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 text-xs font-bold hover:bg-cyan-500/25 transition-colors">
-                      <Zap className="w-3 h-3" /> Load
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button onClick={() => loadTemplate(rpt)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 text-xs font-bold hover:bg-cyan-500/25 transition-colors">
+                        <Zap className="w-3 h-3" /> Load
+                      </button>
+                      <button onClick={() => deleteReport(rpt.id)}
+                        title="Delete saved report"
+                        className="p-1.5 rounded-lg text-gray-600 hover:text-rose-400 hover:bg-rose-500/10 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 );
               })}
