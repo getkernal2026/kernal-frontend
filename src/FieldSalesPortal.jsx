@@ -6,6 +6,7 @@ import { TODAY } from './shared/components.jsx';
 import { MOCK_INVENTORY } from './shared/mockInventory.js';
 import { REP_RATES, MONTHLY_HISTORY, calcOrderCommission, QUALIFYING_STATUSES } from './shared/commissionData.js';
 import { DEMO_MODE } from './lib/demoMode.js';
+import { api } from './lib/api.js';
 
 import {
   Home, Map as MapIcon, Building2, ShoppingCart, MapPin, TrendingUp,
@@ -269,7 +270,8 @@ const itemFromSku = (sku) => INVENTORY_BY_SKU_MAP.get(sku) || null;
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 export default function FieldSalesPortal() {
-  const { submitApprovalRequest, approvalRequests, quickCreateAction, clearQuickCreateAction, activeUser } = useKernal();
+  const { submitApprovalRequest, approvalRequests, quickCreateAction, clearQuickCreateAction, activeUser,
+          apiCustomers, apiOrders, apiProducts, refreshOrders } = useKernal();
 
   // Derive active rep identity from the logged-in user rather than the hardcoded constant,
   // so switching users in the header correctly updates the rep identity shown in Field Sales.
@@ -309,6 +311,75 @@ export default function FieldSalesPortal() {
   const [isOffline,  setIsOffline]   = useState(false);
   const [outbox,     setOutbox]      = useState([]);
   const [toast,      setToast]       = useState(null);
+  const [apiToast,   setApiToast]    = useState(null);
+  const showApiToast = (msg) => { setApiToast(msg); setTimeout(() => setApiToast(null), 4000); };
+
+  // ── Backend status map: backend lowercase → FSP display ──────────────────
+  const STATUS_MAP = { draft:'Submitted', confirmed:'Submitted', picking:'Picking',
+    picked:'Picking', shipped:'Out for Delivery', delivered:'Delivered', cancelled:'Cancelled' };
+
+  // ── Map backend customer row → FSP customer shape ─────────────────────────
+  const mapApiCustomer = (row) => ({
+    id:              row.id,
+    name:            row.name || '',
+    type:            row.customer_type || 'Restaurant',
+    address:         row.address_line1 || '',
+    city:            `${row.city || ''}, ${row.state || ''} ${row.zip || ''}`.trim(),
+    contact: {
+      name:  row.primary_contact_name  || '',
+      title: row.primary_contact_title || '',
+      phone: row.phone || '',
+      email: row.email || '',
+    },
+    location:        { x: 50, y: 50 },   // map coords — not in backend, default to center
+    route:           row.route || '',
+    deliveryDays:    row.delivery_days || '',
+    status:          row.is_active ? 'Active' : 'Inactive',
+    healthScore:     row.health_score || 75,
+    creditLimit:     Number(row.credit_limit) || 0,
+    availableCredit: Math.max(0, Number(row.credit_limit) - Number(row.ar_balance || 0)),
+    arBalance:       Number(row.ar_balance) || 0,
+    arAging:         { current: Number(row.ar_balance) || 0, days30: 0, days60: 0, days90: 0 },
+    creditHold:      !!row.credit_hold,
+    ytdSpend:        Number(row.ytd_spend) || 0,
+    lastOrderDate:   row.last_order_date || null,
+    lastOrderTotal:  Number(row.last_order_total) || 0,
+    avgOrderValue:   Number(row.avg_order_value) || 0,
+    ordersThisMonth: Number(row.orders_this_month) || 0,
+    lastVisitDate:   row.last_visit_date || null,
+    contractPricing: {},
+    orderGuide:      [],
+    alerts:          [],
+  });
+
+  // ── Map backend order row → FSP order shape ───────────────────────────────
+  const mapApiOrder = (row) => ({
+    id:           row.id,
+    customerId:   row.customer_id,
+    date:         row.order_date || row.created_at?.split('T')[0] || TODAY,
+    deliveryDate: row.requested_delivery_date || row.order_date || TODAY,
+    status:       STATUS_MAP[row.status] || row.status || 'Submitted',
+    total:        Number(row.total_amount) || 0,
+    items: (row.order_items || []).map(li => ({
+      sku:         li.products?.sku || li.product_id || '',
+      description: li.products?.name || '',
+      qty:         Number(li.quantity_ordered) || 0,
+      unitPrice:   Number(li.unit_price) || 0,
+    })),
+    createdBy: row.created_by || '',
+  });
+
+  // ── Seed customers from apiCustomers (live mode only) ─────────────────────
+  useEffect(() => {
+    if (DEMO_MODE || !apiCustomers?.length) return;
+    setCustomers(apiCustomers.map(mapApiCustomer));
+  }, [apiCustomers]);
+
+  // ── Seed orders from apiOrders (live mode only) ───────────────────────────
+  useEffect(() => {
+    if (DEMO_MODE || !apiOrders?.length) return;
+    setOrders(apiOrders.map(mapApiOrder));
+  }, [apiOrders]);
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type });
@@ -413,6 +484,7 @@ export default function FieldSalesPortal() {
       items: cartItems.map(i => ({ sku: i.sku, description: i.description, qty: i.qty, unitPrice: i.unitPrice })),
       createdBy: activeRep.name,
     };
+    // Optimistic update
     setOrders(prev => [newOrder, ...prev]);
     setCart({});
     showToast(`Order ${newOrderId} submitted — ${fmt$(cartTotal)}`);
@@ -420,6 +492,33 @@ export default function FieldSalesPortal() {
     setSelectedCustomerId(cartCustomerId);
     setCartCustomerId(null);
     setSection('accounts');
+
+    if (!DEMO_MODE) {
+      // Build items with product_id looked up by SKU from apiProducts
+      const productsBySku = Object.fromEntries((apiProducts || []).map(p => [p.sku, p.id]));
+      const apiItems = cartItems
+        .map(i => ({
+          product_id:       productsBySku[i.sku] || null,
+          quantity_ordered: i.qty,
+          unit_price:       i.unitPrice,
+        }))
+        .filter(i => i.product_id);  // only submit items we can resolve
+
+      api.orders.create({
+        customer_id: cartCustomerId,
+        order_date:  TODAY,
+        items:       apiItems,
+      }).then(created => {
+        // Swap the optimistic temp id with the real backend id
+        setOrders(prev => prev.map(o =>
+          o.id === newOrderId ? { ...o, id: created.id } : o
+        ));
+        setSelectedOrderId(created.id);
+        refreshOrders();
+      }).catch(err => {
+        showApiToast(`Order saved locally — sync failed: ${err.message}`);
+      });
+    }
   };
 
   const directEditOrder = (orderId, newItems) => {
@@ -492,6 +591,11 @@ export default function FieldSalesPortal() {
     setActivities(prev => [{ id: `A-${Date.now()}`, customerId, date: TODAY, type, note }, ...prev]);
     setCustomers(prev => prev.map(c => c.id === customerId && type === 'visit' ? { ...c, lastVisitDate: TODAY } : c));
     showToast(`${type[0].toUpperCase() + type.slice(1)} logged`);
+
+    if (!DEMO_MODE) {
+      api.crm.notes.create(customerId, { content: note, type })
+        .catch(err => showApiToast(`Activity saved locally — sync failed: ${err.message}`));
+    }
   };
 
   // KPIs for "My Performance"
@@ -578,6 +682,13 @@ export default function FieldSalesPortal() {
         )}
         {section === 'performance' && <PerformanceSection mtdRevenue={mtdRevenue} mtdCommission={mtdCommission} mtdOrders={mtdOrders} quotaTarget={quotaTarget} quotaProgress={quotaProgress} visitsThisWeek={visitsThisWeek} customers={customers} orders={orders} repName={activeRep.name} />}
       </div>
+
+      {/* API error toast */}
+      {apiToast && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-rose-900/90 border border-rose-500/40 text-rose-200 text-sm px-4 py-2 rounded-lg shadow-xl">
+          <AlertCircle className="w-4 h-4 shrink-0" />{apiToast}
+        </div>
+      )}
 
       {/* Modals */}
       {showPayment && selectedCustomer && (
