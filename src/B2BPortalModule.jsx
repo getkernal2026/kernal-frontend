@@ -697,6 +697,12 @@ export default function B2BPortalModule() {
     fetchLiveData();
   }, [currentCustomer?.id]);
 
+  // ── Toast ────────────────────────────────────────────────────────────────
+  const showToast = useCallback((message, type = 'info') => {
+    setToastMessage({ message, type });
+    setTimeout(() => setToastMessage(null), 3000);
+  }, []);
+
   const fetchLiveData = useCallback(async () => {
     setDataLoading(true);
     try {
@@ -753,12 +759,6 @@ export default function B2BPortalModule() {
     setCurrentCustomer(null);
     setOrders([]); setReturns([]); setStandingOrders([]); setCart({});
     setSelectedInvoices([]); setLiveInvoices([]); setHasSigned(false);
-  }, []);
-
-  // ── Toast ────────────────────────────────────────────────────────────────
-  const showToast = useCallback((message, type = 'info') => {
-    setToastMessage({ message, type });
-    setTimeout(() => setToastMessage(null), 3000);
   }, []);
 
   // ── Cart ─────────────────────────────────────────────────────────────────
