@@ -354,6 +354,13 @@ export const api = {
     },
   },
 
+  // ── Approvals ─────────────────────────────────────────────────────────────
+  approvals: {
+    list:   (params = {}) => authFetch(`/api/v1/approvals${qs(params)}`),
+    create: (body)         => authFetch('/api/v1/approvals', { method: 'POST',  body: JSON.stringify(body) }),
+    update: (id, body)     => authFetch(`/api/v1/approvals/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  },
+
   // ── Superadmin (requires superadmin role) ─────────────────────────────────
   superadmin: {
     // Stats

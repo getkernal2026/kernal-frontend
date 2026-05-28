@@ -131,6 +131,25 @@ export const APPROVAL_FLOW_TYPES = {
   },
 };
 
+// ── DB → frontend mapper for approval_requests rows ─────────────────────────
+function mapApiApproval(r) {
+  return {
+    _id:         r.id,                                        // UUID for API calls
+    id:          'APR-' + r.id.slice(-6).toUpperCase(),      // display ID
+    flowType:    r.flow_type,
+    status:      r.status,
+    requestedBy: r.requested_by,
+    requestedAt: r.requested_at,
+    title:       r.title || '',
+    summary:     r.summary || '',
+    threshold:   Number(r.threshold ?? 0),
+    payload:     r.payload || {},
+    decidedBy:   r.decided_by  || null,
+    decidedAt:   r.decided_at  || null,
+    audit:       Array.isArray(r.audit) ? r.audit : [],
+  };
+}
+
 // ── Default approval rules ───────────────────────────────────────────────────
 // These get spread into DEFAULT_SETTINGS.approvalRules so they're editable in
 // Settings → Approvals.
@@ -561,6 +580,14 @@ export function KernalProvider({ children }) {
     return () => { cancelled = true; };
   }, [authUser]);
 
+  // Seed approval requests from the API once the user signs in
+  useEffect(() => {
+    if (DEMO_MODE || !authUser) return;
+    api.approvals.list({ limit: 200 })
+      .then(r => { if (r.data?.length) setApprovalRequests(r.data.map(mapApiApproval)); })
+      .catch(() => {});
+  }, [authUser]);
+
   // Convenience refreshers for individual collections
   const refreshProducts  = () => api.products.list({ limit: 500 }).then(r => setApiProducts(r.data  || []));
   const refreshInventory = () => api.inventory.list({ limit: 500 }).then(r => setApiInventory(r.data || []));
@@ -836,6 +863,26 @@ export function KernalProvider({ children }) {
       ],
     };
     setApprovalRequests(prev => [newReq, ...prev]);
+    // Persist to backend (fire-and-forget; backfill _id when resolved)
+    if (!DEMO_MODE) {
+      api.approvals.create({
+        flow_type:    flowType,
+        title:        newReq.title,
+        summary:      newReq.summary,
+        status:       'pending',
+        payload:      newReq.payload,
+        requested_by: newReq.requestedBy,
+        requested_at: newReq.requestedAt,
+        threshold:    newReq.threshold,
+        audit:        newReq.audit,
+      }).then(r => {
+        if (r?.data) {
+          setApprovalRequests(prev => prev.map(req =>
+            req.id === newReq.id ? { ...req, _id: r.data.id } : req
+          ));
+        }
+      }).catch(() => {});
+    }
     // Notify approvers
     const approverIds = resolveApproverUserIds(rule);
     const flowMeta = APPROVAL_FLOW_TYPES[flowType];
@@ -852,8 +899,10 @@ export function KernalProvider({ children }) {
   // Returns the updated request and fires a notification back to the requester.
   const decideApproval = (requestId, decision, note = '') => {
     let updated = null;
+    let dbId = null;
     setApprovalRequests(prev => prev.map(r => {
       if (r.id !== requestId) return r;
+      dbId = r._id || null;
       updated = {
         ...r,
         status: decision,
@@ -894,17 +943,37 @@ export function KernalProvider({ children }) {
         after:  { status: decision },
         severity: audSev,
       }, ...prev]);
+      // Persist decision to backend
+      if (!DEMO_MODE && dbId) {
+        api.approvals.update(dbId, {
+          status:     decision,
+          decided_by: updated.decidedBy,
+          decided_at: updated.decidedAt,
+          audit:      updated.audit,
+        }).catch(() => {});
+      }
     }
     return updated;
   };
 
   // Cancel a request you submitted. Withdraws it from the inbox.
   const cancelApprovalRequest = (requestId) => {
-    setApprovalRequests(prev => prev.map(r => r.id !== requestId ? r : {
-      ...r,
-      status: 'cancelled',
-      audit: [...(r.audit || []), { at: new Date().toISOString(), userId: activeUserId, action: 'cancelled', note: '' }],
+    let dbId = null;
+    let newAudit = null;
+    setApprovalRequests(prev => prev.map(r => {
+      if (r.id !== requestId) return r;
+      dbId = r._id || null;
+      const updated = {
+        ...r,
+        status: 'cancelled',
+        audit: [...(r.audit || []), { at: new Date().toISOString(), userId: activeUserId, action: 'cancelled', note: '' }],
+      };
+      newAudit = updated.audit;
+      return updated;
     }));
+    if (!DEMO_MODE && dbId) {
+      api.approvals.update(dbId, { status: 'cancelled', audit: newAudit }).catch(() => {});
+    }
   };
 
   // Filter helpers used by ApprovalsModule.
