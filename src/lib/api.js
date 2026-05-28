@@ -244,6 +244,32 @@ export const api = {
     },
   },
 
+  // ── GL / Chart of Accounts / Journal Entries / AP Bills ──────────────────
+  gl: {
+    accounts: {
+      list:   (params = {}) => authFetch(`/api/v1/gl/accounts${qs(params)}`),
+      create: (body)         => authFetch('/api/v1/gl/accounts', { method: 'POST',  body: JSON.stringify(body) }),
+      update: (code, body)   => authFetch(`/api/v1/gl/accounts/${code}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    },
+    periods: {
+      list:  (params = {}) => authFetch(`/api/v1/gl/periods${qs(params)}`),
+      close: (id)           => authFetch(`/api/v1/gl/periods/${id}/close`, { method: 'POST', body: JSON.stringify({}) }),
+    },
+    entries: {
+      list:   (params = {}) => authFetch(`/api/v1/gl/entries${qs(params)}`),
+      get:    (id)           => authFetch(`/api/v1/gl/entries/${id}`),
+      create: (body)         => authFetch('/api/v1/gl/entries', { method: 'POST',  body: JSON.stringify(body) }),
+      void:   (id, reason)   => authFetch(`/api/v1/gl/entries/${id}/void`, { method: 'POST', body: JSON.stringify({ void_reason: reason }) }),
+    },
+    bills: {
+      list:          (params = {}) => authFetch(`/api/v1/gl/bills${qs(params)}`),
+      get:           (id)           => authFetch(`/api/v1/gl/bills/${id}`),
+      create:        (body)         => authFetch('/api/v1/gl/bills', { method: 'POST',  body: JSON.stringify(body) }),
+      updateStatus:  (id, status)   => authFetch(`/api/v1/gl/bills/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+      recordPayment: (id, amount)   => authFetch(`/api/v1/gl/bills/${id}/payment`, { method: 'POST', body: JSON.stringify({ amount }) }),
+    },
+  },
+
   // ── WMS ──────────────────────────────────────────────────────────────────
   wms: {
     tasks: {

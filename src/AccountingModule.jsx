@@ -942,6 +942,54 @@ export default function AccountingModule() {
       .catch(() => {});
   }, []);
 
+  // ── Chart of Accounts — live state (falls back to GL_ACCOUNTS seed in DEMO) ─
+  const [glAccounts, setGlAccounts] = useState(GL_ACCOUNTS);
+
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    api.gl.accounts.list({ limit: 500 })
+      .then(r => {
+        if (r.data?.length) {
+          setGlAccounts(r.data.map(a => ({
+            code: a.account_code,
+            name: a.name,
+            type: a.type,
+          })));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // ── Accounting Periods ────────────────────────────────────────────────────────
+  const [glPeriods, setGlPeriods] = useState([]);
+
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    api.gl.periods.list({ limit: 24 })
+      .then(r => { if (r.data) setGlPeriods(r.data); })
+      .catch(() => {});
+  }, []);
+
+  // ── Vendor Bills (AP) — seed from API ────────────────────────────────────────
+  const mapApiBill = (row) => ({
+    _id:        row.id,
+    billId:     row.id,
+    billNumber: row.bill_number,
+    poNumber:   row.po_number   || '',
+    vendorId:   row.vendor_id   || '',
+    vendorName: row.vendor_name,
+    billDate:   row.bill_date,
+    dueDate:    row.due_date    || '',
+    status:     row.status,
+    notes:      row.notes       || '',
+    lines: (row.lines || []).map(l => ({
+      sku:         l.sku          || '',
+      description: l.description,
+      qtyBilled:   Number(l.quantity  || 0),
+      unitPrice:   Number(l.unit_cost || 0),
+    })),
+  });
+
   // ── Drain pending invoices pushed from Logistics (catch-weight billing) ──
   // The hand-off pattern: Logistics → addPendingInvoice(); useEffect here
   // picks them up, normalizes shape, computes a due date, and prepends them
@@ -992,6 +1040,13 @@ export default function AccountingModule() {
   const [vendorBills,   setVendorBills]   = useState(DEMO_MODE ? INIT_VENDOR_BILLS : []);
   const [matchFilter,   setMatchFilter]   = useState('all');   // 'all'|'matched'|'exception'|'pending'
   const [matchDetailId, setMatchDetailId] = useState(null);    // poNumber of expanded row
+
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    api.gl.bills.list({ limit: 500 })
+      .then(r => { if (r.data?.length) setVendorBills(r.data.map(mapApiBill)); })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── filter/search state ─────────────────────────────────────────────────────
   const [vendorSearch, setVendorSearch]   = useState('');
@@ -1358,9 +1413,22 @@ export default function AccountingModule() {
       }).then(created => {
         // UUID swap: replace the temp local id with the backend id
         setInvoices(prev => prev.map(i => i.id === newInv.id ? { ...i, _id: created.id } : i));
+        // ── Auto-post GL journal entry: DR 1100 AR / CR 4000 Revenue ────────────
+        api.gl.entries.create({
+          entry_date:       b.date,
+          description:      `AR — Invoice ${newInv.id} · ${cust.name}`,
+          source:           'ar_invoice',
+          reference_id:     created.id,
+          reference_number: newInv.id,
+          status:           'Posted',
+          lines: [
+            { account_code: '1100', account_name: 'Accounts Receivable', debit: total,  credit: 0,     description: `Invoice ${newInv.id}` },
+            { account_code: b.glCode || '4000', account_name: glAccounts.find(g=>g.code===(b.glCode||'4000'))?.name || 'Sales Revenue', debit: 0, credit: total, description: `Invoice ${newInv.id}` },
+          ],
+        }).catch(() => {}); // GL post is best-effort — local state is source of truth
       }).catch(err => showApiToast(`Invoice saved locally — sync failed: ${err.message}`));
     }
-  }, [invBuilder, closeModal, showToast, logAudit]);
+  }, [invBuilder, closeModal, showToast, logAudit, glAccounts]);
 
   const handleRecordPayment = useCallback((e) => {
     e.preventDefault();
@@ -2305,6 +2373,30 @@ export default function AccountingModule() {
                     setVendorBills(prev => prev.map(b => b.billId === bill.billId ? { ...b, status: 'Approved' } : b));
                     showToast(`${bill.billNumber} approved for payment`);
                     setMatchDetailId(null);
+                    // ── Live API: update bill status + post GL entry ────────────
+                    if (!DEMO_MODE) {
+                      const billTotal = bill.lines
+                        ? bill.lines.reduce((s, l) => s + (l.qtyBilled || l.quantity || 0) * (l.unitPrice || l.unit_cost || 0), 0)
+                        : 0;
+                      const expCode = po?.items?.[0]?.glCode || '5000';
+                      const expName = glAccounts.find(g=>g.code===expCode)?.name || 'Cost of Goods Sold';
+                      if (bill._id) {
+                        api.gl.bills.updateStatus(bill._id, 'Approved').catch(() => {});
+                      }
+                      if (billTotal > 0) {
+                        api.gl.entries.create({
+                          entry_date:       new Date().toISOString().slice(0, 10),
+                          description:      `AP — Bill ${bill.billNumber} · ${bill.vendorName}`,
+                          source:           'ap_bill',
+                          reference_number: bill.billNumber,
+                          status:           'Posted',
+                          lines: [
+                            { account_code: expCode, account_name: expName, debit: billTotal, credit: 0, description: `Bill ${bill.billNumber}` },
+                            { account_code: '2000', account_name: 'Accounts Payable', debit: 0, credit: billTotal, description: `Bill ${bill.billNumber}` },
+                          ],
+                        }).catch(() => {});
+                      }
+                    }
                   }}
                   className={UI.btnPrimary + ' text-xs px-3 py-1.5'}>
                   <CheckCheck size={13} /> Approve Payment
@@ -2622,7 +2714,7 @@ export default function AccountingModule() {
           </tr></thead>
           <tbody className="divide-y divide-gray-800/50">
             {expenses.map(ex => {
-              const glName = GL_ACCOUNTS.find(g => g.code === ex.glCode)?.name ?? ex.glCode;
+              const glName = glAccounts.find(g => g.code === ex.glCode)?.name ?? ex.glCode;
               return (
                 <tr key={ex.id} className="hover:bg-gray-800/30">
                   <td className={UI.td}>{fmtDate(ex.date)}</td>
@@ -3950,7 +4042,7 @@ export default function AccountingModule() {
               </tr></thead>
               <tbody className="divide-y divide-gray-800/50">
                 {allTransactions.map(t => {
-                  const glName = GL_ACCOUNTS.find(g=>g.code===t.glCode)?.name ?? t.glCode;
+                  const glName = glAccounts.find(g=>g.code===t.glCode)?.name ?? t.glCode;
                   return (
                     <tr key={t.id} className="hover:bg-gray-800/30">
                       <td className={UI.td}>{fmtDate(t.date)}</td>
@@ -4536,7 +4628,7 @@ export default function AccountingModule() {
     // ── View Expense (expense voucher) ───────────────────────────────────────────
     if (modal.type === 'viewExpense') {
       const ex = modal.expense;
-      const glName = GL_ACCOUNTS.find(g => g.code === ex.glCode)?.name ?? ex.glCode;
+      const glName = glAccounts.find(g => g.code === ex.glCode)?.name ?? ex.glCode;
       const acct = bankAccounts.find(a => a.id === ex.accountId);
       return (
         <Overlay>
@@ -4767,7 +4859,7 @@ export default function AccountingModule() {
                 </select></div>
               <div><label className={UI.label}>GL Code</label>
                 <select className={UI.select} value={checkForm.glCode} onChange={e=>{const v=e.target.value;setCF('glCode',v);}}>
-                  {GL_ACCOUNTS.map(g=><option key={g.code} value={g.code}>{g.code} – {g.name}</option>)}
+                  {glAccounts.map(g=><option key={g.code} value={g.code}>{g.code} – {g.name}</option>)}
                 </select></div>
             </div>
             {checkForm.amount && <div className="bg-gray-800/50 rounded-lg px-4 py-3 text-sm text-gray-400 italic">
@@ -4922,7 +5014,7 @@ export default function AccountingModule() {
                   <div>
                     <label className={UI.label}>GL Code</label>
                     <select className={UI.select} value={invBuilder.glCode} onChange={e=>setIB('glCode', e.target.value)}>
-                      {GL_ACCOUNTS.filter(g=>g.type==='Revenue').map(g=><option key={g.code} value={g.code}>{g.code} – {g.name}</option>)}
+                      {glAccounts.filter(g=>g.type==='Revenue').map(g=><option key={g.code} value={g.code}>{g.code} – {g.name}</option>)}
                     </select>
                   </div>
                   <div>
@@ -5071,7 +5163,7 @@ export default function AccountingModule() {
             <div className="grid grid-cols-2 gap-3">
               <div><label className={UI.label}>GL Code</label>
                 <select className={UI.select} value={invForm.glCode} onChange={e=>{const v=e.target.value;setIF('glCode',v);}}>
-                  {GL_ACCOUNTS.filter(g=>g.type==='Revenue').map(g=><option key={g.code} value={g.code}>{g.code} – {g.name}</option>)}
+                  {glAccounts.filter(g=>g.type==='Revenue').map(g=><option key={g.code} value={g.code}>{g.code} – {g.name}</option>)}
                 </select></div>
               <div><label className={UI.label}>Source</label>
                 <select className={UI.select} value={invForm.source} onChange={e=>{const v=e.target.value;setIF('source',v);}}>
@@ -5138,7 +5230,7 @@ export default function AccountingModule() {
             <div className="grid grid-cols-2 gap-3">
               <div><label className={UI.label}>GL Code</label>
                 <select className={UI.select} value={expForm.glCode} onChange={e=>{const v=e.target.value;setEF('glCode',v);}}>
-                  {GL_ACCOUNTS.filter(g=>g.type==='Expense'||g.type==='COGS').map(g=><option key={g.code} value={g.code}>{g.code} – {g.name}</option>)}
+                  {glAccounts.filter(g=>g.type==='Expense'||g.type==='COGS').map(g=><option key={g.code} value={g.code}>{g.code} – {g.name}</option>)}
                 </select></div>
               <div><label className={UI.label}>Pay From Account</label>
                 <select className={UI.select} value={expForm.accountId} onChange={e=>{const v=e.target.value;setEF('accountId',v);}}>
