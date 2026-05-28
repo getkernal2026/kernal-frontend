@@ -1,7 +1,7 @@
 {
-  "name": "Kernel ERM",
+  "name": "Kernel ERP",
   "short_name": "Kernel",
-  "description": "Food distribution ERM — Inventory, WMS, Logistics, and more",
+  "description": "Food distribution ERP — Inventory, WMS, Logistics, and more",
   "start_url": "/?source=pwa",
   "display": "standalone",
   "orientation": "any",

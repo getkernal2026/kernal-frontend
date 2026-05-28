@@ -765,7 +765,7 @@ function Sidebar({ isDark, collapsed, onToggleCollapse, visibleTabs, activeTabId
         <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'} px-3 h-14 border-b ${isDark ? 'border-gray-800' : 'border-[#e2e8f0]'} shrink-0`}>
           {!collapsed && (
             <span id="kernal-brand" className="text-cyan-500 font-black tracking-tight text-lg whitespace-nowrap">
-              KERNAL<span className={`${wordmarkSub} font-light`}> ERM</span>
+              KERNAL<span className={`${wordmarkSub} font-light`}> ERP</span>
             </span>
           )}
           {collapsed && (
@@ -831,7 +831,7 @@ function Sidebar({ isDark, collapsed, onToggleCollapse, visibleTabs, activeTabId
           {collapsed ? (
             <span className="block text-center font-bold">v1</span>
           ) : (
-            <span>Kernel ERM · v1.0</span>
+            <span>Kernel ERP · v1.0</span>
           )}
         </div>
       </aside>
@@ -981,7 +981,7 @@ function KernalShell() {
             </button>
             {/* Mobile wordmark (sidebar is hidden); active module label on desktop */}
             <span className="md:hidden text-cyan-500 font-black tracking-tight text-base whitespace-nowrap">
-              KERNAL<span className={`${wordmarkSub} font-light`}> ERM</span>
+              KERNAL<span className={`${wordmarkSub} font-light`}> ERP</span>
             </span>
             <div className="hidden md:flex items-center gap-2 min-w-0 flex-1">
               {activeTab?.Icon && <activeTab.Icon className="w-4 h-4 text-cyan-500 shrink-0" />}
@@ -1270,7 +1270,7 @@ function LoginScreen() {
             </svg>
           </div>
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: '#f1f5f9', letterSpacing: '-0.02em' }}>Kernel</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: '#6b7280' }}>Enterprise Resource Management</p>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: '#6b7280' }}>Enterprise Resource Planning</p>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -1328,7 +1328,7 @@ function LoginScreen() {
         </form>
 
         <p style={{ textAlign: 'center', marginTop: 20, fontSize: 12, color: '#374151' }}>
-          Kernel ERM · Secure access via Supabase Auth
+          Kernel ERP · Secure access via Supabase Auth
         </p>
       </div>
     </div>

@@ -362,7 +362,7 @@ export default function EDIModule() {
             {[
               { label: 'AS2 Gateway',      ok: true,  detail: 'Connected · TLS 1.3' },
               { label: 'FTP/SFTP Server',  ok: true,  detail: 'Connected · Port 22' },
-              { label: 'ISA Interchange',  ok: true,  detail: 'ISA ID: KERNAL-ERM-01' },
+              { label: 'ISA Interchange',  ok: true,  detail: 'ISA ID: KERNAL-ERP-01' },
               { label: 'GS Group Control', ok: true,  detail: 'Seq: 00084 · Active' },
             ].map(s => (
               <div key={s.label} className="flex items-start gap-2.5">

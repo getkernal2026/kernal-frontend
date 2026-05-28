@@ -1,4 +1,4 @@
-// Kernel ERM — Minimal Service Worker
+// Kernel ERP — Minimal Service Worker
 // Satisfies Chrome's PWA installability requirements.
 // Caches the app shell on install for basic offline resilience.
 

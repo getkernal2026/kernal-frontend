@@ -13,7 +13,7 @@ export const TOURS = {
       {
         targetId: 'kernal-brand',
         position: 'right',
-        title: 'Welcome to Kernel ERM 👋',
+        title: 'Welcome to Kernel ERP 👋',
         body: "You're on the most complete ERP platform built for food distribution. Let's take 2 minutes to show you where everything lives.",
         tip: 'Press → or click Next to continue',
       },

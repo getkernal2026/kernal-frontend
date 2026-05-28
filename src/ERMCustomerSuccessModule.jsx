@@ -802,7 +802,7 @@ export default function ERMCustomerSuccessModule() {
       aiInsights: [{ id: 1, type: 'action', text: 'New account created. Needs B2B portal setup and route assignment.' }],
       activePlaybooks: [{ id: 'pb-4', name: 'New Account Onboarding', status: 'Active', enrolledDate: TODAY }],
       whitespaceAnalysis: [],
-      recentActivity: [{ id: 1, date: TODAY, type: 'activity', note: 'Account provisioned in ERM.' }],
+      recentActivity: [{ id: 1, date: TODAY, type: 'activity', note: 'Account provisioned in ERP.' }],
       tasks: [{ id: `tsk-${Date.now()}`, title: 'Call primary contact to introduce portal', dueDate: TODAY, type: 'Call', priority: 'High', status: 'Pending' }],
       documents: f.documents || [], tickets: [],
     };

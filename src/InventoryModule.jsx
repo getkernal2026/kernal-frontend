@@ -2354,7 +2354,7 @@ export default function InventoryModule() {
                                   { done: false, text: `File FDA recall notification per 21 CFR Part 7 (see FDA Report tab)` },
                                   { done: false, text: `Arrange product return or destruction — document lot disposition` },
                                   { done: false, text: `Initiate RTV with ${r.supplierName} for warehouse stock and returned units` },
-                                  { done: false, text: `Update internal records and close lot in ERM` },
+                                  { done: false, text: `Update internal records and close lot in ERP` },
                                 ].map((item, i) => (
                                   <div key={i} className="flex items-start gap-3">
                                     <div className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center flex-shrink-0 ${item.done ? 'bg-emerald-500' : 'border-2 border-gray-600'}`}>

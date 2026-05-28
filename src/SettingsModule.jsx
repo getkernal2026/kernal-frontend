@@ -505,7 +505,7 @@ function ReportPreviewModal({ reportId, onClose }) {
             {/* Email meta bar */}
             <div className="bg-gray-900/60 px-4 py-3 border-b border-gray-800 flex items-start justify-between gap-4">
               <div className="space-y-0.5">
-                <div className="text-[10px] text-gray-500"><span className="text-gray-600">From:</span> Kernel ERM Reports &lt;noreply@kernal-erm.com&gt;</div>
+                <div className="text-[10px] text-gray-500"><span className="text-gray-600">From:</span> Kernel ERP Reports &lt;noreply@kernal-erp.com&gt;</div>
                 <div className="text-[10px] text-gray-500"><span className="text-gray-600">Subject:</span> {def.name} · {data.subjectDate}</div>
               </div>
               <span className="text-[10px] text-gray-700 shrink-0">Auto-generated · Do not reply</span>
@@ -521,7 +521,7 @@ function ReportPreviewModal({ reportId, onClose }) {
             {/* Email footer */}
             <div className="px-5 py-4 border-t border-gray-800/50">
               <p className="text-[10px] text-gray-600 text-center">
-                You're receiving this because you're subscribed to scheduled reports in Kernel ERM.
+                You're receiving this because you're subscribed to scheduled reports in Kernel ERP.
                 &nbsp;·&nbsp;<span className="text-gray-500 cursor-pointer hover:text-gray-300 transition-colors">Manage Preferences</span>
                 &nbsp;·&nbsp;<span className="text-gray-500 cursor-pointer hover:text-gray-300 transition-colors">Unsubscribe</span>
               </p>
@@ -1648,7 +1648,7 @@ export default function SettingsModule() {
           <div className="space-y-4">
             <div className="bg-gray-900/50 border border-gray-800 rounded-xl px-4 py-3">
               <p className="text-xs text-gray-500 leading-relaxed">
-                Turn modules on or off to tailor the ERM to each client's workflow. Disabled modules disappear from the sidebar entirely. Settings and Users are always accessible.
+                Turn modules on or off to tailor the ERP to each client's workflow. Disabled modules disappear from the sidebar entirely. Settings and Users are always accessible.
               </p>
             </div>
             {MODULE_GROUPS_META.map(group => (

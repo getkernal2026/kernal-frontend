@@ -223,7 +223,7 @@ function OAuthModal({ platform, onSuccess, onClose }) {
               </div>
               <div>
                 <p className="text-sm font-bold text-gray-200">Opening {isQBO ? 'QuickBooks' : 'Xero'} sign-in…</p>
-                <p className="text-xs text-gray-500 mt-1">You'll be redirected to authorize Kernel ERM</p>
+                <p className="text-xs text-gray-500 mt-1">You'll be redirected to authorize Kernel ERP</p>
               </div>
             </>
           )}
@@ -463,7 +463,7 @@ function ConnectTab({ connection, onConnect, onDisconnect, onSyncNow }) {
       <div className="bg-cyan-500/5 border border-cyan-500/15 rounded-xl p-4 flex items-start gap-3">
         <Link2 className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
         <div className="text-sm text-gray-400 leading-relaxed">
-          Connect Kernel ERM to your existing bookkeeping platform. Invoices, payments, and bills sync automatically — your accountant keeps working in the tool they know while operations run in Kernel.
+          Connect Kernel ERP to your existing bookkeeping platform. Invoices, payments, and bills sync automatically — your accountant keeps working in the tool they know while operations run in Kernel.
           <span className="text-gray-500"> Only one platform can be active at a time.</span>
         </div>
       </div>
