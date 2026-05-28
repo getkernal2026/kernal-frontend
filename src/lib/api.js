@@ -97,6 +97,15 @@ export const api = {
     inviteUser:   (body)         => authFetch('/api/v1/admin/users/invite', { method: 'POST',   body: JSON.stringify(body) }),
     updateUser:   (id, body)     => authFetch(`/api/v1/admin/users/${id}`, { method: 'PATCH',  body: JSON.stringify(body) }),
     deactivateUser: (id)         => authFetch(`/api/v1/admin/users/${id}`, { method: 'DELETE' }),
+
+    // B2B Portal Customers — tenant admins manage portal access here
+    b2bCustomers: {
+      list:          ()          => authFetch('/api/v1/admin/b2b-customers'),
+      create:        (body)      => authFetch('/api/v1/admin/b2b-customers', { method: 'POST',   body: JSON.stringify(body) }),
+      update:        (id, body)  => authFetch(`/api/v1/admin/b2b-customers/${id}`, { method: 'PATCH',  body: JSON.stringify(body) }),
+      resetPassword: (id, pwd)   => authFetch(`/api/v1/admin/b2b-customers/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ password: pwd }) }),
+      deactivate:    (id)        => authFetch(`/api/v1/admin/b2b-customers/${id}`, { method: 'DELETE' }),
+    },
   },
 
   // ── B2B Customer Portal ───────────────────────────────────────────────────

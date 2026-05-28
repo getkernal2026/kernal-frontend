@@ -902,9 +902,415 @@ function UsersTab() {
 }
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
+// ── B2B Customers Tab ─────────────────────────────────────────────────────────
+const PAYMENT_TERMS_OPTIONS = ['Net-15', 'Net-30', 'Net-45', 'Net-60', 'Net-90', 'COD', 'Prepaid'];
+const PRICING_TIER_OPTIONS  = ['standard', 'preferred', 'premium', 'contract'];
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function B2BCustomersTab() {
+  const [customers,   setCustomers]   = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState(null);
+  const [showForm,    setShowForm]    = useState(false);
+  const [saving,      setSaving]      = useState(false);
+  const [formErr,     setFormErr]     = useState(null);
+  const [editId,      setEditId]      = useState(null);   // id of customer being credit-edited
+  const [resetId,     setResetId]     = useState(null);   // id of customer being password-reset
+  const [resetPwd,    setResetPwd]    = useState('');
+  const [resetSaving, setResetSaving] = useState(false);
+  const [resetMsg,    setResetMsg]    = useState(null);
+
+  const blankForm = {
+    email: '', password: '', display_name: '',
+    credit_limit: '', available_credit: '', credit_hold: false,
+    ar_aging_days90: '', payment_terms: 'Net-30',
+    route: '', delivery_days: [], pricing_tier: 'standard',
+  };
+  const [form, setForm] = useState(blankForm);
+
+  // credit edit draft
+  const [editDraft, setEditDraft] = useState({});
+
+  const load = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const res = await api.admin.b2bCustomers.list();
+      setCustomers(res.data || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggleDay = (arr, day) =>
+    arr.includes(day) ? arr.filter(d => d !== day) : [...arr, day].sort((a, b) => a - b);
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    setSaving(true); setFormErr(null);
+    try {
+      const body = {
+        ...form,
+        credit_limit:     parseFloat(form.credit_limit)     || 0,
+        available_credit: parseFloat(form.available_credit) || 0,
+        ar_aging_days90:  parseFloat(form.ar_aging_days90)  || 0,
+      };
+      const res = await api.admin.b2bCustomers.create(body);
+      setCustomers(prev => [...prev, res.data]);
+      setForm(blankForm);
+      setShowForm(false);
+    } catch (e) {
+      setFormErr(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const startEdit = (c) => {
+    setEditId(c.id);
+    setEditDraft({
+      display_name:     c.display_name,
+      credit_limit:     c.credit_limit,
+      available_credit: c.available_credit,
+      credit_hold:      c.credit_hold,
+      ar_aging_days90:  c.ar_aging_days90,
+      payment_terms:    c.payment_terms,
+      route:            c.route || '',
+      delivery_days:    c.delivery_days || [],
+      pricing_tier:     c.pricing_tier || 'standard',
+    });
+  };
+
+  const saveEdit = async () => {
+    setSaving(true);
+    try {
+      const res = await api.admin.b2bCustomers.update(editId, {
+        ...editDraft,
+        credit_limit:     parseFloat(editDraft.credit_limit)     || 0,
+        available_credit: parseFloat(editDraft.available_credit) || 0,
+        ar_aging_days90:  parseFloat(editDraft.ar_aging_days90)  || 0,
+      });
+      setCustomers(prev => prev.map(c => c.id === editId ? { ...c, ...res.data } : c));
+      setEditId(null);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeactivate = async (id) => {
+    if (!window.confirm('Deactivate this B2B customer? They will no longer be able to sign into the portal.')) return;
+    try {
+      await api.admin.b2bCustomers.deactivate(id);
+      setCustomers(prev => prev.map(c => c.id === id ? { ...c, is_active: false } : c));
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const handleReactivate = async (id) => {
+    try {
+      const res = await api.admin.b2bCustomers.update(id, { is_active: true });
+      setCustomers(prev => prev.map(c => c.id === id ? { ...c, ...res.data } : c));
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPwd || resetPwd.length < 6) return;
+    setResetSaving(true); setResetMsg(null);
+    try {
+      await api.admin.b2bCustomers.resetPassword(resetId, resetPwd);
+      setResetMsg('Password updated successfully.');
+      setResetPwd('');
+      setTimeout(() => { setResetId(null); setResetMsg(null); }, 2000);
+    } catch (e) {
+      setResetMsg(`Error: ${e.message}`);
+    } finally {
+      setResetSaving(false);
+    }
+  };
+
+  const inputCls = 'w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-cyan-500/50';
+  const labelCls = 'block text-xs text-gray-400 mb-1';
+
+  if (loading) return (
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 flex items-center justify-center gap-3 text-gray-500 text-sm">
+      <span className="animate-spin">⟳</span> Loading B2B customers…
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+
+      {/* Header card */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+        <div className="flex items-center justify-between mb-1">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-100">B2B Portal Customers</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {customers.length} customer{customers.length !== 1 ? 's' : ''} — manage portal access, credit limits, and delivery settings
+            </p>
+          </div>
+          <button
+            onClick={() => { setShowForm(v => !v); setFormErr(null); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-medium hover:bg-cyan-500/20 transition-colors"
+          >
+            {showForm ? '✕ Cancel' : '+ Add Customer'}
+          </button>
+        </div>
+
+        {error && (
+          <div className="mt-3 px-3 py-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs">{error}</div>
+        )}
+
+        {/* Create form */}
+        {showForm && (
+          <form onSubmit={handleCreate} className="mt-4 pt-4 border-t border-gray-800 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Business Name</label>
+              <input required value={form.display_name} onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))}
+                placeholder="Joe's Steakhouse" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Login Email</label>
+              <input required type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                placeholder="orders@joesteakhouse.com" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Temporary Password</label>
+              <input required type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                placeholder="Min 6 characters" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Payment Terms</label>
+              <select value={form.payment_terms} onChange={e => setForm(f => ({ ...f, payment_terms: e.target.value }))} className={inputCls}>
+                {PAYMENT_TERMS_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Credit Limit ($)</label>
+              <input type="number" min="0" step="0.01" value={form.credit_limit}
+                onChange={e => setForm(f => ({ ...f, credit_limit: e.target.value }))}
+                placeholder="50000" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Available Credit ($)</label>
+              <input type="number" min="0" step="0.01" value={form.available_credit}
+                onChange={e => setForm(f => ({ ...f, available_credit: e.target.value }))}
+                placeholder="50000" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Route</label>
+              <input value={form.route} onChange={e => setForm(f => ({ ...f, route: e.target.value }))}
+                placeholder="Route-12" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Pricing Tier</label>
+              <select value={form.pricing_tier} onChange={e => setForm(f => ({ ...f, pricing_tier: e.target.value }))} className={inputCls}>
+                {PRICING_TIER_OPTIONS.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Delivery Days</label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {DAY_LABELS.map((d, i) => (
+                  <button key={i} type="button"
+                    onClick={() => setForm(f => ({ ...f, delivery_days: toggleDay(f.delivery_days, i) }))}
+                    className={['px-3 py-1 rounded-lg text-xs font-medium border transition-colors',
+                      form.delivery_days.includes(i)
+                        ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300'
+                        : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
+                    ].join(' ')}
+                  >{d}</button>
+                ))}
+              </div>
+            </div>
+            <div className="sm:col-span-2 flex items-center gap-3">
+              <input type="checkbox" id="credit_hold_new" checked={form.credit_hold}
+                onChange={e => setForm(f => ({ ...f, credit_hold: e.target.checked }))}
+                className="w-4 h-4 rounded accent-rose-500" />
+              <label htmlFor="credit_hold_new" className="text-xs text-gray-400">Place on credit hold immediately</label>
+            </div>
+            {formErr && <div className="sm:col-span-2 px-3 py-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs">{formErr}</div>}
+            <div className="sm:col-span-2 flex justify-end">
+              <button type="submit" disabled={saving}
+                className="px-4 py-2 rounded-lg bg-cyan-500 text-gray-950 text-xs font-semibold hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                {saving ? 'Creating…' : 'Create B2B Account'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      {/* Customer list */}
+      <div className="space-y-3">
+        {customers.length === 0 ? (
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center text-sm text-gray-500">
+            No B2B customers yet — click <span className="text-cyan-400">+ Add Customer</span> to create portal access for a buyer.
+          </div>
+        ) : customers.map(c => (
+          <div key={c.id} className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+
+            {/* Customer header row */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800/60">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 text-xs font-bold shrink-0">
+                  {c.display_name.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-100 truncate">{c.display_name}</span>
+                    {c.credit_hold && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-rose-500/15 text-rose-400">CREDIT HOLD</span>}
+                    {!c.is_active && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-700 text-gray-500">INACTIVE</span>}
+                  </div>
+                  <span className="text-xs text-gray-500">{c.email}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button onClick={() => editId === c.id ? setEditId(null) : startEdit(c)}
+                  className="px-2.5 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-400 text-xs hover:text-gray-200 hover:border-gray-600 transition-colors">
+                  {editId === c.id ? 'Cancel' : 'Edit'}
+                </button>
+                <button onClick={() => { setResetId(c.id); setResetPwd(''); setResetMsg(null); }}
+                  className="px-2.5 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-400 text-xs hover:text-gray-200 hover:border-gray-600 transition-colors">
+                  Reset Pwd
+                </button>
+                {c.is_active ? (
+                  <button onClick={() => handleDeactivate(c.id)}
+                    className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs hover:bg-rose-500/20 transition-colors">
+                    Deactivate
+                  </button>
+                ) : (
+                  <button onClick={() => handleReactivate(c.id)}
+                    className="px-2.5 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs hover:bg-emerald-500/20 transition-colors">
+                    Reactivate
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Credit summary row */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-gray-800">
+              {[
+                { label: 'Credit Limit',     value: `$${Number(c.credit_limit).toLocaleString()}` },
+                { label: 'Available Credit', value: `$${Number(c.available_credit).toLocaleString()}` },
+                { label: 'Payment Terms',    value: c.payment_terms },
+                { label: 'Delivery Days',    value: (c.delivery_days || []).map(d => DAY_LABELS[d]).join(', ') || '—' },
+              ].map(({ label, value }) => (
+                <div key={label} className="bg-gray-900 px-3 py-2">
+                  <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-0.5">{label}</p>
+                  <p className="text-xs font-medium text-gray-300">{value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Inline edit panel */}
+            {editId === c.id && (
+              <div className="px-4 py-4 border-t border-gray-800 bg-gray-900/50 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Business Name</label>
+                  <input value={editDraft.display_name} onChange={e => setEditDraft(d => ({ ...d, display_name: e.target.value }))} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Payment Terms</label>
+                  <select value={editDraft.payment_terms} onChange={e => setEditDraft(d => ({ ...d, payment_terms: e.target.value }))} className={inputCls}>
+                    {PAYMENT_TERMS_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Credit Limit ($)</label>
+                  <input type="number" min="0" step="0.01" value={editDraft.credit_limit}
+                    onChange={e => setEditDraft(d => ({ ...d, credit_limit: e.target.value }))} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Available Credit ($)</label>
+                  <input type="number" min="0" step="0.01" value={editDraft.available_credit}
+                    onChange={e => setEditDraft(d => ({ ...d, available_credit: e.target.value }))} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>90-Day AR Aging ($)</label>
+                  <input type="number" min="0" step="0.01" value={editDraft.ar_aging_days90}
+                    onChange={e => setEditDraft(d => ({ ...d, ar_aging_days90: e.target.value }))} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Route</label>
+                  <input value={editDraft.route} onChange={e => setEditDraft(d => ({ ...d, route: e.target.value }))}
+                    placeholder="Route-12" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Pricing Tier</label>
+                  <select value={editDraft.pricing_tier || 'standard'} onChange={e => setEditDraft(d => ({ ...d, pricing_tier: e.target.value }))} className={inputCls}>
+                    {PRICING_TIER_OPTIONS.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Delivery Days</label>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {DAY_LABELS.map((d, i) => (
+                      <button key={i} type="button"
+                        onClick={() => setEditDraft(dr => ({ ...dr, delivery_days: toggleDay(dr.delivery_days, i) }))}
+                        className={['px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors',
+                          (editDraft.delivery_days || []).includes(i)
+                            ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300'
+                            : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
+                        ].join(' ')}
+                      >{d}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="sm:col-span-2 flex items-center gap-3">
+                  <input type="checkbox" id={`hold_${c.id}`} checked={editDraft.credit_hold}
+                    onChange={e => setEditDraft(d => ({ ...d, credit_hold: e.target.checked }))}
+                    className="w-4 h-4 rounded accent-rose-500" />
+                  <label htmlFor={`hold_${c.id}`} className="text-xs text-gray-400">Credit hold — customer cannot place orders</label>
+                </div>
+                <div className="sm:col-span-2 flex justify-end">
+                  <button onClick={saveEdit} disabled={saving}
+                    className="px-4 py-2 rounded-lg bg-cyan-500 text-gray-950 text-xs font-semibold hover:bg-cyan-400 disabled:opacity-50 transition-colors">
+                    {saving ? 'Saving…' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Password reset panel */}
+            {resetId === c.id && (
+              <div className="px-4 py-4 border-t border-gray-800 bg-gray-900/50 flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+                <div className="flex-1">
+                  <label className={labelCls}>New Password (min 6 characters)</label>
+                  <input type="password" value={resetPwd} onChange={e => setResetPwd(e.target.value)}
+                    placeholder="Enter new password" className={inputCls} />
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setResetId(null)}
+                    className="px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-400 text-xs hover:text-gray-200 transition-colors">
+                    Cancel
+                  </button>
+                  <button onClick={handleResetPassword} disabled={resetSaving || resetPwd.length < 6}
+                    className="px-4 py-2 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-semibold hover:bg-amber-500/30 disabled:opacity-50 transition-colors">
+                    {resetSaving ? 'Updating…' : 'Update Password'}
+                  </button>
+                </div>
+                {resetMsg && <p className={['text-xs mt-1', resetMsg.startsWith('Error') ? 'text-rose-400' : 'text-emerald-400'].join(' ')}>{resetMsg}</p>}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const TABS = [
   { id:'business',       label:'Business Profile',   icon: <BuildingIcon /> },
   { id:'team',           label:'Team',               icon: <span className="text-base leading-none">👥</span> },
+  { id:'b2bcustomers',   label:'B2B Customers',      icon: <span className="text-base leading-none">🏢</span> },
   { id:'features',       label:'Feature Toggles',    icon: <ToggleIcon /> },
   { id:'approvals',      label:'Approvals',          icon: <ShieldIcon /> },
   { id:'modules',        label:'Module Visibility',  icon: <LayersIcon /> },
@@ -1031,6 +1437,9 @@ export default function SettingsModule() {
 
         {/* ── Team ── */}
         {tab === 'team' && <UsersTab />}
+
+        {/* ── B2B Customers ── */}
+        {tab === 'b2bcustomers' && <B2BCustomersTab />}
 
         {/* ── Feature Toggles ── */}
         {tab === 'features' && (() => {
