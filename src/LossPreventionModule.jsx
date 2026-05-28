@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useKernal, ROLES } from './KernalContext.jsx';
 import { UI } from './ui.js';
 import {
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { ALLERGEN_DATA, BIG_9, CUSTOMER_ALLERGEN_EXPOSURE } from './shared/allergenData.js';
 import { DEMO_MODE } from './lib/demoMode.js';
+import { api } from './lib/api.js';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 const fmtRel = (iso) => {
@@ -31,6 +32,88 @@ const fmtDateTime = (iso) => {
   const d = new Date(iso);
   return d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
 };
+
+// ─── API mappers ─────────────────────────────────────────────────────────────
+const mapApiIncident = (r) => ({
+  _id: r.id,
+  id: `INC-${r.id.slice(0,6).toUpperCase()}`,
+  type: r.type,
+  severity: r.severity,
+  title: r.title,
+  description: r.description || '',
+  sku: r.sku || '',
+  lotId: r.lot_id || '',
+  location: r.location || '',
+  quantity: r.quantity ? Number(r.quantity) : null,
+  uom: r.uom || 'cases',
+  customerId: r.customer_id || '',
+  customerName: r.customer_name || '',
+  invoiceRef: r.invoice_ref || '',
+  status: r.status,
+  reportedBy: r.reported_by || '',
+  resolvedBy: r.resolved_by || '',
+  resolvedAt: r.resolved_at || null,
+  resolution: r.resolution || '',
+  at: r.created_at,
+});
+
+const mapApiTempReading = (r) => ({
+  _id: r.id,
+  id: `TL-${r.id.slice(0,6).toUpperCase()}`,
+  sensorId: r.sensor_id,
+  sensorName: r.sensor_name,
+  lotId: r.lot_id || '',
+  sku: r.sku || '',
+  zone: r.zone,
+  temp: Number(r.temp),
+  min: r.min_thresh !== null ? Number(r.min_thresh) : null,
+  max: r.max_thresh !== null ? Number(r.max_thresh) : null,
+  status: r.status,
+  loggedBy: r.logged_by || '',
+  notes: r.notes || '',
+  at: r.created_at,
+});
+
+const mapApiPacaRejection = (r) => ({
+  _id: r.id,
+  id: `REJ-${r.id.slice(0,6).toUpperCase()}`,
+  date: r.rejection_date,
+  customerId: r.customer_id || '',
+  customer: r.customer_name,
+  sku: r.sku,
+  product: r.product_name || '',
+  lotId: r.lot_id || '',
+  qty: Number(r.qty),
+  unit: r.uom,
+  reason: r.reason,
+  reasonCode: r.reason_code,
+  description: r.description || '',
+  photoEvidence: r.photo_evidence,
+  invoiceRef: r.invoice_ref || '',
+  creditIssued: r.credit_issued,
+  creditAmount: Number(r.credit_amount),
+  status: r.status,
+  resolvedDate: r.resolved_date || null,
+});
+
+const mapApiPacaDispute = (r) => ({
+  _id: r.id,
+  id: `DIS-${r.id.slice(0,6).toUpperCase()}`,
+  openDate: r.open_date,
+  customerId: r.customer_id || '',
+  customer: r.customer_name,
+  invoiceRef: r.invoice_ref || '',
+  amount: Number(r.amount),
+  product: r.product || '',
+  type: r.type,
+  description: r.description || '',
+  status: r.status,
+  filedWithPACA: r.filed_with_paca,
+  filingDate: r.filing_date || null,
+  resolution: r.resolution || null,
+  resolvedDate: r.resolved_date || null,
+  damagesClaimAmt: Number(r.damages_claim_amt),
+});
 
 const MODULE_ICONS = {
   inventory:      Package,
@@ -1305,6 +1388,294 @@ const INIT_PACA_DISPUTES = [
     resolution: 'Agreed credit of $420 applied to account. Balance paid.', resolvedDate: '2026-05-02', damagesClaimAmt: 1200.00 },
 ];
 
+// ─── Incidents seed data ──────────────────────────────────────────────────────
+const INIT_INCIDENTS = [
+  { _id: null, id: 'INC-001', type: 'os_d',       severity: 'warning',  title: 'Short Weight — Roma Tomatoes 8 Cases',
+    description: '8 cases of PRO-TOMA-01 weighed 22 lbs avg vs 25 lb stated. Documented at receiving dock.',
+    sku: 'PRO-TOMA-01', lotId: 'LOT-D-CRITICAL', location: 'Receiving Dock', quantity: 8, uom: 'cases',
+    customerName: "Joe's Steakhouse – Downtown", invoiceRef: 'INV-PACA-003',
+    status: 'Open', reportedBy: 'Carlos M.', resolvedBy: '', resolvedAt: null, resolution: '',
+    at: '2026-05-27T10:00:00Z' },
+  { _id: null, id: 'INC-002', type: 'spoilage',   severity: 'warning',  title: 'Salmon Fillet Off-Odor — 10 Cases',
+    description: 'Chef reported off-odor on 10 of 40 cases of FRZ-SALM-01 upon opening at kitchen. Remaining 30 cases accepted.',
+    sku: 'FRZ-SALM-01', lotId: 'LOT-G-CRITICAL', location: 'Customer Kitchen', quantity: 10, uom: 'cases',
+    customerName: "Joe's Steakhouse – Downtown", invoiceRef: 'INV-2026-0842',
+    status: 'Open', reportedBy: 'L. Nguyen', resolvedBy: '', resolvedAt: null, resolution: '',
+    at: '2026-05-26T18:00:00Z' },
+  { _id: null, id: 'INC-003', type: 'temp_abuse', severity: 'critical', title: 'Freezer B Temp Exceedance — LOT-G-CRITICAL',
+    description: 'Freezer B temperature reached -13.4°C, exceeding -15°C maximum. Door seal inspection required.',
+    sku: 'FRZ-SALM-01', lotId: 'LOT-G-CRITICAL', location: 'Freezer B Zone FRZ', quantity: null, uom: 'cases',
+    customerName: '', invoiceRef: '',
+    status: 'Under Review', reportedBy: 'Auto-IoT', resolvedBy: '', resolvedAt: null, resolution: '',
+    at: '2026-05-27T08:44:00Z' },
+  { _id: null, id: 'INC-004', type: 'os_d',       severity: 'notice',   title: 'Transit Temp Warning — Truck RT-B',
+    description: 'Truck RT-B trailer logged 7.4°C, approaching 6°C upper limit for produce transit.',
+    sku: 'PRO-TOMA-01', lotId: 'LOT-D-CRITICAL', location: 'In Transit → CUST-502', quantity: null, uom: 'cases',
+    customerName: 'City Hospital Cafe', invoiceRef: '',
+    status: 'Open', reportedBy: 'Auto-IoT', resolvedBy: '', resolvedAt: null, resolution: '',
+    at: '2026-05-27T08:40:00Z' },
+  { _id: null, id: 'INC-005', type: 'quality',    severity: 'info',     title: 'Receiving Temp Check — Roma Tomatoes OK',
+    description: 'Roma Tomatoes arrived at 56°F / 13.3°C. Within acceptable range for field-temp produce.',
+    sku: 'PRO-TOMA-01', lotId: 'LOT-D-CRITICAL', location: 'Receiving Dock', quantity: 800, uom: 'lbs',
+    customerName: '', invoiceRef: 'PO-AP-0879',
+    status: 'Resolved', reportedBy: 'D. Boudreaux', resolvedBy: 'D. Boudreaux', resolvedAt: '2026-05-26T11:00:00Z', resolution: 'Product accepted — within spec.',
+    at: '2026-05-26T10:00:00Z' },
+];
+
+const INCIDENT_TYPE_LABELS = {
+  os_d:       'OS&D',
+  spoilage:   'Spoilage',
+  temp_abuse: 'Temp Abuse',
+  security:   'Security',
+  quality:    'Quality',
+  other:      'Other',
+};
+
+// ─── Incidents Tab ────────────────────────────────────────────────────────────
+function IncidentsTab() {
+  const [incidents,    setIncidents]    = useState(DEMO_MODE ? INIT_INCIDENTS : []);
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [filterType,   setFilterType]   = useState('all');
+  const [search,       setSearch]       = useState('');
+  const [showModal,    setShowModal]    = useState(false);
+  const [form,         setForm]         = useState({
+    type: 'os_d', severity: 'notice', title: '', sku: '', lotId: '',
+    location: '', quantity: '', uom: 'cases', customerName: '', invoiceRef: '',
+    description: '', reportedBy: 'Carlos M.',
+  });
+
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    api.lp.incidents.list({ limit: 200 })
+      .then(r => { if (r.data?.length) setIncidents(r.data.map(mapApiIncident)); })
+      .catch(() => {});
+  }, []);
+
+  const filtered = useMemo(() => incidents.filter(inc => {
+    if (filterStatus !== 'All' && inc.status !== filterStatus) return false;
+    if (filterType   !== 'all' && inc.type   !== filterType)   return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!inc.title.toLowerCase().includes(q) && !inc.sku.toLowerCase().includes(q) && !inc.customerName.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  }), [incidents, filterStatus, filterType, search]);
+
+  const stats = useMemo(() => ({
+    total:       incidents.length,
+    open:        incidents.filter(i => i.status === 'Open').length,
+    underReview: incidents.filter(i => i.status === 'Under Review').length,
+    resolved:    incidents.filter(i => i.status === 'Resolved' || i.status === 'Closed').length,
+  }), [incidents]);
+
+  const handleCreate = () => {
+    if (!form.title.trim()) return;
+    const tempId = `INC-${Math.random().toString(36).slice(2,8).toUpperCase()}`;
+    const entry = {
+      _id: null, id: tempId, type: form.type, severity: form.severity,
+      title: form.title.trim(), description: form.description.trim(),
+      sku: form.sku.trim(), lotId: form.lotId.trim(), location: form.location.trim(),
+      quantity: form.quantity ? Number(form.quantity) : null, uom: form.uom,
+      customerName: form.customerName.trim(), invoiceRef: form.invoiceRef.trim(),
+      status: 'Open', reportedBy: form.reportedBy.trim(),
+      resolvedBy: '', resolvedAt: null, resolution: '',
+      at: new Date().toISOString(),
+    };
+    setIncidents(prev => [entry, ...prev]);
+    setShowModal(false);
+    setForm({ type: 'os_d', severity: 'notice', title: '', sku: '', lotId: '', location: '', quantity: '', uom: 'cases', customerName: '', invoiceRef: '', description: '', reportedBy: 'Carlos M.' });
+    if (!DEMO_MODE) {
+      api.lp.incidents.create({
+        type: entry.type, severity: entry.severity, title: entry.title,
+        description: entry.description, sku: entry.sku || undefined,
+        lot_id: entry.lotId || undefined, location: entry.location || undefined,
+        quantity: entry.quantity || undefined, uom: entry.uom,
+        customer_name: entry.customerName || undefined, invoice_ref: entry.invoiceRef || undefined,
+        reported_by: entry.reportedBy,
+      }).then(r => {
+        if (r.data?.id) setIncidents(prev => prev.map(i => i.id === tempId ? mapApiIncident(r.data) : i));
+      }).catch(() => {});
+    }
+  };
+
+  const handleResolve = (inc) => {
+    const today = new Date().toISOString();
+    setIncidents(prev => prev.map(i => i.id === inc.id
+      ? { ...i, status: 'Resolved', resolvedAt: today, resolvedBy: 'Carlos M.' } : i));
+    if (!DEMO_MODE && inc._id) {
+      api.lp.incidents.update(inc._id, { status: 'Resolved', resolved_by: 'Carlos M.' }).catch(() => {});
+    }
+  };
+
+  const typeColor = { os_d:'bg-amber-500/10 text-amber-400 border-amber-500/20', spoilage:'bg-rose-500/10 text-rose-400 border-rose-500/20', temp_abuse:'bg-violet-500/10 text-violet-400 border-violet-500/20', security:'bg-red-500/10 text-red-400 border-red-500/20', quality:'bg-blue-500/10 text-blue-400 border-blue-500/20', other:'bg-gray-700 text-gray-400 border-gray-600' };
+  const statusColor = { 'Open':'text-amber-400', 'Under Review':'text-violet-400', 'Resolved':'text-emerald-400', 'Closed':'text-gray-500' };
+
+  return (
+    <div className="space-y-4">
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: 'Total',        val: stats.total,       color: 'text-gray-100'    },
+          { label: 'Open',         val: stats.open,        color: 'text-amber-400'   },
+          { label: 'Under Review', val: stats.underReview, color: 'text-violet-400'  },
+          { label: 'Resolved',     val: stats.resolved,    color: 'text-emerald-400' },
+        ].map(s => (
+          <div key={s.label} className={UI.cardPad}>
+            <p className="text-[10px] uppercase text-gray-500 tracking-wider font-bold">{s.label}</p>
+            <p className={`text-2xl font-black mt-1 ${s.color}`}>{s.val}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters + action */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search title, SKU, customer…" className={`${UI.input} pl-9`} />
+        </div>
+        <div className="flex gap-1">
+          {['All', 'Open', 'Under Review', 'Resolved'].map(s => (
+            <button key={s} onClick={() => setFilterStatus(s)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${filterStatus === s ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' : 'bg-gray-900 text-gray-500 border-gray-800 hover:text-gray-300'}`}>
+              {s}
+            </button>
+          ))}
+        </div>
+        <select value={filterType} onChange={e => setFilterType(e.target.value)} className={`${UI.select} w-auto`}>
+          <option value="all">All types</option>
+          {Object.entries(INCIDENT_TYPE_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <button onClick={() => setShowModal(true)}
+          className={`${UI.btnPrimary} shrink-0 flex items-center gap-2`}>
+          <BadgeAlert className="w-3.5 h-3.5" /> Report Incident
+        </button>
+      </div>
+
+      {/* Incident list */}
+      <div className={`${UI.card} overflow-hidden divide-y divide-gray-800/60`}>
+        {filtered.length === 0 ? (
+          <div className="p-10 text-center text-gray-500 italic text-sm">No incidents match these filters.</div>
+        ) : filtered.map(inc => (
+          <div key={inc.id} className="p-4 hover:bg-gray-800/20 transition-colors">
+            <div className="flex items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <SeverityPill severity={inc.severity} />
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${typeColor[inc.type] || typeColor.other}`}>
+                    {INCIDENT_TYPE_LABELS[inc.type] || inc.type}
+                  </span>
+                  <span className="font-mono text-[10px] text-gray-600">{inc.id}</span>
+                </div>
+                <p className="text-sm font-bold text-gray-100">{inc.title}</p>
+                {inc.description && <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{inc.description}</p>}
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[10px] text-gray-500">
+                  {inc.sku         && <span>SKU: <span className="text-gray-300 font-mono">{inc.sku}</span></span>}
+                  {inc.location    && <span>📍 {inc.location}</span>}
+                  {inc.customerName&& <span>Customer: {inc.customerName}</span>}
+                  {inc.reportedBy  && <span>By: {inc.reportedBy}</span>}
+                  <span>· {fmtRel(inc.at)}</span>
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-2 shrink-0">
+                <span className={`text-xs font-bold ${statusColor[inc.status] || 'text-gray-500'}`}>{inc.status}</span>
+                {(inc.status === 'Open' || inc.status === 'Under Review') && (
+                  <button onClick={() => handleResolve(inc)}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors">
+                    Resolve
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Create modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-950/80 backdrop-blur-sm">
+          <div className={`${UI.card} w-full max-w-lg max-h-[90vh] overflow-y-auto`}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+              <h3 className="font-bold text-gray-100 flex items-center gap-2"><BadgeAlert className="w-4 h-4 text-amber-400" /> Report Incident</h3>
+              <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-300"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 mb-1">Type</label>
+                  <select value={form.type} onChange={e => setForm(f => ({...f, type: e.target.value}))} className={UI.select}>
+                    {Object.entries(INCIDENT_TYPE_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 mb-1">Severity</label>
+                  <select value={form.severity} onChange={e => setForm(f => ({...f, severity: e.target.value}))} className={UI.select}>
+                    <option value="info">Info</option>
+                    <option value="notice">Notice</option>
+                    <option value="warning">Warning</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 mb-1">Title <span className="text-rose-400">*</span></label>
+                <input value={form.title} onChange={e => setForm(f => ({...f, title: e.target.value}))} placeholder="Brief incident title" className={UI.input} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 mb-1">SKU</label>
+                  <input value={form.sku} onChange={e => setForm(f => ({...f, sku: e.target.value}))} placeholder="e.g. PRO-TOMA-01" className={UI.input} />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 mb-1">Lot ID</label>
+                  <input value={form.lotId} onChange={e => setForm(f => ({...f, lotId: e.target.value}))} placeholder="e.g. LOT-D-CRITICAL" className={UI.input} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 mb-1">Location</label>
+                  <input value={form.location} onChange={e => setForm(f => ({...f, location: e.target.value}))} placeholder="e.g. Receiving Dock" className={UI.input} />
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="block text-xs font-bold text-gray-400 mb-1">Qty</label>
+                    <input type="number" value={form.quantity} onChange={e => setForm(f => ({...f, quantity: e.target.value}))} placeholder="0" className={UI.input} />
+                  </div>
+                  <div className="w-24">
+                    <label className="block text-xs font-bold text-gray-400 mb-1">UOM</label>
+                    <select value={form.uom} onChange={e => setForm(f => ({...f, uom: e.target.value}))} className={UI.select}>
+                      {['cases','lbs','units','pallets'].map(u => <option key={u}>{u}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 mb-1">Customer Name</label>
+                <input value={form.customerName} onChange={e => setForm(f => ({...f, customerName: e.target.value}))} placeholder="e.g. Joe's Steakhouse" className={UI.input} />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 mb-1">Invoice / PO Ref</label>
+                <input value={form.invoiceRef} onChange={e => setForm(f => ({...f, invoiceRef: e.target.value}))} placeholder="e.g. INV-2026-0842" className={UI.input} />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 mb-1">Description</label>
+                <textarea rows={3} value={form.description} onChange={e => setForm(f => ({...f, description: e.target.value}))} placeholder="Detailed notes…" className={`${UI.input} resize-none`} />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 mb-1">Reported By</label>
+                <input value={form.reportedBy} onChange={e => setForm(f => ({...f, reportedBy: e.target.value}))} className={UI.input} />
+              </div>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-800 flex justify-end gap-2">
+              <button onClick={() => setShowModal(false)} className={UI.btnSecondary}>Cancel</button>
+              <button onClick={handleCreate} disabled={!form.title.trim()} className={`${UI.btnPrimary} disabled:opacity-40 disabled:cursor-not-allowed`}>Submit Incident</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PacaTab() {
   const [subTab, setSubTab]           = useState('tracker');
   const [invoiceFilter, setInvoiceFilter] = useState('All');
@@ -1317,6 +1688,17 @@ function PacaTab() {
   const [rejections, setRejections]   = useState(DEMO_MODE ? INIT_PACA_REJECTIONS : []);
   const [disputes, setDisputes]       = useState(DEMO_MODE ? INIT_PACA_DISPUTES : []);
   const [showTrustModal, setShowTrustModal] = useState(false);
+
+  // Seed PACA data from API in live mode
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    api.lp.pacaRejections.list({ limit: 200 })
+      .then(r => { if (r.data?.length) setRejections(r.data.map(mapApiPacaRejection)); })
+      .catch(() => {});
+    api.lp.pacaDisputes.list({ limit: 200 })
+      .then(r => { if (r.data?.length) setDisputes(r.data.map(mapApiPacaDispute)); })
+      .catch(() => {});
+  }, []);
 
   const fmt$ = v => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(v);
 
@@ -1366,7 +1748,11 @@ function PacaTab() {
   };
 
   const handleIssueCredit = (rejId) => {
-    setRejections(prev => prev.map(r => r.id === rejId ? { ...r, creditIssued: true, status: 'Resolved', resolvedDate: '2026-05-27' } : r));
+    const rej = rejections.find(r => r.id === rejId);
+    setRejections(prev => prev.map(r => r.id === rejId ? { ...r, creditIssued: true, status: 'Resolved', resolvedDate: new Date().toISOString().slice(0,10) } : r));
+    if (!DEMO_MODE && rej?._id) {
+      api.lp.pacaRejections.update(rej._id, { credit_issued: true }).catch(() => {});
+    }
   };
 
   return (
@@ -1662,11 +2048,19 @@ function PacaTab() {
                     </div>
                     {dis.status === 'Under Review' && (
                       <div className="flex gap-3">
-                        <button onClick={() => setDisputes(prev => prev.map(d => d.id===dis.id ? {...d, status:'PACA Complaint Filed', filedWithPACA:true, filingDate:'2026-05-27'} : d))}
+                        <button onClick={() => {
+                          const today = new Date().toISOString().slice(0,10);
+                          setDisputes(prev => prev.map(d => d.id===dis.id ? {...d, status:'PACA Complaint Filed', filedWithPACA:true, filingDate:today} : d));
+                          if (!DEMO_MODE && dis._id) api.lp.pacaDisputes.update(dis._id, { status:'PACA Complaint Filed', filed_with_paca:true }).catch(()=>{});
+                        }}
                           className="flex items-center gap-2 px-4 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-sm font-semibold hover:bg-rose-500/20 transition-colors">
                           <Gavel className="w-4 h-4" /> File PACA Complaint (USDA-AMS)
                         </button>
-                        <button onClick={() => setDisputes(prev => prev.map(d => d.id===dis.id ? {...d, status:'Resolved', resolution:'Settled by agreement', resolvedDate:'2026-05-27'} : d))}
+                        <button onClick={() => {
+                          const today = new Date().toISOString().slice(0,10);
+                          setDisputes(prev => prev.map(d => d.id===dis.id ? {...d, status:'Resolved', resolution:'Settled by agreement', resolvedDate:today} : d));
+                          if (!DEMO_MODE && dis._id) api.lp.pacaDisputes.update(dis._id, { status:'Resolved', resolution:'Settled by agreement' }).catch(()=>{});
+                        }}
                           className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-sm font-semibold hover:bg-emerald-500/20 transition-colors">
                           <CheckCircle2 className="w-4 h-4" /> Mark Resolved
                         </button>
@@ -1787,6 +2181,14 @@ function ColdChainTab() {
   const [coldSubTab,  setColdSubTab]  = useState('monitor');
   const [sensors,     setSensors]     = useState(DEMO_MODE ? INIT_COLD_SENSORS : []);
   const [tempLog,     setTempLog]     = useState(DEMO_MODE ? INIT_TEMP_LOG : []);
+
+  // Seed temp readings from API in live mode
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    api.lp.tempReadings.list({ limit: 200 })
+      .then(r => { if (r.data?.length) setTempLog(r.data.map(mapApiTempReading)); })
+      .catch(() => {});
+  }, []);
   const [logFilter,   setLogFilter]   = useState('All');
   const [logLotFilter, setLogLotFilter] = useState('All');
   const [haccpLot,    setHaccpLot]    = useState('LOT-G-CRITICAL');
@@ -1878,6 +2280,25 @@ function ColdChainTab() {
     setLogModal(false);
     setLogForm({ lotId: 'LOT-A-URGENT', zone: 'FRZ', temp: '', sensor: '', notes: '' });
     notify(`Temperature reading logged for ${entry.lotId} — status: ${status}`, status === 'Normal' ? 'success' : 'warning');
+    if (!DEMO_MODE) {
+      api.lp.tempReadings.create({
+        sensor_id: 'Manual',
+        sensor_name: logForm.sensor || 'Manual Entry',
+        lot_id: logForm.lotId,
+        sku: HACCP_LOT_META[logForm.lotId]?.sku || null,
+        zone: logForm.zone,
+        temp,
+        min_thresh: t.min,
+        max_thresh: t.max,
+        status,
+        logged_by: 'Carlos M.',
+        notes: logForm.notes,
+      }).then(r => {
+        if (r.data?.id) {
+          setTempLog(prev => prev.map(e => e.id === entry.id ? mapApiTempReading(r.data) : e));
+        }
+      }).catch(() => {});
+    }
   };
 
   const handleExportLog = () => {
@@ -2342,6 +2763,7 @@ export default function LossPreventionModule() {
     { id: 'journal',   label: 'Live Journal',      Icon: Activity      },
     { id: 'lockdown',  label: 'Lockdown',          Icon: Lock          },
     { id: 'employees', label: 'Employee Activity', Icon: UsersIcon     },
+    { id: 'incidents', label: 'Incidents',         Icon: BadgeAlert    },
     ...(allergenEnabled  ? [{ id: 'allergen', label: 'Allergen Recall',  Icon: FlaskConical }] : []),
     ...(fsmaEnabled      ? [{ id: 'fsma204',  label: 'FSMA 204 / PTI',  Icon: GitBranch    }] : []),
     ...(pacaEnabled      ? [{ id: 'paca',     label: 'PACA Compliance', Icon: Scale        }] : []),
@@ -2379,6 +2801,7 @@ export default function LossPreventionModule() {
         {tab === 'journal'   && <LiveJournal      auditLog={auditLog} users={users} />}
         {tab === 'lockdown'  && <Lockdown         settings={settings} updateSetting={updateSetting} canEdit={canEdit} />}
         {tab === 'employees' && <EmployeeActivity auditLog={auditLog} users={users} />}
+        {tab === 'incidents' && <IncidentsTab />}
         {tab === 'allergen'  && allergenEnabled   && <AllergenRecall />}
         {tab === 'fsma204'   && fsmaEnabled       && <Fsma204Tab />}
         {tab === 'paca'      && pacaEnabled       && <PacaTab />}

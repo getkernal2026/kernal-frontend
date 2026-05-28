@@ -307,6 +307,29 @@ export const api = {
     },
   },
 
+  // ── Loss Prevention ───────────────────────────────────────────────────────
+  lp: {
+    incidents: {
+      list:   (params = {}) => authFetch(`/api/v1/lp/incidents${qs(params)}`),
+      create: (body)         => authFetch('/api/v1/lp/incidents', { method: 'POST',  body: JSON.stringify(body) }),
+      update: (id, body)     => authFetch(`/api/v1/lp/incidents/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    },
+    tempReadings: {
+      list:   (params = {}) => authFetch(`/api/v1/lp/temp-readings${qs(params)}`),
+      create: (body)         => authFetch('/api/v1/lp/temp-readings', { method: 'POST', body: JSON.stringify(body) }),
+    },
+    pacaRejections: {
+      list:   (params = {}) => authFetch(`/api/v1/lp/paca-rejections${qs(params)}`),
+      create: (body)         => authFetch('/api/v1/lp/paca-rejections', { method: 'POST',  body: JSON.stringify(body) }),
+      update: (id, body)     => authFetch(`/api/v1/lp/paca-rejections/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    },
+    pacaDisputes: {
+      list:   (params = {}) => authFetch(`/api/v1/lp/paca-disputes${qs(params)}`),
+      create: (body)         => authFetch('/api/v1/lp/paca-disputes', { method: 'POST',  body: JSON.stringify(body) }),
+      update: (id, body)     => authFetch(`/api/v1/lp/paca-disputes/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    },
+  },
+
   // ── Superadmin (requires superadmin role) ─────────────────────────────────
   superadmin: {
     // Stats
