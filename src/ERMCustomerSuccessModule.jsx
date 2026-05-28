@@ -165,6 +165,130 @@ const DAYS_OF_WEEK = [
   { id: 4, label: 'Thu' }, { id: 5, label: 'Fri' }, { id: 6, label: 'Sat' }, { id: 7, label: 'Sun' },
 ];
 
+// ─── DB ↔ FRONTEND MAPPERS ────────────────────────────────────────────────────
+// Convert snake_case DB rows to the camelCase shape used throughout the UI.
+const mapCustomer = (row) => ({
+  id:              row.id,
+  name:            row.name            || '',
+  dba:             row.dba             || '',
+  taxId:           row.tax_id          || '',
+  industry:        row.industry        || '',
+  address: {
+    street: row.address_line1 || '',
+    city:   row.city          || '',
+    state:  row.state         || '',
+    zip:    row.zip           || '',
+  },
+  status:          row.status          || 'Active',
+  healthScore:     row.health_score    ?? 0,
+  churnRisk:       row.churn_risk      || 'Low',
+  creditLimit:     Number(row.credit_limit)    || 0,
+  availableCredit: Number(row.available_credit) || 0,
+  creditHold:      row.credit_hold     || false,
+  arAging:         row.ar_aging        || { current: 0, days30: 0, days60: 0, days90: 0 },
+  terms:           row.payment_terms   || 'Net-30',
+  route:           row.route           || '',
+  deliveryDays:    row.delivery_days   || [],
+  pricingTier:     row.pricing_tier    || 'standard',
+  contractPricing: row.contract_pricing || {},
+  b2bPortalAccess: row.b2b_portal_access || false,
+  b2bProfileId:    row.b2b_profile_id   || null,
+  lastLogin:       row.last_login       || null,
+  // Sub-resources (only present on the full detail endpoint)
+  contacts: (row.contacts || []).map(c => ({
+    id:           c.id,
+    name:         c.name,
+    title:        c.title        || '',
+    phone:        c.phone        || '',
+    email:        c.email        || '',
+    isPrimary:    c.is_primary   || false,
+    portalStatus: c.portal_status || 'Not Invited',
+  })),
+  tickets: (row.tickets || []).map(t => ({
+    _uuid:       t.id,
+    id:          t.ticket_number || t.id,
+    date:        t.date,
+    type:        t.type     || '',
+    priority:    t.priority || 'Normal',
+    status:      t.status   || 'Open',
+    subject:     t.subject  || '',
+    description: t.description || '',
+  })),
+  tasks: (row.tasks || []).map(t => ({
+    id:       t.id,
+    title:    t.title,
+    dueDate:  t.due_date,
+    type:     t.type     || 'Task',
+    priority: t.priority || 'Normal',
+    status:   t.status   || 'Pending',
+  })),
+  recentActivity: (row.notes || []).map(n => ({
+    id:   n.id,
+    date: (n.created_at || '').slice(0, 10) || TODAY,
+    type: n.type    || 'note',
+    note: n.content || '',
+  })),
+  npsData: {
+    score:   row.nps_score ?? 0,
+    history: (row.npsHistory || []).map(n => ({
+      id:      n.id,
+      date:    n.date,
+      score:   n.score,
+      comment: n.comment || '',
+    })),
+  },
+  documents: (row.documents || []).map(d => ({
+    id:   d.id,
+    name: d.name,
+    type: d.type || '',
+    date: d.date,
+    size: d.size || '',
+  })),
+  activePlaybooks: (row.activePlaybooks || []).map(p => ({
+    id:           p.id,
+    playbookId:   p.playbookId,
+    name:         p.name || '',
+    status:       p.status || 'Active',
+    enrolledDate: p.enrolledDate,
+  })),
+  analytics: {
+    ytdSpend:            Number(row.analytics?.ytdSpend)  || 0,
+    lytdSpend:           Number(row.analytics?.lytdSpend) || 0,
+    deliverySuccessRate: row.analytics?.deliverySuccessRate || 100,
+    topSkus:             row.analytics?.topSkus || [],
+  },
+  // Fields not yet in DB — preserve or default
+  aiInsights:         row.aiInsights         || [],
+  whitespaceAnalysis: row.whitespaceAnalysis || [],
+  standingOrders:     row.standingOrders     || [],
+});
+
+/** Convert a camelCase frontend customer to DB-ready snake_case fields for PATCH. */
+const mapCustomerToDb = (ec) => ({
+  name:             ec.name,
+  dba:              ec.dba,
+  tax_id:           ec.taxId,
+  industry:         ec.industry,
+  status:           ec.status,
+  health_score:     ec.healthScore,
+  churn_risk:       ec.churnRisk,
+  credit_limit:     Number(ec.creditLimit)    || 0,
+  available_credit: Number(ec.availableCredit) || 0,
+  credit_hold:      ec.creditHold,
+  ar_aging:         ec.arAging,
+  payment_terms:    ec.terms,
+  route:            ec.route,
+  delivery_days:    ec.deliveryDays,
+  pricing_tier:     ec.pricingTier,
+  contract_pricing: ec.contractPricing,
+  b2b_portal_access: ec.b2bPortalAccess,
+  b2b_profile_id:   ec.b2bProfileId,
+  address_line1:    ec.address?.street || '',
+  city:             ec.address?.city   || '',
+  state:            ec.address?.state  || '',
+  zip:              ec.address?.zip    || '',
+});
+
 // ─── CUSTOMER REBATE SEED DATA ────────────────────────────────────────────────
 const INIT_CUSTOMER_PROGRAMS = [
   {
@@ -381,11 +505,35 @@ export default function ERMCustomerSuccessModule() {
       clearQuickCreateAction();
     }
   }, [quickCreateAction, clearQuickCreateAction]);
+
+  // ── Load customer list from live API ────────────────────────────────────────
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    setCrmLoading(true);
+    api.crm.customers.list()
+      .then(res => setCustomers((res.data || []).map(mapCustomer)))
+      .catch(() => {})
+      .finally(() => setCrmLoading(false));
+  }, []);
+
+  // ── Load playbooks library from live API ────────────────────────────────────
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    api.crm.playbooks.list()
+      .then(res => setLivePlaybooks(res.data || []))
+      .catch(() => {});
+  }, []);
   const customerPricingEnabled = settings.features.customerPricing;
   const creditTermsEnabled     = settings.features?.creditTerms !== false;
   const pricingTiers = settings.pricing?.tiers || [];
   const tierMeta = (tierId) => pricingTiers.find(t => t.id === tierId) || { label: tierId, color: 'text-gray-400', bg: 'bg-gray-700/60' };
   const [customers, setCustomers]             = useState(DEMO_MODE ? MOCK_CUSTOMERS : []);
+  const [crmLoading, setCrmLoading]           = useState(!DEMO_MODE);
+  const [livePlaybooks, setLivePlaybooks]     = useState(DEMO_MODE ? MOCK_PLAYBOOKS : []);
+  const [noteForm, setNoteForm]               = useState({ type: 'note', text: '' });
+  const [noteSaving, setNoteSaving]           = useState(false);
+  const [npsForm, setNpsForm]                 = useState({ score: '', comment: '' });
+  const [npsSaving, setNpsSaving]             = useState(false);
   const [searchQuery, setSearchQuery]         = useState('');
   const [statusFilter, setStatusFilter]       = useState('All');
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
@@ -479,10 +627,19 @@ export default function ERMCustomerSuccessModule() {
   }), [customers, searchQuery, statusFilter]);
 
   // ── Navigation ─────────────────────────────────────────────────────────────
-  const openDetail = useCallback((customer) => {
+  const openDetail = useCallback(async (customer) => {
     setSelectedCustomerId(customer.id);
     setEditedCustomer(JSON.parse(JSON.stringify(customer)));
     setView('detail');
+    // In live mode, fetch full detail (sub-resources) after opening the view
+    if (!DEMO_MODE) {
+      try {
+        const full = await api.crm.customers.get(customer.id);
+        const mapped = mapCustomer(full);
+        setEditedCustomer(mapped);
+        setCustomers(prev => prev.map(c => c.id === mapped.id ? { ...c, ...mapped } : c));
+      } catch { /* keep partial — user sees basic fields while detail loads */ }
+    }
   }, []);
 
   const closeDetail = useCallback(() => {
@@ -555,6 +712,10 @@ export default function ERMCustomerSuccessModule() {
       after:  { name: editedCustomer.name, terms: editedCustomer.terms, creditLimit: editedCustomer.creditLimit },
       severity: 'info',
     });
+    if (!DEMO_MODE) {
+      api.crm.customers.update(editedCustomer.id, mapCustomerToDb(editedCustomer))
+        .catch(err => showToast(`Save failed: ${err.message}`, 'error'));
+    }
     showToast('Account profile updated successfully.');
   }, [editedCustomer, customers, requiresApproval, showToast, logAudit]);
 
@@ -651,6 +812,33 @@ export default function ERMCustomerSuccessModule() {
       creditLimit: 10000, terms: 'Net-30', address: { street: '', city: '', state: '', zip: '' },
       contactName: '', contactEmail: '', contactPhone: '', documents: [] });
     showToast('New customer account created.');
+    if (!DEMO_MODE) {
+      api.crm.customers.create({
+        name:          f.name,
+        dba:           f.dba           || f.name,
+        industry:      f.industry,
+        credit_limit:  Number(f.creditLimit),
+        available_credit: Number(f.creditLimit),
+        payment_terms: f.terms,
+        address_line1: f.address?.street || '',
+        city:          f.address?.city   || '',
+        state:         f.address?.state  || '',
+        zip:           f.address?.zip    || '',
+      }).then(async res => {
+        const created = mapCustomer(res);
+        // Swap the temp record with the real DB-backed one
+        setCustomers(prev => prev.map(c => c.id === newRecord.id ? created : c));
+        // Create the initial contact if provided
+        if (f.contactName && res.id) {
+          await api.crm.contacts.create(res.id, {
+            name:       f.contactName,
+            email:      f.contactEmail || null,
+            phone:      f.contactPhone || null,
+            is_primary: true,
+          }).catch(() => {});
+        }
+      }).catch(err => showToast(`Create failed: ${err.message}`, 'error'));
+    }
   }, [newCustomerForm, showToast]);
 
   // ── SALES ANALYTICS DASHBOARD ─────────────────────────────────────────────
@@ -1663,7 +1851,11 @@ export default function ERMCustomerSuccessModule() {
                 );
               })}
               {filteredCustomers.length === 0 && (
-                <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-600 text-sm">No customers match your criteria.</td></tr>
+                <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-600 text-sm">
+                  {crmLoading
+                    ? <span className="flex items-center justify-center gap-2"><RefreshCw className="w-4 h-4 animate-spin text-cyan-500" /> Loading accounts…</span>
+                    : 'No customers match your criteria.'}
+                </td></tr>
               )}
             </tbody>
           </table>
@@ -1909,39 +2101,169 @@ export default function ERMCustomerSuccessModule() {
       if (!files.length) return;
       const newDocs = files.map(f => ({ id: `doc-${Math.random().toString(36).substr(2,9)}`, name: f.name, type: 'Manual Upload', date: TODAY, size: (f.size/1024/1024).toFixed(2)+' MB' }));
       setEditedCustomer(prev => ({...prev, documents: [...(prev.documents||[]), ...newDocs]}));
+      if (!DEMO_MODE) {
+        newDocs.forEach(doc => {
+          api.crm.documents.create(ec.id, { name: doc.name, type: doc.type, size: doc.size })
+            .then(res => {
+              if (res?.id) {
+                setEditedCustomer(prev => ({
+                  ...prev,
+                  documents: prev.documents.map(d => d.id === doc.id ? {...d, id: res.id} : d),
+                }));
+              }
+            }).catch(() => {});
+        });
+      }
     };
-    const handleRemoveVaultDoc  = (docId) => setEditedCustomer(prev => ({...prev, documents: prev.documents.filter(d => d.id !== docId)}));
-    const handleRemovePlaybook  = (pbId)  => setEditedCustomer(prev => ({...prev, activePlaybooks: prev.activePlaybooks.filter(p => p.id !== pbId)}));
-    const handleResolveTicket   = (tId)   => setEditedCustomer(prev => ({...prev, tickets: prev.tickets.map(t => t.id === tId ? {...t, status:'Resolved'} : t)}));
-    const handleToggleTask      = (tId)   => setEditedCustomer(prev => ({...prev, tasks: prev.tasks.map(t => t.id === tId ? {...t, status: t.status==='Pending'?'Completed':'Pending'} : t)}));
+    const handleRemoveVaultDoc = (docId) => {
+      setEditedCustomer(prev => ({...prev, documents: prev.documents.filter(d => d.id !== docId)}));
+      if (!DEMO_MODE) {
+        api.crm.documents.delete(ec.id, docId).catch(err => showToast(`Delete failed: ${err.message}`, 'error'));
+      }
+    };
+    const handleRemovePlaybook = (enrollmentId) => {
+      setEditedCustomer(prev => ({...prev, activePlaybooks: prev.activePlaybooks.filter(p => p.id !== enrollmentId)}));
+      if (!DEMO_MODE) {
+        api.crm.playbooks.unenroll(ec.id, enrollmentId).catch(err => showToast(`Unenroll failed: ${err.message}`, 'error'));
+      }
+    };
+    const handleResolveTicket = (tId) => {
+      setEditedCustomer(prev => ({...prev, tickets: prev.tickets.map(t => t.id === tId ? {...t, status:'Resolved'} : t)}));
+      if (!DEMO_MODE) {
+        const ticket = ec.tickets?.find(t => t.id === tId);
+        const uuid = ticket?._uuid || tId;
+        api.crm.tickets.update(ec.id, uuid, { status: 'Resolved' })
+          .catch(err => showToast(`Update failed: ${err.message}`, 'error'));
+      }
+    };
+    const handleToggleTask = (tId) => {
+      setEditedCustomer(prev => ({...prev, tasks: prev.tasks.map(t => t.id === tId ? {...t, status: t.status==='Pending'?'Completed':'Pending'} : t)}));
+      if (!DEMO_MODE) {
+        const task = ec.tasks?.find(t => t.id === tId);
+        const newStatus = task?.status === 'Pending' ? 'Completed' : 'Pending';
+        api.crm.tasks.update(ec.id, tId, { status: newStatus })
+          .catch(err => showToast(`Update failed: ${err.message}`, 'error'));
+      }
+    };
 
     const handleEnrollPlaybook = (e) => {
       e.preventDefault();
-      const pb = MOCK_PLAYBOOKS.find(p => p.id === e.target.playbookId.value);
+      const playbookId = e.target.playbookId.value;
+      const pb = livePlaybooks.find(p => p.id === playbookId);
       if (!pb) return;
-      setEditedCustomer(prev => ({...prev, activePlaybooks: [...(prev.activePlaybooks||[]), { id: pb.id, name: pb.name, status: 'Active', enrolledDate: TODAY }]}));
+      const enrollment = { id: `enroll-${Date.now()}`, playbookId: pb.id, name: pb.name, status: 'Active', enrolledDate: TODAY };
+      setEditedCustomer(prev => ({...prev, activePlaybooks: [...(prev.activePlaybooks||[]), enrollment]}));
       setPlaybookModal({ isOpen: false });
       showToast(`Enrolled in: ${pb.name}`);
+      if (!DEMO_MODE) {
+        api.crm.playbooks.enroll(ec.id, { playbook_id: pb.id })
+          .then(res => {
+            if (res?.id) {
+              setEditedCustomer(prev => ({
+                ...prev,
+                activePlaybooks: prev.activePlaybooks.map(p => p.id === enrollment.id ? {...p, id: res.id} : p),
+              }));
+            }
+          }).catch(err => showToast(`Enroll failed: ${err.message}`, 'error'));
+      }
     };
 
     // FIX #4: Capture ticketModal.ticket before entering the functional updater
     const handleSaveTicket = (e) => {
       e.preventDefault();
       const ticket = ticketModal.ticket;
+      const tmpNumber = `TKT-${Math.floor(Math.random()*9000)+1000}`;
       setEditedCustomer(prev => {
-        const newTicket = { ...ticket, id: ticket.id || `TKT-${Math.floor(Math.random()*9000)+1000}`, date: ticket.date || TODAY, status: 'Open' };
+        const newTicket = { ...ticket, id: ticket.id || tmpNumber, _uuid: null, date: ticket.date || TODAY, status: 'Open' };
         return {...prev, tickets: [newTicket, ...(prev.tickets||[])]};
       });
       setTicketModal({ isOpen: false, ticket: null });
       showToast('Support ticket opened successfully.');
+      if (!DEMO_MODE) {
+        api.crm.tickets.create(ec.id, {
+          subject:     ticket.subject,
+          description: ticket.description,
+          type:        ticket.type,
+          priority:    ticket.priority,
+        }).then(res => {
+          if (res?.ticket_number) {
+            setEditedCustomer(prev => ({
+              ...prev,
+              tickets: prev.tickets.map(t => t.id === tmpNumber ? {...t, id: res.ticket_number, _uuid: res.id} : t),
+            }));
+          }
+        }).catch(err => showToast(`Ticket save failed: ${err.message}`, 'error'));
+      }
     };
 
     const handleSaveTask = (e) => {
       e.preventDefault();
       const task = taskModal.task;
-      setEditedCustomer(prev => ({...prev, tasks: [{...task, id: task.id||`tsk-${Date.now()}`, status:'Pending'}, ...(prev.tasks||[])]}));
+      const tmpId = `tsk-${Date.now()}`;
+      setEditedCustomer(prev => ({...prev, tasks: [{...task, id: task.id || tmpId, status:'Pending'}, ...(prev.tasks||[])]}));
       setTaskModal({ isOpen: false, task: null });
       showToast('Task added to calendar.');
+      if (!DEMO_MODE) {
+        api.crm.tasks.create(ec.id, {
+          title:    task.title,
+          due_date: task.dueDate,
+          type:     task.type,
+          priority: task.priority,
+        }).then(res => {
+          if (res?.id) {
+            setEditedCustomer(prev => ({
+              ...prev,
+              tasks: prev.tasks.map(t => t.id === tmpId ? {...t, id: res.id} : t),
+            }));
+          }
+        }).catch(err => showToast(`Task save failed: ${err.message}`, 'error'));
+      }
+    };
+
+    // ── Activity Note submit ────────────────────────────────────────────────
+    const handleSubmitNote = async (e) => {
+      e.preventDefault();
+      if (!noteForm.text.trim()) return;
+      const optimistic = { id: `note-${Date.now()}`, date: TODAY, type: noteForm.type, note: noteForm.text };
+      setEditedCustomer(prev => ({...prev, recentActivity: [optimistic, ...(prev.recentActivity||[])]}));
+      setNoteForm(prev => ({...prev, text: ''}));
+      if (!DEMO_MODE) {
+        setNoteSaving(true);
+        try {
+          await api.crm.notes.create(ec.id, { type: noteForm.type, content: noteForm.text });
+        } catch (err) {
+          showToast(`Note save failed: ${err.message}`, 'error');
+        } finally {
+          setNoteSaving(false);
+        }
+      }
+    };
+
+    // ── NPS entry submit ────────────────────────────────────────────────────
+    const handleSubmitNps = async (e) => {
+      e.preventDefault();
+      const score = Number(npsForm.score);
+      if (isNaN(score) || score < 0 || score > 10) return;
+      const entry = { id: `nps-${Date.now()}`, date: TODAY, score, comment: npsForm.comment };
+      setEditedCustomer(prev => ({
+        ...prev,
+        npsData: { ...prev.npsData, history: [entry, ...(prev.npsData?.history||[])] },
+      }));
+      setNpsForm({ score: '', comment: '' });
+      if (!DEMO_MODE) {
+        setNpsSaving(true);
+        try {
+          const res = await api.crm.nps.create(ec.id, { score, comment: npsForm.comment });
+          // Backend recomputes nps_score — update it
+          if (res?.nps_score !== undefined) {
+            setEditedCustomer(prev => ({...prev, npsData: {...prev.npsData, score: res.nps_score}}));
+          }
+        } catch (err) {
+          showToast(`NPS save failed: ${err.message}`, 'error');
+        } finally {
+          setNpsSaving(false);
+        }
+      }
     };
 
     // FIX #5: Capture contactModal.contact and mode before the functional updater
@@ -1953,14 +2275,44 @@ export default function ERMCustomerSuccessModule() {
         let contacts = [...prev.contacts];
         if (contact.isPrimary) contacts = contacts.map(c => ({...c, isPrimary: false}));
         if (mode === 'edit') contacts = contacts.map(c => c.id === contact.id ? contact : c);
-        else contacts.push({...contact});
+        else contacts.push({...contact, id: contact.id || `tmp-${Date.now()}`});
         return {...prev, contacts};
       });
       setContactModal({ isOpen: false, mode: 'add', contact: null });
+      if (!DEMO_MODE) {
+        if (mode === 'edit') {
+          api.crm.contacts.update(ec.id, contact.id, {
+            name:          contact.name,
+            title:         contact.title,
+            phone:         contact.phone,
+            email:         contact.email,
+            is_primary:    contact.isPrimary,
+            portal_status: contact.portalStatus,
+          }).catch(err => showToast(`Contact save failed: ${err.message}`, 'error'));
+        } else {
+          api.crm.contacts.create(ec.id, {
+            name:       contact.name,
+            title:      contact.title,
+            phone:      contact.phone,
+            email:      contact.email,
+            is_primary: contact.isPrimary,
+          }).then(res => {
+            if (res?.id) {
+              setEditedCustomer(prev => ({
+                ...prev,
+                contacts: prev.contacts.map(c => !c.id || c.id.startsWith('tmp-') ? {...c, id: res.id} : c),
+              }));
+            }
+          }).catch(err => showToast(`Contact save failed: ${err.message}`, 'error'));
+        }
+      }
     };
     const handleDeleteContact = (cId) => {
       setEditedCustomer(prev => ({...prev, contacts: prev.contacts.filter(c => c.id !== cId)}));
       setContactModal({ isOpen: false, mode: 'add', contact: null });
+      if (!DEMO_MODE) {
+        api.crm.contacts.delete(ec.id, cId).catch(err => showToast(`Delete failed: ${err.message}`, 'error'));
+      }
     };
 
     const handleSendPortalInvite = (contact) => {
@@ -2393,7 +2745,7 @@ export default function ERMCustomerSuccessModule() {
                 </div>
                 <div className="p-5 space-y-3">
                   {ec.activePlaybooks?.length > 0 ? ec.activePlaybooks.map(pb => {
-                    const master = MOCK_PLAYBOOKS.find(m => m.id === pb.id);
+                    const master = livePlaybooks.find(m => m.id === (pb.playbookId || pb.id));
                     return (
                       <div key={pb.id} className="flex justify-between items-center p-4 border border-gray-800 rounded-xl bg-gray-900/50 hover:border-cyan-500/30 transition-colors group">
                         <div className="flex gap-3 items-start">
@@ -2461,6 +2813,23 @@ export default function ERMCustomerSuccessModule() {
                     }) : (
                       <div className="text-center py-4 text-gray-600 text-xs border-2 border-dashed border-gray-800 rounded-xl">No NPS data collected yet.</div>
                     )}
+                    {/* Manual NPS entry form */}
+                    <form onSubmit={handleSubmitNps} className="flex gap-2 items-end pt-2 border-t border-gray-800 mt-3">
+                      <div>
+                        <label className={UI.label}>Score (0–10)</label>
+                        <input type="number" min="0" max="10" value={npsForm.score}
+                          onChange={e => setNpsForm(p => ({...p, score: e.target.value}))}
+                          placeholder="0–10" className={`${UI.input} w-20`} required />
+                      </div>
+                      <div className="flex-1">
+                        <label className={UI.label}>Comment (optional)</label>
+                        <input value={npsForm.comment} onChange={e => setNpsForm(p => ({...p, comment: e.target.value}))}
+                          placeholder="Customer feedback…" className={UI.input} />
+                      </div>
+                      <button type="submit" disabled={npsSaving || npsForm.score === ''} className={UI.btnSecondary}>
+                        Record
+                      </button>
+                    </form>
                   </div>
                 </div>
               </div>
@@ -2602,6 +2971,18 @@ export default function ERMCustomerSuccessModule() {
                 {/* Activity Timeline */}
                 <div className={UI.cardPad}>
                   <h3 className={UI.sectionTitle}><FileText className="w-4 h-4 text-cyan-500" /> Activity Log</h3>
+                  {/* Add Note form */}
+                  <form onSubmit={handleSubmitNote} className="flex gap-2 mb-4">
+                    <select value={noteForm.type} onChange={e => setNoteForm(p => ({...p, type: e.target.value}))}
+                      className={`${UI.select} w-28 shrink-0`}>
+                      {['note','call','email','meeting'].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
+                    </select>
+                    <input value={noteForm.text} onChange={e => setNoteForm(p => ({...p, text: e.target.value}))}
+                      placeholder="Log a note, call, email, or meeting…" className={`${UI.input} flex-1`} />
+                    <button type="submit" disabled={noteSaving || !noteForm.text.trim()} className={UI.btnSecondary}>
+                      <Send className="w-3.5 h-3.5" />
+                    </button>
+                  </form>
                   <div className="space-y-5">
                     {ec.recentActivity.map((act, idx) => (
                       <div key={act.id} className="relative pl-7">
@@ -2883,7 +3264,7 @@ export default function ERMCustomerSuccessModule() {
                   <label className={UI.label}>Select Playbook to Assign</label>
                   <select name="playbookId" required className={UI.select}>
                     <option value="">— Select a Workflow —</option>
-                    {MOCK_PLAYBOOKS.filter(pb => !(ec.activePlaybooks||[]).find(a => a.id===pb.id)).map(pb => (
+                    {livePlaybooks.filter(pb => !(ec.activePlaybooks||[]).find(a => (a.playbookId || a.id)===pb.id)).map(pb => (
                       <option key={pb.id} value={pb.id}>{pb.name}</option>
                     ))}
                   </select>

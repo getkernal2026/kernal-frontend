@@ -137,6 +137,62 @@ export const api = {
     },
   },
 
+  // ── CRM ──────────────────────────────────────────────────────────────────
+  crm: {
+    customers: {
+      list:   (params = {}) => authFetch(`/api/v1/crm/customers${qs(params)}`),
+      get:    (id)           => authFetch(`/api/v1/crm/customers/${id}`),
+      create: (body)         => authFetch('/api/v1/crm/customers', { method: 'POST',  body: JSON.stringify(body) }),
+      update: (id, body)     => authFetch(`/api/v1/crm/customers/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+      delete: (id)           => authFetch(`/api/v1/crm/customers/${id}`, { method: 'DELETE' }),
+    },
+
+    contacts: {
+      list:   (customerId)              => authFetch(`/api/v1/crm/customers/${customerId}/contacts`),
+      create: (customerId, body)        => authFetch(`/api/v1/crm/customers/${customerId}/contacts`, { method: 'POST',  body: JSON.stringify(body) }),
+      update: (customerId, id, body)    => authFetch(`/api/v1/crm/customers/${customerId}/contacts/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+      delete: (customerId, id)          => authFetch(`/api/v1/crm/customers/${customerId}/contacts/${id}`, { method: 'DELETE' }),
+    },
+
+    tickets: {
+      list:   (customerId)           => authFetch(`/api/v1/crm/customers/${customerId}/tickets`),
+      create: (customerId, body)     => authFetch(`/api/v1/crm/customers/${customerId}/tickets`, { method: 'POST',  body: JSON.stringify(body) }),
+      update: (customerId, id, body) => authFetch(`/api/v1/crm/customers/${customerId}/tickets/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    },
+
+    tasks: {
+      list:   (customerId)           => authFetch(`/api/v1/crm/customers/${customerId}/tasks`),
+      create: (customerId, body)     => authFetch(`/api/v1/crm/customers/${customerId}/tasks`, { method: 'POST',  body: JSON.stringify(body) }),
+      update: (customerId, id, body) => authFetch(`/api/v1/crm/customers/${customerId}/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    },
+
+    notes: {
+      list:   (customerId)       => authFetch(`/api/v1/crm/customers/${customerId}/notes`),
+      create: (customerId, body) => authFetch(`/api/v1/crm/customers/${customerId}/notes`, { method: 'POST', body: JSON.stringify(body) }),
+    },
+
+    nps: {
+      list:   (customerId)       => authFetch(`/api/v1/crm/customers/${customerId}/nps`),
+      create: (customerId, body) => authFetch(`/api/v1/crm/customers/${customerId}/nps`, { method: 'POST', body: JSON.stringify(body) }),
+    },
+
+    documents: {
+      list:   (customerId)       => authFetch(`/api/v1/crm/customers/${customerId}/documents`),
+      create: (customerId, body) => authFetch(`/api/v1/crm/customers/${customerId}/documents`, { method: 'POST', body: JSON.stringify(body) }),
+      delete: (customerId, id)   => authFetch(`/api/v1/crm/customers/${customerId}/documents/${id}`, { method: 'DELETE' }),
+    },
+
+    playbooks: {
+      list:   (params = {}) => authFetch(`/api/v1/crm/playbooks${qs(params)}`),
+      create: (body)         => authFetch('/api/v1/crm/playbooks', { method: 'POST', body: JSON.stringify(body) }),
+
+      // Customer enrollment
+      enroll:  (customerId, body)         => authFetch(`/api/v1/crm/customers/${customerId}/playbooks`, { method: 'POST',  body: JSON.stringify(body) }),
+      update:  (customerId, id, body)     => authFetch(`/api/v1/crm/customers/${customerId}/playbooks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+      unenroll:(customerId, id)           => authFetch(`/api/v1/crm/customers/${customerId}/playbooks/${id}`, { method: 'DELETE' }),
+    },
+  },
+
   // ── Superadmin (requires superadmin role) ─────────────────────────────────
   superadmin: {
     // Stats
