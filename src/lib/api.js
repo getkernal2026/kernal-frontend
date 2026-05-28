@@ -99,6 +99,35 @@ export const api = {
     deactivateUser: (id)         => authFetch(`/api/v1/admin/users/${id}`, { method: 'DELETE' }),
   },
 
+  // ── B2B Customer Portal ───────────────────────────────────────────────────
+  // All calls require a logged-in B2B customer (Supabase session with a
+  // b2b_customer_profiles row). The JWT is attached automatically by authFetch.
+  b2b: {
+    me:      ()           => authFetch('/api/v1/b2b/me'),
+    catalog: (params = {}) => authFetch(`/api/v1/b2b/catalog${qs(params)}`),
+
+    orders: {
+      list:   (params = {}) => authFetch(`/api/v1/b2b/orders${qs(params)}`),
+      create: (body)         => authFetch('/api/v1/b2b/orders', { method: 'POST', body: JSON.stringify(body) }),
+    },
+
+    returns: {
+      list:   (params = {}) => authFetch(`/api/v1/b2b/returns${qs(params)}`),
+      create: (body)         => authFetch('/api/v1/b2b/returns', { method: 'POST', body: JSON.stringify(body) }),
+    },
+
+    standingOrders: {
+      list:   ()             => authFetch('/api/v1/b2b/standing-orders'),
+      create: (body)         => authFetch('/api/v1/b2b/standing-orders', { method: 'POST',   body: JSON.stringify(body) }),
+      update: (id, body)     => authFetch(`/api/v1/b2b/standing-orders/${id}`, { method: 'PATCH',  body: JSON.stringify(body) }),
+      delete: (id)           => authFetch(`/api/v1/b2b/standing-orders/${id}`, { method: 'DELETE' }),
+    },
+
+    invoices: {
+      list: () => authFetch('/api/v1/b2b/invoices'),
+    },
+  },
+
   // ── Superadmin (requires superadmin role) ─────────────────────────────────
   superadmin: {
     // Stats

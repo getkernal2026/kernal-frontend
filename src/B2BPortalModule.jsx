@@ -17,6 +17,8 @@ import { TODAY, StatusBadge, PrintButton, ExportButton } from './shared/componen
 
 import { MOCK_INVENTORY, INVENTORY_BY_ID, INVENTORY_BY_SKU } from './shared/mockInventory.js';
 import { DEMO_MODE } from './lib/demoMode.js';
+import { supabase } from './lib/supabase.js';
+import { api } from './lib/api.js';
 
 // ─── Mock Customers ───────────────────────────────────────────────────────────
 const DEMO_CUSTOMERS = [
@@ -209,21 +211,42 @@ function LoginScreen({ onLogin }) {
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    setTimeout(() => {
-      const customer = DEMO_CUSTOMERS.find(
-        c => c.email.toLowerCase() === email.trim().toLowerCase() && c.password === password
-      );
+
+    if (DEMO_MODE) {
+      // Demo mode: check against hardcoded accounts
+      setTimeout(() => {
+        const customer = DEMO_CUSTOMERS.find(
+          c => c.email.toLowerCase() === email.trim().toLowerCase() && c.password === password
+        );
+        setLoading(false);
+        if (customer) {
+          onLogin(customer);
+        } else {
+          setError('Invalid email or password. Try one of the demo accounts below.');
+        }
+      }, 700);
+      return;
+    }
+
+    // Live mode: real Supabase authentication
+    try {
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email:    email.trim(),
+        password: password,
+      });
+      if (authError) throw authError;
+
+      // Fetch customer profile from backend
+      const profile = await api.b2b.me();
+      onLogin(profile);
+    } catch (err) {
       setLoading(false);
-      if (customer) {
-        onLogin(customer);
-      } else {
-        setError('Invalid email or password. Try one of the demo accounts below.');
-      }
-    }, 700);
+      setError(err.message || 'Login failed. Please check your credentials.');
+    }
   };
 
   const quickFill = (customer) => {
@@ -611,9 +634,15 @@ export default function B2BPortalModule() {
 
   // ── Auth state (all hooks BEFORE early return) ────────────────────────────
   const [currentCustomer, setCurrentCustomer] = useState(() => {
+    if (!DEMO_MODE) return null; // live mode: restored via Supabase session below
     try { const s = sessionStorage.getItem('kernel_b2b_session'); return s ? JSON.parse(s) : null; }
     catch { return null; }
   });
+
+  // Live-mode products (replaces MOCK_INVENTORY when DEMO_MODE=false)
+  const [products, setProducts]       = useState([]);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
 
   // Per-customer tier
   const tierMultiplier = customerPricingEnabled && currentCustomer
@@ -639,6 +668,7 @@ export default function B2BPortalModule() {
   const [isScannerOpen, setIsScannerOpen]           = useState(false);
   const [toastMessage, setToastMessage]             = useState(null);
   const [selectedInvoices, setSelectedInvoices]     = useState([]);
+  const [liveInvoices, setLiveInvoices]             = useState([]);
   const [returnModalOrder, setReturnModalOrder]     = useState(null);
   const [returnSelections, setReturnSelections]     = useState({});
   const [signatureModalOpen, setSignatureModalOpen] = useState(false);
@@ -646,12 +676,59 @@ export default function B2BPortalModule() {
   const [isDrawing, setIsDrawing]                   = useState(false);
   const canvasRef = useRef(null);
 
+  // ── Live mode: restore session on mount ──────────────────────────────────
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) return;
+      try {
+        const profile = await api.b2b.me();
+        setCurrentCustomer(profile);
+      } catch {
+        // Session expired or profile missing — stay on login screen
+        await supabase.auth.signOut();
+      }
+    });
+  }, []);
+
+  // ── Live mode: fetch all customer data after login / session restore ──────
+  useEffect(() => {
+    if (DEMO_MODE || !currentCustomer) return;
+    fetchLiveData();
+  }, [currentCustomer?.id]);
+
+  const fetchLiveData = useCallback(async () => {
+    setDataLoading(true);
+    try {
+      const [ordersRes, returnsRes, standingRes, invoicesRes, catalogRes] = await Promise.all([
+        api.b2b.orders.list(),
+        api.b2b.returns.list(),
+        api.b2b.standingOrders.list(),
+        api.b2b.invoices.list(),
+        api.b2b.catalog(),
+      ]);
+      setOrders(ordersRes.data || []);
+      setReturns(returnsRes.data || []);
+      setStandingOrders(standingRes.data || []);
+      // invoices are accessed via currentCustomer.invoices in live mode
+      // Store them separately so we can update without mutating the profile
+      setLiveInvoices(invoicesRes.data || []);
+      setProducts(catalogRes.data || []);
+    } catch (err) {
+      showToast('Failed to load your data. Please refresh.', 'error');
+    } finally {
+      setDataLoading(false);
+    }
+  }, [showToast]);
+
   // Re-init per-customer data when customer changes (login / session restore / switch)
   useEffect(() => {
     if (!currentCustomer) return;
-    setOrders(currentCustomer.initialOrders || []);
-    setReturns(currentCustomer.initialReturns || []);
-    setStandingOrders(DEMO_MODE ? (currentCustomer.initialStandingOrders || []) : []);
+    if (DEMO_MODE) {
+      setOrders(currentCustomer.initialOrders || []);
+      setReturns(currentCustomer.initialReturns || []);
+      setStandingOrders(currentCustomer.initialStandingOrders || []);
+    }
     setCart({});
     setSelectedInvoices([]);
     setActiveTab('guide');
@@ -660,14 +737,22 @@ export default function B2BPortalModule() {
   // ── Auth handlers ─────────────────────────────────────────────────────────
   const handleLogin = useCallback((customer) => {
     setCurrentCustomer(customer);
-    try { sessionStorage.setItem('kernel_b2b_session', JSON.stringify(customer)); } catch {}
+    // Demo mode persists session in sessionStorage
+    if (DEMO_MODE) {
+      try { sessionStorage.setItem('kernel_b2b_session', JSON.stringify(customer)); } catch {}
+    }
+    // Live mode: Supabase client already persists its session automatically
   }, []);
 
-  const handleLogout = useCallback(() => {
+  const handleLogout = useCallback(async () => {
+    if (!DEMO_MODE) {
+      try { await supabase.auth.signOut(); } catch {}
+    } else {
+      try { sessionStorage.removeItem('kernel_b2b_session'); } catch {}
+    }
     setCurrentCustomer(null);
     setOrders([]); setReturns([]); setStandingOrders([]); setCart({});
-    setSelectedInvoices([]); setHasSigned(false);
-    try { sessionStorage.removeItem('kernel_b2b_session'); } catch {}
+    setSelectedInvoices([]); setLiveInvoices([]); setHasSigned(false);
   }, []);
 
   // ── Toast ────────────────────────────────────────────────────────────────
@@ -696,42 +781,71 @@ export default function B2BPortalModule() {
 
   const contractPricing = currentCustomer?.contractPricing ?? {};
 
+  // In live mode, use fetched products; in demo mode, use MOCK_INVENTORY
+  const catalog = DEMO_MODE ? MOCK_INVENTORY : products;
+
+  // Normalise ID lookup — demo uses integer IDs, live uses UUID strings
+  const findCatalogItem = useCallback((id) => {
+    if (DEMO_MODE) return catalog.find(i => i.id === parseInt(id));
+    return catalog.find(i => i.id === id);
+  }, [catalog]);
+
   const cartSubtotal = useMemo(() =>
     Object.entries(cart).reduce((total, [id, qty]) => {
-      const item = MOCK_INVENTORY.find(i => i.id === parseInt(id));
+      const item = findCatalogItem(id);
       return total + (item ? getItemPrice(item, contractPricing, tierMultiplier) * qty : 0);
     }, 0),
-  [cart, contractPricing, tierMultiplier]);
+  [cart, findCatalogItem, contractPricing, tierMultiplier]);
 
   // ── Checkout ──────────────────────────────────────────────────────────────
   const onCreditHold = (currentCustomer?.creditHold || (currentCustomer?.arAging?.days90 ?? 0) > 0) ?? false;
 
-  const handleCheckout = useCallback(() => {
+  const handleCheckout = useCallback(async () => {
     if (!currentCustomer) return;
-    const exceedsCredit = cartSubtotal > currentCustomer.availableCredit;
-    const lineItems = Object.entries(cart).map(([id, qty]) => {
-      const item = MOCK_INVENTORY.find(i => i.id === parseInt(id));
-      return { id: item.id, qty, price: getItemPrice(item, contractPricing, tierMultiplier) };
-    });
-    const newOrder = {
-      id: `SO-${Math.floor(Math.random() * 9000) + 1000}`,
-      date: new Date().toISOString().slice(0, 10),
-      total: cartSubtotal,
-      status: exceedsCredit ? 'Pending Approval' : 'Pending',
-      lineItems,
-    };
 
-    setOrders(prev => [newOrder, ...prev]);
-    setCart({});
-    setHasSigned(false);
-    setShowCheckoutSuccess(exceedsCredit ? 'approval' : 'success');
+    if (DEMO_MODE) {
+      // Demo path — optimistic, no network
+      const exceedsCredit = cartSubtotal > currentCustomer.availableCredit;
+      const lineItems = Object.entries(cart).map(([id, qty]) => {
+        const item = findCatalogItem(id);
+        return { id: item.id, qty, price: getItemPrice(item, contractPricing, tierMultiplier) };
+      });
+      setOrders(prev => [{
+        id: `SO-${Math.floor(Math.random() * 9000) + 1000}`,
+        date: new Date().toISOString().slice(0, 10),
+        total: cartSubtotal,
+        status: exceedsCredit ? 'Pending Approval' : 'Pending',
+        lineItems,
+      }, ...prev]);
+      setCart({}); setHasSigned(false);
+      setShowCheckoutSuccess(exceedsCredit ? 'approval' : 'success');
+      setTimeout(() => { setShowCheckoutSuccess(false); setActiveTab('history'); setHistoryView('orders'); }, 3000);
+      return;
+    }
 
-    setTimeout(() => {
-      setShowCheckoutSuccess(false);
-      setActiveTab('history');
-      setHistoryView('orders');
-    }, 3000);
-  }, [cart, cartSubtotal, currentCustomer, contractPricing, tierMultiplier]);
+    // Live path — POST to backend
+    setIsSubmittingOrder(true);
+    try {
+      const items = Object.entries(cart).map(([id, qty]) => {
+        const item = findCatalogItem(id);
+        return { product_id: id, quantity_ordered: qty, unit_price: getItemPrice(item, contractPricing, tierMultiplier) };
+      });
+
+      const newOrder = await api.b2b.orders.create({
+        items,
+        requested_delivery_date: getNextDeliveryDate(currentCustomer.deliveryDays) || undefined,
+      });
+
+      setOrders(prev => [newOrder, ...prev]);
+      setCart({}); setHasSigned(false);
+      setShowCheckoutSuccess(newOrder.status === 'Pending Approval' ? 'approval' : 'success');
+      setTimeout(() => { setShowCheckoutSuccess(false); setActiveTab('history'); setHistoryView('orders'); }, 3000);
+    } catch (err) {
+      showToast(err.message || 'Order failed. Please try again.', 'error');
+    } finally {
+      setIsSubmittingOrder(false);
+    }
+  }, [cart, cartSubtotal, currentCustomer, contractPricing, tierMultiplier, findCatalogItem, showToast]);
 
   // ── Returns ───────────────────────────────────────────────────────────────
   const handleReturnSelection = useCallback((itemId, field, value) => {
@@ -741,44 +855,56 @@ export default function B2BPortalModule() {
     }));
   }, []);
 
-  const submitReturn = useCallback(() => {
+  const submitReturn = useCallback(async () => {
     const selected = Object.entries(returnSelections).filter(([, d]) => d.selected);
     if (selected.length === 0) {
       showToast('Please select at least one item to return.', 'error');
       return;
     }
 
-    const returnTotal = selected.reduce(
-      (s, [, d]) => s + (d.price || 0) * (d.qty || 1), 0
-    );
+    const returnTotal = selected.reduce((s, [, d]) => s + (d.price || 0) * (d.qty || 1), 0);
 
-    const rmaPayload = selected.map(([id, d]) => ({
-      inventoryId: parseInt(id),
-      action: 'RECEIVE_RETURN',
-      newLot: {
-        lotId: `RMA-${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`,
-        qty: d.qty || 1,
-        qcHold: true,
-        reason: d.reason || RETURN_REASONS[0],
-      },
-    }));
+    if (DEMO_MODE) {
+      const newReturn = {
+        id: `RMA-${Math.floor(Math.random() * 9000) + 1000}`,
+        orderId: returnModalOrder.id,
+        date: new Date().toISOString().slice(0, 10),
+        amount: returnTotal,
+        status: 'Pending Review',
+      };
+      setReturns(prev => [newReturn, ...prev]);
+      setReturnModalOrder(null); setReturnSelections({});
+      setHistoryView('returns');
+      showToast(`Return ${newReturn.id} submitted for review.`, 'success');
+      return;
+    }
 
-    console.log('[Kernel → Inventory API] RMA QC Hold payload:', JSON.stringify(rmaPayload, null, 2));
+    // Live path
+    try {
+      const items = selected.map(([id, d]) => {
+        const item = findCatalogItem(id);
+        return {
+          product_id:   id,
+          product_name: item?.name || 'Unknown',
+          qty:          d.qty || 1,
+          unit_price:   d.price || 0,
+          reason:       d.reason || RETURN_REASONS[0],
+        };
+      });
 
-    const newReturn = {
-      id: `RMA-${Math.floor(Math.random() * 9000) + 1000}`,
-      orderId: returnModalOrder.id,
-      date: new Date().toISOString().slice(0, 10),
-      amount: returnTotal,
-      status: 'Pending Review',
-    };
+      const newReturn = await api.b2b.returns.create({
+        order_id: returnModalOrder._uuid || null,
+        items,
+      });
 
-    setReturns(prev => [newReturn, ...prev]);
-    setReturnModalOrder(null);
-    setReturnSelections({});
-    setHistoryView('returns');
-    showToast(`Return ${newReturn.id} submitted for review.`, 'success');
-  }, [returnSelections, returnModalOrder, showToast]);
+      setReturns(prev => [newReturn, ...prev]);
+      setReturnModalOrder(null); setReturnSelections({});
+      setHistoryView('returns');
+      showToast(`Return ${newReturn.id} submitted for review.`, 'success');
+    } catch (err) {
+      showToast(err.message || 'Return submission failed.', 'error');
+    }
+  }, [returnSelections, returnModalOrder, findCatalogItem, showToast]);
 
   // ── Scanner ───────────────────────────────────────────────────────────────
   const handleBarcodeScan = useCallback((barcode) => {
@@ -852,11 +978,23 @@ export default function B2BPortalModule() {
   // ── AUTH GUARD — must be after all hooks ──────────────────────────────────
   if (!currentCustomer) return <LoginScreen onLogin={handleLogin} />;
 
-  const customerInvoices = currentCustomer.invoices || [];
+  // In live mode, invoices come from the liveInvoices state (fetched from API)
+  // In demo mode, they come from the customer object
+  const customerInvoices = DEMO_MODE ? (currentCustomer.invoices || []) : liveInvoices;
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div className={UI.page}>
+
+      {/* ── Data loading overlay (live mode only) ───────────────────── */}
+      {dataLoading && (
+        <div className="fixed inset-0 bg-gray-950/60 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4 text-cyan-500">
+            <div className="w-10 h-10 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
+            <p className="text-xs font-bold uppercase tracking-widest">Loading your account…</p>
+          </div>
+        </div>
+      )}
 
       {/* ── Toast ───────────────────────────────────────────────────────── */}
       {toastMessage && (
@@ -936,7 +1074,7 @@ export default function B2BPortalModule() {
               <p className="text-gray-500 text-sm">Your customized order guide for fast replenishment.</p>
             </div>
             <div className="space-y-4">
-              {MOCK_INVENTORY.filter(item => orderGuideIds.includes(item.id)).map(item => (
+              {catalog.filter(item => orderGuideIds.includes(item.id)).map(item => (
                 <ProductCard
                   key={item.id}
                   item={item}
@@ -977,7 +1115,7 @@ export default function B2BPortalModule() {
               </div>
             </div>
             <div className="space-y-4">
-              {MOCK_INVENTORY.filter(item =>
+              {catalog.filter(item =>
                 item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 item.sku.toLowerCase().includes(searchQuery.toLowerCase())
               ).map(item => (
@@ -1047,7 +1185,7 @@ export default function B2BPortalModule() {
                       </p>
                       <button
                         onClick={() => {
-                          const buns = MOCK_INVENTORY.find(i => i.id === 205);
+                          const buns = DEMO_MODE ? catalog.find(i => i.id === 205) : catalog.find(i => i.name?.toLowerCase().includes('brioche') || i.name?.toLowerCase().includes('bun'));
                           if (buns) handleCartUpdate(205, 1, getAvailableStock(buns, orders));
                         }}
                         className="text-[10px] uppercase font-bold tracking-widest bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-600 transition shadow-md shadow-indigo-500/20"
@@ -1064,7 +1202,7 @@ export default function B2BPortalModule() {
                     <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500">Order Contents</h3>
                   </div>
                   {Object.entries(cart).map(([id, qty]) => {
-                    const item = MOCK_INVENTORY.find(i => i.id === parseInt(id));
+                    const item = findCatalogItem(id);
                     if (!item) return null;
                     const price = getItemPrice(item, contractPricing, tierMultiplier);
                     return (
@@ -1080,7 +1218,7 @@ export default function B2BPortalModule() {
                 </div>
 
                 {/* Catch-weight notice */}
-                {Object.keys(cart).some(id => MOCK_INVENTORY.find(i => i.id === parseInt(id))?.isCatchWeight) && (
+                {Object.keys(cart).some(id => findCatalogItem(id)?.isCatchWeight) && (
                   <div className="bg-cyan-600/10 border border-cyan-600/20 rounded-xl p-4 flex gap-4 text-cyan-500">
                     <Info className="shrink-0 mt-0.5" size={20} />
                     <p className="text-sm font-medium leading-relaxed">
@@ -1132,7 +1270,11 @@ export default function B2BPortalModule() {
                             : 'bg-cyan-500 hover:bg-cyan-400 text-gray-950 shadow-cyan-500/20'
                       }`}
                     >
-                      {onCreditHold ? <><AlertCircle size={16} /> Order Blocked — Credit Hold</> : <>Place Order <ChevronRight size={18} /></>}
+                      {onCreditHold
+                        ? <><AlertCircle size={16} /> Order Blocked — Credit Hold</>
+                        : isSubmittingOrder
+                          ? <span className="w-5 h-5 border-2 border-gray-950/30 border-t-gray-950 rounded-full animate-spin" />
+                          : <>Place Order <ChevronRight size={18} /></>}
                     </button>
                   </div>
 
@@ -1288,7 +1430,7 @@ export default function B2BPortalModule() {
                 {standingOrders.map(so => {
                   const totalItems = so.items.reduce((s, i) => s + i.qty, 0);
                   const estValue = so.items.reduce((s, li) => {
-                    const inv = MOCK_INVENTORY.find(i => i.id === li.id);
+                    const inv = findCatalogItem(li.id);
                     return s + (inv ? getItemPrice(inv, contractPricing, tierMultiplier) * li.qty : 0);
                   }, 0);
                   const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -1309,7 +1451,7 @@ export default function B2BPortalModule() {
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {so.items.map(li => {
-                            const inv = MOCK_INVENTORY.find(i => i.id === li.id);
+                            const inv = findCatalogItem(li.id);
                             return inv ? (
                               <span key={li.id} className="bg-gray-800 text-gray-300 text-[10px] font-mono px-2 py-1 rounded-lg">{inv.name} × {li.qty}</span>
                             ) : null;
@@ -1318,14 +1460,27 @@ export default function B2BPortalModule() {
                       </div>
                       <div className="flex flex-col gap-2 shrink-0">
                         <button
-                          onClick={() => setStandingOrders(prev => prev.map(s => s.id === so.id ? { ...s, status: s.status === 'Active' ? 'Paused' : 'Active' } : s))}
+                          onClick={async () => {
+                            const newStatus = so.status === 'Active' ? 'Paused' : 'Active';
+                            setStandingOrders(prev => prev.map(s => s.id === so.id ? { ...s, status: newStatus } : s));
+                            if (!DEMO_MODE) {
+                              try { await api.b2b.standingOrders.update(so.id, { status: newStatus.toLowerCase() }); }
+                              catch { setStandingOrders(prev => prev.map(s => s.id === so.id ? { ...s, status: so.status } : s)); }
+                            }
+                          }}
                           className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-700 hover:border-cyan-500/40 text-gray-400 hover:text-cyan-400 text-xs font-bold transition-colors"
                         >
                           {so.status === 'Active' ? <Pause size={13} /> : <Play size={13} />}
                           {so.status === 'Active' ? 'Pause' : 'Resume'}
                         </button>
                         <button
-                          onClick={() => setStandingOrders(prev => prev.filter(s => s.id !== so.id))}
+                          onClick={async () => {
+                            setStandingOrders(prev => prev.filter(s => s.id !== so.id));
+                            if (!DEMO_MODE) {
+                              try { await api.b2b.standingOrders.delete(so.id); }
+                              catch { showToast('Failed to delete template.', 'error'); fetchLiveData(); }
+                            }
+                          }}
                           className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-700 hover:border-rose-500/40 text-gray-400 hover:text-rose-400 text-xs font-bold transition-colors"
                         >
                           <Trash2 size={13} /> Delete
@@ -1375,7 +1530,7 @@ export default function B2BPortalModule() {
                     <div>
                       <label className="text-xs text-gray-500 font-bold uppercase tracking-widest block mb-2">Items & Quantities</label>
                       <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                        {MOCK_INVENTORY.map(inv => {
+                        {catalog.map(inv => {
                           const existing = editingStanding.items.find(i => i.id === inv.id);
                           const qty = existing?.qty || 0;
                           return (
@@ -1406,24 +1561,40 @@ export default function B2BPortalModule() {
                   <div className="p-5 border-t border-gray-800 flex gap-3">
                     <button onClick={() => setShowStandingModal(false)} className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-400 text-sm font-bold hover:border-gray-500 transition-colors">Cancel</button>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         if (!editingStanding.name.trim() || editingStanding.items.length === 0) {
                           showToast('Please add a name and at least one item.', 'warning');
                           return;
                         }
-                        const today = new Date();
-                        const diff = (editingStanding.dayOfWeek - today.getDay() + 7) % 7 || 7;
-                        const nextDate = new Date(today);
-                        nextDate.setDate(today.getDate() + diff);
-                        const newOrder = {
-                          ...editingStanding,
-                          id: 'SO-TPL-' + String(Date.now()).slice(-5),
-                          createdDate: today.toISOString().slice(0, 10),
-                          nextGenDate: nextDate.toISOString().slice(0, 10),
-                        };
-                        setStandingOrders(prev => [...prev, newOrder]);
-                        setShowStandingModal(false);
-                        showToast('Standing order template saved!', 'success');
+                        if (DEMO_MODE) {
+                          const today = new Date();
+                          const diff = (editingStanding.dayOfWeek - today.getDay() + 7) % 7 || 7;
+                          const nextDate = new Date(today);
+                          nextDate.setDate(today.getDate() + diff);
+                          setStandingOrders(prev => [...prev, {
+                            ...editingStanding,
+                            id: 'SO-TPL-' + String(Date.now()).slice(-5),
+                            createdDate: today.toISOString().slice(0, 10),
+                            nextGenDate: nextDate.toISOString().slice(0, 10),
+                          }]);
+                          setShowStandingModal(false);
+                          showToast('Standing order template saved!', 'success');
+                          return;
+                        }
+                        // Live mode
+                        try {
+                          const created = await api.b2b.standingOrders.create({
+                            name: editingStanding.name,
+                            frequency: editingStanding.frequency.toLowerCase(),
+                            day_of_week: editingStanding.dayOfWeek,
+                            items: editingStanding.items.map(i => ({ product_id: i.id, qty: i.qty })),
+                          });
+                          setStandingOrders(prev => [...prev, created]);
+                          setShowStandingModal(false);
+                          showToast('Standing order template saved!', 'success');
+                        } catch (err) {
+                          showToast(err.message || 'Failed to save template.', 'error');
+                        }
                       }}
                       className="flex-1 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-gray-950 text-sm font-bold transition-colors"
                     >
@@ -1585,7 +1756,7 @@ export default function B2BPortalModule() {
                 Select the items you'd like to return and specify the reason.
               </p>
               {returnModalOrder.lineItems.map(li => {
-                const item = MOCK_INVENTORY.find(i => i.id === li.id);
+                const item = findCatalogItem(li.id);
                 const sel  = returnSelections[li.id] || {};
                 return (
                   <div
