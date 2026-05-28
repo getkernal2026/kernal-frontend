@@ -270,6 +270,33 @@ export const api = {
     },
   },
 
+  // ── Pricing Engine ────────────────────────────────────────────────────────
+  pricing: {
+    priceBooks: {
+      list:          (params = {}) => authFetch(`/api/v1/pricing/price-books${qs(params)}`),
+      create:        (body)         => authFetch('/api/v1/pricing/price-books', { method: 'POST',   body: JSON.stringify(body) }),
+      update:        (id, body)     => authFetch(`/api/v1/pricing/price-books/${id}`, { method: 'PATCH',  body: JSON.stringify(body) }),
+      addOverride:   (id, body)     => authFetch(`/api/v1/pricing/price-books/${id}/overrides`, { method: 'POST',   body: JSON.stringify(body) }),
+      deleteOverride:(id, oid)      => authFetch(`/api/v1/pricing/price-books/${id}/overrides/${oid}`, { method: 'DELETE' }),
+    },
+    contracts: {
+      list:   (params = {}) => authFetch(`/api/v1/pricing/contracts${qs(params)}`),
+      create: (body)         => authFetch('/api/v1/pricing/contracts', { method: 'POST',   body: JSON.stringify(body) }),
+      update: (id, body)     => authFetch(`/api/v1/pricing/contracts/${id}`, { method: 'PATCH',  body: JSON.stringify(body) }),
+      delete: (id)           => authFetch(`/api/v1/pricing/contracts/${id}`, { method: 'DELETE' }),
+    },
+    promotions: {
+      list:   (params = {}) => authFetch(`/api/v1/pricing/promotions${qs(params)}`),
+      create: (body)         => authFetch('/api/v1/pricing/promotions', { method: 'POST',   body: JSON.stringify(body) }),
+      update: (id, body)     => authFetch(`/api/v1/pricing/promotions/${id}`, { method: 'PATCH',  body: JSON.stringify(body) }),
+    },
+    volumeTiers: {
+      list:   (params = {}) => authFetch(`/api/v1/pricing/volume-tiers${qs(params)}`),
+      upsert: (body)         => authFetch('/api/v1/pricing/volume-tiers', { method: 'POST',   body: JSON.stringify(body) }),
+      update: (id, body)     => authFetch(`/api/v1/pricing/volume-tiers/${id}`, { method: 'PATCH',  body: JSON.stringify(body) }),
+    },
+  },
+
   // ── WMS ──────────────────────────────────────────────────────────────────
   wms: {
     tasks: {

@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useKernal } from './KernalContext.jsx';
 import { DEMO_MODE } from './lib/demoMode.js';
+import { api } from './lib/api.js';
 import {
   Tag, BookOpen, FileText, Calculator, Plus,
   X, ChevronDown, ChevronUp, Calendar, Users, TrendingDown,
@@ -40,24 +41,26 @@ const CATALOG = [
   { sku:'BAK-BUN-01',   name:'Brioche Burger Buns (12 pk)',    basePrice:8.75,    uom:'pack'   },
 ];
 
+// book field matches price book *name* (not ID) for real-data compatibility
 const CUSTOMERS = [
-  { id:'C-101', name:'Armature Works',          segment:'High Volume',  book:'PB-002' },
-  { id:'C-102', name:"Bern's Steakhouse",       segment:'Fine Dining',  book:'PB-003' },
-  { id:'C-103', name:'Columbia Restaurant',     segment:'Contract',     book:'PB-004' },
-  { id:'C-104', name:'Oxford Exchange',         segment:'Contract',     book:'PB-004' },
-  { id:'C-105', name:"Eddie V's Prime Seafood", segment:'Fine Dining',  book:'PB-003' },
-  { id:'C-106', name:'Datz Tampa',              segment:'Standard',     book:'PB-001' },
-  { id:'C-107', name:'The Refinery',            segment:'Standard',     book:'PB-001' },
-  { id:'C-108', name:'Mise en Place',           segment:'Fine Dining',  book:'PB-003' },
-  { id:'C-109', name:'Ulele',                   segment:'High Volume',  book:'PB-002' },
-  { id:'C-110', name:'Dockside Diner',          segment:'Standard',     book:'PB-001' },
-  { id:'C-111', name:'Steelbach',              segment:'Standard',     book:'PB-001' },
-  { id:'C-112', name:'The Capital Grille',     segment:'Fine Dining',  book:'PB-003' },
+  { id:'C-101', name:'Armature Works',          segment:'High Volume',  book:'Preferred' },
+  { id:'C-102', name:"Bern's Steakhouse",       segment:'Fine Dining',  book:'Premium'   },
+  { id:'C-103', name:'Columbia Restaurant',     segment:'Contract',     book:'Contract'  },
+  { id:'C-104', name:'Oxford Exchange',         segment:'Contract',     book:'Contract'  },
+  { id:'C-105', name:"Eddie V's Prime Seafood", segment:'Fine Dining',  book:'Premium'   },
+  { id:'C-106', name:'Datz Tampa',              segment:'Standard',     book:'Standard'  },
+  { id:'C-107', name:'The Refinery',            segment:'Standard',     book:'Standard'  },
+  { id:'C-108', name:'Mise en Place',           segment:'Fine Dining',  book:'Premium'   },
+  { id:'C-109', name:'Ulele',                   segment:'High Volume',  book:'Preferred' },
+  { id:'C-110', name:'Dockside Diner',          segment:'Standard',     book:'Standard'  },
+  { id:'C-111', name:'Steelbach',               segment:'Standard',     book:'Standard'  },
+  { id:'C-112', name:'The Capital Grille',      segment:'Fine Dining',  book:'Premium'   },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PRICE BOOKS
 // ─────────────────────────────────────────────────────────────────────────────
+// Demo price books — id field not used for lookups (name is canonical)
 const INIT_PRICE_BOOKS = [
   {
     id:'PB-001', name:'Standard', isDefault:true,
@@ -137,18 +140,94 @@ const INIT_PROMOS = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
+// API MAPPERS + COLOR PRESETS
+// ─────────────────────────────────────────────────────────────────────────────
+const COLOR_PRESETS = {
+  gray:    { color:'text-gray-300',    bg:'bg-gray-500/10',    border:'border-gray-600/40',   accent:'border-l-gray-500'   },
+  emerald: { color:'text-emerald-400', bg:'bg-emerald-500/10', border:'border-emerald-500/25', accent:'border-l-emerald-500' },
+  amber:   { color:'text-amber-400',   bg:'bg-amber-500/10',   border:'border-amber-500/25',   accent:'border-l-amber-500'   },
+  violet:  { color:'text-violet-400',  bg:'bg-violet-500/10',  border:'border-violet-500/25',  accent:'border-l-violet-500'  },
+  cyan:    { color:'text-cyan-400',    bg:'bg-cyan-500/10',    border:'border-cyan-500/25',    accent:'border-l-cyan-500'    },
+  rose:    { color:'text-rose-400',    bg:'bg-rose-500/10',    border:'border-rose-500/25',    accent:'border-l-rose-500'    },
+};
+
+const mapApiPriceBook = (row) => ({
+  _id:         row.id,
+  id:          row.id,
+  name:        row.name,
+  description: row.description || '',
+  isDefault:   row.is_default,
+  overrides:   (row.overrides || []).map(o => ({
+    _id:       o.id,
+    sku:       o.sku,
+    name:      o.product_name,
+    basePrice: Number(o.base_price),
+    bookPrice: Number(o.book_price),
+  })),
+  ...(COLOR_PRESETS[row.color_preset] || COLOR_PRESETS.gray),
+});
+
+const mapApiContract = (row) => ({
+  _id:           row.id,
+  id:            `CTR-${row.id.slice(0, 6).toUpperCase()}`,
+  customerId:    row.customer_external_id || '',
+  customer:      row.customer_name,
+  sku:           row.sku,
+  skuName:       row.sku_name,
+  basePrice:     Number(row.base_price),
+  contractPrice: Number(row.contract_price),
+  minWeeklyQty:  Number(row.min_weekly_qty),
+  startDate:     row.start_date,
+  endDate:       row.end_date || '',
+  status:        row.status,
+  notes:         row.notes || '',
+});
+
+const mapApiPromo = (row) => ({
+  _id:          row.id,
+  id:           `PROMO-${row.id.slice(0, 6).toUpperCase()}`,
+  name:         row.name,
+  sku:          row.sku,
+  skuName:      row.sku_name,
+  basePrice:    Number(row.base_price),
+  promoPrice:   Number(row.promo_price),
+  startDate:    row.start_date,
+  endDate:      row.end_date,
+  minQty:       Number(row.min_qty),
+  allCustomers: row.all_customers,
+  priceBookId:  row.price_book_id,
+  status:       row.status,
+  enabled:      row.enabled,
+  description:  row.description || '',
+});
+
+const mapApiVolumeTier = (row) => ({
+  _id:       row.id,
+  sku:       row.sku,
+  name:      row.product_name,
+  basePrice: Number(row.base_price),
+  uom:       row.uom,
+  tiers:     (row.tiers || []).map(t => ({
+    minQty: t.minQty,
+    maxQty: t.maxQty,
+    price:  Number(t.price),
+  })),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PRICE RESOLUTION ENGINE
 // Hierarchy: Contract > (best of Price Book vs Volume Tier) > Base
 // Promotion overlays if it beats the resolved price
 // ─────────────────────────────────────────────────────────────────────────────
-function resolvePrice(customerId, sku, qty, contracts, promos, priceBooks) {
+function resolvePrice(customerId, sku, qty, contracts, promos, priceBooks, volumeTiers) {
   const item = CATALOG.find(c => c.sku === sku);
   if (!item) return null;
   const base = item.basePrice;
   const customer = CUSTOMERS.find(c => c.id === customerId);
 
-  // 1. Volume tier
-  const tierGroup = INIT_VOLUME_TIERS.find(t => t.sku === sku);
+  // 1. Volume tier — use live volumeTiers state (falls back to INIT_VOLUME_TIERS if empty)
+  const tierSource = volumeTiers && volumeTiers.length > 0 ? volumeTiers : INIT_VOLUME_TIERS;
+  const tierGroup = tierSource.find(t => t.sku === sku);
   let tierResult = null;
   if (tierGroup && qty > 0) {
     const tier = tierGroup.tiers.find(t => qty >= t.minQty && (t.maxQty === null || qty <= t.maxQty));
@@ -158,10 +237,10 @@ function resolvePrice(customerId, sku, qty, contracts, promos, priceBooks) {
     }
   }
 
-  // 2. Price book override
+  // 2. Price book override — match by name (works for both demo PB-00x IDs and real UUIDs)
   let bookResult = null;
   if (customer) {
-    const book = priceBooks.find(b => b.id === customer.book);
+    const book = priceBooks.find(b => b.name === customer.book);
     if (book) {
       const override = book.overrides.find(o => o.sku === sku);
       if (override) bookResult = { price: override.bookPrice, bookName: book.name };
@@ -245,7 +324,7 @@ function PriceBooksTab({ priceBooks }) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {priceBooks.map(book => {
-          const bookCustomers = CUSTOMERS.filter(c => c.book === book.id);
+          const bookCustomers = CUSTOMERS.filter(c => c.book === book.name);
           const isExpanded = expandedId === book.id;
           return (
             <div key={book.id} className={`${UI.card} overflow-hidden border-l-4 ${book.accent}`}>
@@ -362,8 +441,9 @@ function ContractsTab({ contracts, setContracts, showToast }) {
     const cust = CUSTOMERS.find(c => c.id === form.customerId);
     const catItem = CATALOG.find(c => c.sku === form.sku);
     const status = form.startDate && form.startDate > TODAY_STR ? 'Upcoming' : 'Active';
-    setContracts(prev => [{
-      id: `CTR-${String(prev.length + 9).padStart(3,'0')}`,
+    const tempId = `CTR-TEMP-${Date.now()}`;
+    const optimistic = {
+      _id: null, id: tempId,
       customerId: form.customerId, customer: cust?.name || '',
       sku: form.sku, skuName: catItem?.name || form.sku,
       basePrice: catItem?.basePrice || 0,
@@ -372,10 +452,33 @@ function ContractsTab({ contracts, setContracts, showToast }) {
       startDate: form.startDate || TODAY_STR,
       endDate: form.endDate || '',
       notes: form.notes, status,
-    }, ...prev]);
+    };
+    setContracts(prev => [optimistic, ...prev]);
     setForm({ customerId:'', sku:'', contractPrice:'', minWeeklyQty:'', startDate:'', endDate:'', notes:'' });
     setShowForm(false);
     showToast(`Contract created for ${cust?.name}`);
+
+    if (!DEMO_MODE) {
+      api.pricing.contracts.create({
+        customer_name: cust?.name || '',
+        customer_external_id: form.customerId,
+        sku: form.sku,
+        sku_name: catItem?.name || form.sku,
+        base_price: catItem?.basePrice || 0,
+        contract_price: parseFloat(form.contractPrice),
+        min_weekly_qty: parseInt(form.minWeeklyQty) || 0,
+        start_date: form.startDate || TODAY_STR,
+        end_date: form.endDate || null,
+        notes: form.notes,
+        status,
+      }).then(r => {
+        if (r.data?.id) {
+          setContracts(prev => prev.map(c =>
+            c.id === tempId ? mapApiContract(r.data) : c
+          ));
+        }
+      }).catch(() => showToast('Failed to save contract to server', 'error'));
+    }
   };
 
   return (
@@ -525,13 +628,14 @@ function ContractsTab({ contracts, setContracts, showToast }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB: VOLUME TIERS
 // ─────────────────────────────────────────────────────────────────────────────
-function VolumeTab() {
+function VolumeTab({ volumeTiers }) {
   const [expandedSku, setExpandedSku] = useState(null);
+  const tiers = volumeTiers && volumeTiers.length > 0 ? volumeTiers : INIT_VOLUME_TIERS;
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-gray-500">{INIT_VOLUME_TIERS.length} SKUs with quantity break pricing</p>
-      {INIT_VOLUME_TIERS.map(group => {
+      <p className="text-xs text-gray-500">{tiers.length} SKUs with quantity break pricing</p>
+      {tiers.map(group => {
         const isExpanded = expandedSku === group.sku;
         const maxDiscount = ((group.basePrice - Math.min(...group.tiers.map(t => t.price))) / group.basePrice * 100);
         return (
@@ -608,9 +712,13 @@ function PromosTab({ promos, setPromos, showToast }) {
   }, [promos]);
 
   const toggleEnabled = (id) => {
-    setPromos(prev => prev.map(p => p.id === id ? { ...p, enabled: !p.enabled } : p));
     const promo = promos.find(p => p.id === id);
-    showToast(promo ? `${promo.name} ${promo.enabled ? 'disabled' : 'enabled'}` : 'Updated');
+    const newEnabled = !promo?.enabled;
+    setPromos(prev => prev.map(p => p.id === id ? { ...p, enabled: newEnabled } : p));
+    showToast(promo ? `${promo.name} ${newEnabled ? 'enabled' : 'disabled'}` : 'Updated');
+    if (!DEMO_MODE && promo?._id) {
+      api.pricing.promotions.update(promo._id, { enabled: newEnabled }).catch(() => {});
+    }
   };
 
   return (
@@ -693,7 +801,7 @@ function PromosTab({ promos, setPromos, showToast }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB: PRICE SIMULATOR
 // ─────────────────────────────────────────────────────────────────────────────
-function SimulatorTab({ contracts, promos, priceBooks }) {
+function SimulatorTab({ contracts, promos, priceBooks, volumeTiers }) {
   const [custId, setCustId]   = useState('');
   const [sku, setSku]         = useState('');
   const [qty, setQty]         = useState('');
@@ -702,7 +810,7 @@ function SimulatorTab({ contracts, promos, priceBooks }) {
 
   const handleResolve = () => {
     const q = parseInt(qty) || 0;
-    const r = resolvePrice(custId, sku, q, contracts, promos, priceBooks);
+    const r = resolvePrice(custId, sku, q, contracts, promos, priceBooks, volumeTiers);
     setResult(r);
     setResolved(true);
   };
@@ -768,7 +876,7 @@ function SimulatorTab({ contracts, promos, priceBooks }) {
           </select>
           {custId && (() => {
             const c = CUSTOMERS.find(x => x.id === custId);
-            const b = INIT_PRICE_BOOKS.find(b => b.id === c?.book);
+            const b = priceBooks.find(b => b.name === c?.book);
             return b ? <p className={`text-[10px] mt-1 font-semibold ${b.color}`}>Book: {b.name}</p> : null;
           })()}
         </div>
@@ -864,16 +972,46 @@ function SimulatorTab({ contracts, promos, priceBooks }) {
 export default function PricingModule() {
   const { activeUser, logAudit } = useKernal();
 
-  const [activeTab,  setActiveTab]  = useState('books');
-  const [priceBooks, setPriceBooks] = useState(DEMO_MODE ? INIT_PRICE_BOOKS : []);
-  const [contracts,  setContracts]  = useState(DEMO_MODE ? INIT_CONTRACTS : []);
-  const [promos,     setPromos]     = useState(DEMO_MODE ? INIT_PROMOS : []);
-  const [toast,      setToast]      = useState(null);
+  const [activeTab,   setActiveTab]   = useState('books');
+  const [priceBooks,  setPriceBooks]  = useState(DEMO_MODE ? INIT_PRICE_BOOKS : []);
+  const [contracts,   setContracts]   = useState(DEMO_MODE ? INIT_CONTRACTS : []);
+  const [promos,      setPromos]      = useState(DEMO_MODE ? INIT_PROMOS : []);
+  const [volumeTiers, setVolumeTiers] = useState(DEMO_MODE ? INIT_VOLUME_TIERS : []);
+  const [toast,       setToast]       = useState(null);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
+
+  // ── Seed from live API ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    api.pricing.priceBooks.list({ limit: 200 })
+      .then(r => { if (r.data?.length) setPriceBooks(r.data.map(mapApiPriceBook)); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    api.pricing.contracts.list({ limit: 500 })
+      .then(r => { if (r.data) setContracts(r.data.map(mapApiContract)); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    api.pricing.promotions.list({ limit: 200 })
+      .then(r => { if (r.data) setPromos(r.data.map(mapApiPromo)); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    api.pricing.volumeTiers.list()
+      .then(r => { if (r.data?.length) setVolumeTiers(r.data.map(mapApiVolumeTier)); })
+      .catch(() => {});
+  }, []);
 
   const canWrite = ['admin', 'manager', 'accountant'].includes(activeUser?.role);
 
@@ -949,9 +1087,9 @@ export default function PricingModule() {
       <div className="p-6 max-w-6xl mx-auto">
         {activeTab === 'books'     && <PriceBooksTab priceBooks={priceBooks} />}
         {activeTab === 'contracts' && <ContractsTab  contracts={contracts} setContracts={setContracts} showToast={showToast} />}
-        {activeTab === 'volume'    && <VolumeTab />}
+        {activeTab === 'volume'    && <VolumeTab volumeTiers={volumeTiers} />}
         {activeTab === 'promos'    && <PromosTab promos={promos} setPromos={setPromos} showToast={showToast} />}
-        {activeTab === 'simulator' && <SimulatorTab contracts={contracts} promos={promos} priceBooks={priceBooks} />}
+        {activeTab === 'simulator' && <SimulatorTab contracts={contracts} promos={promos} priceBooks={priceBooks} volumeTiers={volumeTiers} />}
       </div>
 
       {/* Toast */}
