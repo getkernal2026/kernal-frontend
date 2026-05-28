@@ -330,6 +330,30 @@ export const api = {
     },
   },
 
+  // ── Warehouse ─────────────────────────────────────────────────────────────
+  warehouse: {
+    fulfillment: {
+      list:   (params = {}) => authFetch(`/api/v1/warehouse/fulfillment${qs(params)}`),
+      create: (body)         => authFetch('/api/v1/warehouse/fulfillment', { method: 'POST',  body: JSON.stringify(body) }),
+      update: (id, body)     => authFetch(`/api/v1/warehouse/fulfillment/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    },
+    locationStock: {
+      list:   (params = {}) => authFetch(`/api/v1/warehouse/location-stock${qs(params)}`),
+      upsert: (body)         => authFetch('/api/v1/warehouse/location-stock', { method: 'POST', body: JSON.stringify(body) }),
+      update: (id, body)     => authFetch(`/api/v1/warehouse/location-stock/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    },
+    putaway: {
+      list:   (params = {}) => authFetch(`/api/v1/warehouse/putaway${qs(params)}`),
+      create: (body)         => authFetch('/api/v1/warehouse/putaway', { method: 'POST',  body: JSON.stringify(body) }),
+      update: (id, body)     => authFetch(`/api/v1/warehouse/putaway/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    },
+    picks: {
+      list:   (params = {}) => authFetch(`/api/v1/warehouse/picks${qs(params)}`),
+      create: (body)         => authFetch('/api/v1/warehouse/picks', { method: 'POST',  body: JSON.stringify(body) }),
+      update: (id, body)     => authFetch(`/api/v1/warehouse/picks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    },
+  },
+
   // ── Superadmin (requires superadmin role) ─────────────────────────────────
   superadmin: {
     // Stats

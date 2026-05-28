@@ -11,6 +11,7 @@ import { UI } from './ui.js';
 import { TODAY, StatusBadge } from './shared/components.jsx';
 import { MOCK_INVENTORY, INVENTORY_BY_ID } from './shared/mockInventory.js';
 import { DEMO_MODE } from './lib/demoMode.js';
+import { api } from './lib/api.js';
 
 import {
   PackageSearch, Truck, PackageCheck, ClipboardList, Search,
@@ -580,10 +581,19 @@ function PutawayTab({ tasks, setTasks }) {
   }), [tasks]);
 
   const assignTask = (id, picker) => {
+    const task = tasks.find(t => t.id === id);
+    if (!DEMO_MODE && task?._id) {
+      api.warehouse.putaway.update(task._id, { status: 'In Progress', assigned_to: picker }).catch(() => {});
+    }
     setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'In Progress', assignedTo: picker } : t));
   };
   const completeTask = (id) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'Done', completedAt: `${TODAY} ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}` } : t));
+    const task = tasks.find(t => t.id === id);
+    const ts = `${TODAY} ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}`;
+    if (!DEMO_MODE && task?._id) {
+      api.warehouse.putaway.update(task._id, { status: 'Done', completed_at: ts }).catch(() => {});
+    }
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'Done', completedAt: ts } : t));
   };
 
   const STATUS_STYLE = {
@@ -720,18 +730,35 @@ function PickTasksTab({ tasks, setTasks }) {
   ), [tasks, search]);
 
   const toggleLine = (taskId, lineId) => {
-    setTasks(prev => prev.map(t => t.id !== taskId ? t : {
-      ...t,
-      lines: t.lines.map(l => l.lineId !== lineId ? l : { ...l, done: !l.done }),
-    }));
+    setTasks(prev => {
+      const updated = prev.map(t => t.id !== taskId ? t : {
+        ...t,
+        lines: t.lines.map(l => l.lineId !== lineId ? l : { ...l, done: !l.done }),
+      });
+      if (!DEMO_MODE) {
+        const task = updated.find(t => t.id === taskId);
+        if (task?._id) {
+          api.warehouse.picks.update(task._id, { lines: task.lines }).catch(() => {});
+        }
+      }
+      return updated;
+    });
   };
 
   const startPick = (taskId) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!DEMO_MODE && task?._id) {
+      api.warehouse.picks.update(task._id, { status: 'Active', picker: PICKERS[0] }).catch(() => {});
+    }
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'Active', picker: PICKERS[0] } : t));
     setExpanded(prev => ({ ...prev, [taskId]: true }));
   };
 
   const completePick = (taskId) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!DEMO_MODE && task?._id) {
+      api.warehouse.picks.update(task._id, { status: 'Complete' }).catch(() => {});
+    }
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'Complete' } : t));
   };
 
@@ -1035,6 +1062,73 @@ function InventoryByLocationTab({ locations }) {
   );
 }
 
+// ─── API MAPPERS ──────────────────────────────────────────────────────────────
+function mapApiFulfillment(r) {
+  return {
+    _id: r.id,
+    id: r.order_ref,
+    customer: r.customer_name,
+    route: r.route || '',
+    status: r.status,
+    timePlaced: r.time_placed || '',
+    urgent: r.urgent || false,
+    picker: r.picker || null,
+    items: Array.isArray(r.items) ? r.items : [],
+  };
+}
+
+function mapApiLocationStock(rows) {
+  const map = {};
+  rows.forEach(r => {
+    if (!map[r.location_id]) map[r.location_id] = [];
+    map[r.location_id].push({
+      _id: r.id,
+      inventoryId: r.inventory_id,
+      sku: r.sku,
+      name: r.name || r.sku,
+      lotId: r.lot_id,
+      qty: Number(r.qty),
+      expiry: r.expiry_date || null,
+    });
+  });
+  return map;
+}
+
+function mapApiPutaway(r) {
+  return {
+    _id: r.id,
+    id: 'PUT-' + r.id.slice(-5).toUpperCase(),
+    receiptId: r.receipt_id || '',
+    inventoryId: r.inventory_id,
+    sku: r.sku,
+    name: r.name || r.sku,
+    lotId: r.lot_id || '',
+    qty: Number(r.qty),
+    category: r.category || '',
+    suggestedZone: r.suggested_zone || '',
+    suggestedLoc: r.suggested_loc || '',
+    actualLoc: r.actual_loc || null,
+    status: r.status,
+    assignedTo: r.assigned_to || null,
+    receivedAt: r.received_at || '',
+    completedAt: r.completed_at || null,
+  };
+}
+
+function mapApiPick(r) {
+  return {
+    _id: r.id,
+    id: 'PICK-' + r.id.slice(-5).toUpperCase(),
+    orderId: r.order_ref,
+    customer: r.customer_name,
+    route: r.route || '',
+    status: r.status,
+    picker: r.picker || null,
+    priority: r.priority || 'normal',
+    lines: Array.isArray(r.lines) ? r.lines : [],
+  };
+}
+
 // ─── ASSOCIATE PORTAL ─────────────────────────────────────────────────────────
 export default function WarehouseModule() {
   const [activeTab, setActiveTab]              = useState('fulfillment');
@@ -1056,8 +1150,31 @@ export default function WarehouseModule() {
     setTimeout(() => setToast(null), 3000);
   }, []);
 
+  // ── Live data seed ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    api.warehouse.fulfillment.list({ limit: 200 })
+      .then(r => { if (r.data?.length) setOrders(r.data.map(mapApiFulfillment)); })
+      .catch(() => {});
+    api.warehouse.locationStock.list({ limit: 500 })
+      .then(r => { if (r.data?.length) setLocationStock(mapApiLocationStock(r.data)); })
+      .catch(() => {});
+    api.warehouse.putaway.list({ limit: 200 })
+      .then(r => { if (r.data?.length) setPutawayTasks(r.data.map(mapApiPutaway)); })
+      .catch(() => {});
+    api.warehouse.picks.list({ limit: 200 })
+      .then(r => { if (r.data?.length) setPickTasks(r.data.map(mapApiPick)); })
+      .catch(() => {});
+  }, []);
+
   const updateOrderStatus = useCallback((orderId, newStatus) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    setOrders(prev => {
+      const order = prev.find(o => o.id === orderId);
+      if (!DEMO_MODE && order?._id) {
+        api.warehouse.fulfillment.update(order._id, { status: newStatus }).catch(() => {});
+      }
+      return prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
+    });
   }, []);
 
   const openPackingModal = useCallback((order) => {
