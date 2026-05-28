@@ -8,6 +8,7 @@ import RecordHistory from './shared/RecordHistory.jsx';
 
 import { TODAY, StatusBadge, PrintButton, ExportButton } from './shared/components.jsx';
 import { DEMO_MODE } from './lib/demoMode.js';
+import { api } from './lib/api.js';
 
 import {
   ShoppingCart, Package, Truck, AlertTriangle, CheckCircle,
@@ -1584,7 +1585,73 @@ export default function ProcurementModule() {
     }
   }, [quickCreateAction, clearQuickCreateAction]);
   const [purchaseOrders, setPurchaseOrders] = useState(DEMO_MODE ? INITIAL_POS : []);
-  const [vendors] = useState(DEMO_MODE ? INITIAL_VENDORS : []);
+  const [vendors,        setVendors]        = useState(DEMO_MODE ? INITIAL_VENDORS : []);
+  const [apiToast,       setApiToast]       = useState(null);
+  const showApiToast = (msg) => { setApiToast(msg); setTimeout(() => setApiToast(null), 4000); };
+
+  // ── Lookup backend UUID by po_number (set by API on create) ───────────────
+  // Each PO in live mode has a `_id` field holding the backend UUID.
+  const poApiId = (poNumber) =>
+    purchaseOrders.find(p => p.poNumber === poNumber)?._id || null;
+
+  // ── Map backend vendor row → local vendor shape ───────────────────────────
+  const mapApiVendor = (row) => ({
+    _id:             row.id,
+    vendorId:        row.id,          // use UUID as vendorId in live mode
+    name:            row.name || '',
+    category:        row.category || '',
+    contact:         row.contact_name || '',
+    email:           row.email || '',
+    phone:           row.phone || '',
+    leadTimeDays:    Number(row.lead_time_days) || 3,
+    paymentTerms:    row.payment_terms || 'Net-30',
+    rating:          Number(row.rating) || 0,
+    preferredVendor: !!row.preferred_vendor,
+    activeStatus:    row.is_active ? 'Active' : 'Inactive',
+    notes:           row.notes || '',
+  });
+
+  // ── Map backend PO row → local PO shape ──────────────────────────────────
+  const mapApiPO = (row) => ({
+    _id:              row.id,           // backend UUID — for API calls
+    poNumber:         row.po_number,
+    vendorId:         row.vendor_id || '',
+    vendorName:       row.vendor_name || '',
+    locationId:       row.location_id || '',
+    status:           row.status || 'Draft',
+    createdDate:      row.created_date || row.created_at?.split('T')[0] || TODAY,
+    expectedDelivery: row.expected_delivery || null,
+    receivedDate:     row.received_date || null,
+    freightCost:      Number(row.freight_cost) || 0,
+    surcharges:       Number(row.surcharges) || 0,
+    taxes:            Number(row.taxes) || 0,
+    notes:            row.notes || '',
+    items: (row.po_line_items || []).map(li => ({
+      _lineId:          li.id,
+      sku:              li.sku || '',
+      vendorProductCode: li.vendor_product_code || '',
+      description:      li.description || '',
+      uom:              li.uom || 'case',
+      qty:              Number(li.qty) || 0,
+      receivedQty:      Number(li.received_qty) || 0,
+      unitCost:         Number(li.unit_cost) || 0,
+      landedUnitCost:   li.landed_unit_cost ? Number(li.landed_unit_cost) : null,
+      tempCategory:     li.temp_category || 'dry',
+      isCatchWeight:    !!li.is_catch_weight,
+      minShelfLifeDays: Number(li.min_shelf_life_days) || 0,
+    })),
+  });
+
+  // ── Seed vendors and POs from API on mount (live mode only) ──────────────
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    api.procurement.vendors.list({ limit: 200 })
+      .then(r => setVendors((r.data || []).map(mapApiVendor)))
+      .catch(() => {});
+    api.procurement.purchaseOrders.list({ limit: 200 })
+      .then(r => setPurchaseOrders((r.data || []).map(mapApiPO)))
+      .catch(() => {});
+  }, []);
   const [aiUpdates, setAiUpdates] = useState(DEMO_MODE ? INITIAL_AI_UPDATES : []);
   const [rtvs, setRtvs] = useState(DEMO_MODE ? INITIAL_RTVS : []);
   const [rebateAgreements, setRebateAgreements] = useState(DEMO_MODE ? INIT_REBATE_AGREEMENTS : []);
@@ -1723,8 +1790,13 @@ export default function ProcurementModule() {
         }
         return prev.map(po => (po.poNumber === poNumber ? { ...po, status: newStatus } : po));
       });
+      if (!DEMO_MODE) {
+        const id = poApiId(poNumber);
+        if (id) api.procurement.purchaseOrders.updateStatus(id, newStatus)
+          .catch(err => showApiToast(`Status sync failed: ${err.message}`));
+      }
     },
-    [logAudit]
+    [logAudit, purchaseOrders]
   );
 
   // ── Approval routing ─────────────────────────────────────────────────────
@@ -1793,6 +1865,7 @@ export default function ProcurementModule() {
 
   const handleReceivingComplete = useCallback(
     (poNumber, lines) => {
+      let newStatus = null;
       setPurchaseOrders(prev =>
         prev.map(po => {
           if (po.poNumber !== poNumber) return po;
@@ -1803,16 +1876,32 @@ export default function ProcurementModule() {
           });
           const allDone = updatedItems.every(i => i.receivedQty >= i.qty);
           const anyDone = updatedItems.some(i => (i.receivedQty || 0) > 0);
-          return {
-            ...po,
-            items: updatedItems,
-            status: allDone ? 'Received' : anyDone ? 'Partially Received' : po.status,
-          };
+          newStatus = allDone ? 'Received' : anyDone ? 'Partially Received' : po.status;
+          return { ...po, items: updatedItems, status: newStatus };
         })
       );
       setReceivingTarget(null);
+      if (!DEMO_MODE && newStatus) {
+        const id = poApiId(poNumber);
+        if (id) {
+          // Update received_qty on each line item
+          const po = purchaseOrders.find(p => p.poNumber === poNumber);
+          if (po) {
+            lines.forEach((l, idx) => {
+              const item = po.items[idx];
+              if (item?._lineId && l?.receivedQty) {
+                api.procurement.purchaseOrders.updateLine(id, item._lineId, {
+                  received_qty: (item.receivedQty || 0) + Number(l.receivedQty),
+                }).catch(() => {});
+              }
+            });
+          }
+          api.procurement.purchaseOrders.updateStatus(id, newStatus)
+            .catch(err => showApiToast(`Receiving sync failed: ${err.message}`));
+        }
+      }
     },
-    []
+    [purchaseOrders]
   );
 
   const handleLandedCostsSave = useCallback(
@@ -1832,6 +1921,14 @@ export default function ProcurementModule() {
           };
         })
       );
+      if (!DEMO_MODE) {
+        const id = poApiId(poNumber);
+        if (id) api.procurement.purchaseOrders.update(id, {
+          freight_cost: data.freightCost,
+          surcharges:   data.surcharges,
+          taxes:        data.taxes,
+        }).catch(err => showApiToast(`Landed costs sync failed: ${err.message}`));
+      }
       setLandedCostsTarget(null);
     },
     []
@@ -1909,6 +2006,34 @@ export default function ProcurementModule() {
     setBuilderFreight('');
     setBuilderVendorId(null);
     setActiveTab('pos');
+
+    if (!DEMO_MODE) {
+      api.procurement.purchaseOrders.create({
+        vendor_id:         builderVendorId,
+        vendor_name:       builderVendor?.name || 'Unknown',
+        expected_delivery: builderDelivery || null,
+        freight_cost:      Number(builderFreight || 0),
+        notes:             builderNotes,
+        items: newPO.items.map(i => ({
+          sku:                i.sku,
+          vendor_product_code: i.vendorProductCode,
+          description:        i.description,
+          uom:                i.uom,
+          qty:                i.qty,
+          unit_cost:          i.unitCost,
+          temp_category:      i.tempCategory,
+          is_catch_weight:    i.isCatchWeight,
+          min_shelf_life_days: i.minShelfLifeDays,
+        })),
+      }).then(res => {
+        const created = res.data;
+        setPurchaseOrders(prev => prev.map(p =>
+          p.poNumber === newPO.poNumber
+            ? { ...p, _id: created.id, poNumber: created.po_number }
+            : p
+        ));
+      }).catch(err => showApiToast(`PO saved locally — sync failed: ${err.message}`));
+    }
   };
 
   const handleSendPO = (poNumber) => {
@@ -2135,7 +2260,7 @@ export default function ProcurementModule() {
                   <p className="text-sm text-gray-500 mt-1">Choose the vendor you want to place an order with. Only their catalog items will be shown.</p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {INITIAL_VENDORS.filter(v => v.activeStatus === 'Active').map(v => {
+                  {vendors.filter(v => v.activeStatus === 'Active').map(v => {
                     const itemCount = VENDOR_CATALOG.filter(c => c.vendorId === v.vendorId).length;
                     return (
                       <button key={v.vendorId}
@@ -3032,10 +3157,16 @@ export default function ProcurementModule() {
       {showPODoc && poDocTarget && (
         <PODocumentModal
           po={poDocTarget}
-          vendor={INITIAL_VENDORS.find(v => v.vendorId === poDocTarget.vendorId)}
+          vendor={vendors.find(v => v.vendorId === poDocTarget.vendorId)}
           onClose={() => { setShowPODoc(false); setPoDocTarget(null); }}
           onSend={handleSendPO}
         />
+      )}
+      {/* API error toast */}
+      {apiToast && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-rose-900/90 border border-rose-500/40 text-rose-200 text-sm px-4 py-2 rounded-lg shadow-xl">
+          <AlertTriangle className="w-4 h-4 shrink-0" />{apiToast}
+        </div>
       )}
     </div>
   );

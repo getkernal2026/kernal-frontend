@@ -193,6 +193,28 @@ export const api = {
     },
   },
 
+  // ── Procurement ──────────────────────────────────────────────────────────
+  procurement: {
+    vendors: {
+      list:   (params = {}) => authFetch(`/api/v1/procurement/vendors${qs(params)}`),
+      get:    (id)           => authFetch(`/api/v1/procurement/vendors/${id}`),
+      create: (body)         => authFetch('/api/v1/procurement/vendors', { method: 'POST',   body: JSON.stringify(body) }),
+      update: (id, body)     => authFetch(`/api/v1/procurement/vendors/${id}`, { method: 'PATCH',  body: JSON.stringify(body) }),
+      delete: (id)           => authFetch(`/api/v1/procurement/vendors/${id}`, { method: 'DELETE' }),
+    },
+    purchaseOrders: {
+      list:         (params = {}) => authFetch(`/api/v1/procurement/purchase-orders${qs(params)}`),
+      get:          (id)           => authFetch(`/api/v1/procurement/purchase-orders/${id}`),
+      create:       (body)         => authFetch('/api/v1/procurement/purchase-orders', { method: 'POST',   body: JSON.stringify(body) }),
+      update:       (id, body)     => authFetch(`/api/v1/procurement/purchase-orders/${id}`, { method: 'PATCH',  body: JSON.stringify(body) }),
+      updateStatus: (id, status)   => authFetch(`/api/v1/procurement/purchase-orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+      cancel:       (id)           => authFetch(`/api/v1/procurement/purchase-orders/${id}`, { method: 'DELETE' }),
+      addLine:      (id, body)     => authFetch(`/api/v1/procurement/purchase-orders/${id}/lines`, { method: 'POST',   body: JSON.stringify(body) }),
+      updateLine:   (id, lineId, body) => authFetch(`/api/v1/procurement/purchase-orders/${id}/lines/${lineId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+      deleteLine:   (id, lineId)   => authFetch(`/api/v1/procurement/purchase-orders/${id}/lines/${lineId}`, { method: 'DELETE' }),
+    },
+  },
+
   // ── Superadmin (requires superadmin role) ─────────────────────────────────
   superadmin: {
     // Stats
