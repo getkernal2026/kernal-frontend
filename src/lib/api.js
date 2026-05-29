@@ -401,6 +401,12 @@ export const api = {
       create: (body)         => authFetch('/api/v1/warehouse/picks', { method: 'POST',  body: JSON.stringify(body) }),
       update: (id, body)     => authFetch(`/api/v1/warehouse/picks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     },
+    floorplan: {
+      list:   ()             => authFetch('/api/v1/warehouse/floorplan'),
+      create: (body)         => authFetch('/api/v1/warehouse/floorplan', { method: 'POST',   body: JSON.stringify(body) }),
+      update: (id, body)     => authFetch(`/api/v1/warehouse/floorplan/${id}`, { method: 'PATCH',  body: JSON.stringify(body) }),
+      delete: (id)           => authFetch(`/api/v1/warehouse/floorplan/${id}`, { method: 'DELETE' }),
+    },
   },
 
   // ── Approvals ─────────────────────────────────────────────────────────────

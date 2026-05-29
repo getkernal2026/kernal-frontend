@@ -20,8 +20,9 @@ import {
   Route, ListOrdered, Thermometer, Box, ChevronDown, ChevronUp,
   CheckSquare, Square, Navigation2, Inbox, Move, TriangleAlert,
   Warehouse, Eye, Filter, ArrowUpDown, Scan, ArrowLeft,
-  MoveRight, Loader2, ShieldCheck, Hash, Package, AlertCircle,
+  MoveRight, Loader2, ShieldCheck, Hash, Package, AlertCircle, LayoutGrid,
 } from 'lucide-react';
+import WarehouseFloorplanEditor from './WarehouseFloorplanEditor.jsx';
 
 // ─── ZONE CONFIG ──────────────────────────────────────────────────────────────
 const ZONES = {
@@ -1213,6 +1214,7 @@ export default function WarehouseModule() {
   const TABS = [
     { id: 'fulfillment', label: 'Fulfillment',           icon: PackageSearch  },
     { id: 'floormap',    label: 'Floor Map',              icon: Warehouse      },
+    { id: 'floorplan',   label: 'Floor Plan',             icon: LayoutGrid     },
     { id: 'putaway',     label: 'Putaway',                icon: ArrowDownToLine},
     { id: 'picktasks',   label: 'Pick Tasks',             icon: ListOrdered    },
     { id: 'bylocation',  label: 'Inventory by Location',  icon: MapPin         },
@@ -1281,6 +1283,7 @@ export default function WarehouseModule() {
           </div>
         )}
         {activeTab === 'floormap'   && <FloorMapTab locations={locations} />}
+        {activeTab === 'floorplan'  && <WarehouseFloorplanEditor />}
         {activeTab === 'putaway'    && <PutawayTab tasks={putawayTasks} setTasks={setPutawayTasks} />}
         {activeTab === 'picktasks'  && <PickTasksTab tasks={pickTasks} setTasks={setPickTasks} />}
         {activeTab === 'bylocation' && <InventoryByLocationTab locations={locations} />}
