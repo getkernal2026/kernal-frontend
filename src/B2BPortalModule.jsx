@@ -910,16 +910,18 @@ export default function B2BPortalModule() {
 
   // ── Scanner ───────────────────────────────────────────────────────────────
   const handleBarcodeScan = useCallback((barcode) => {
-    const item = MOCK_INVENTORY.find(i => i.barcode === barcode);
+    // In live mode, scanner input is treated as a SKU lookup (no barcode column in products table)
+    const item = catalog.find(i => i.sku === barcode || i.barcode === barcode);
     if (item) {
-      const stock = getAvailableStock(item, orders);
+      // item.lots only exists on MOCK_INVENTORY; fall back to unlimited stock in live mode
+      const stock = item.lots ? getAvailableStock(item, orders) : 9999;
       handleCartUpdate(item.id, 1, stock);
       showToast(`${item.name} added to cart.`, 'success');
       setIsScannerOpen(false);
     } else {
-      showToast('Barcode not found in catalog.', 'error');
+      showToast('Barcode not recognised. Try scanning again or search manually.', 'error');
     }
-  }, [orders, handleCartUpdate, showToast]);
+  }, [catalog, orders, handleCartUpdate, showToast]);
 
   // ── Signature Pad ─────────────────────────────────────────────────────────
   const getCanvasCoords = useCallback((e, canvas) => {

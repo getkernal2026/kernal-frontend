@@ -262,10 +262,8 @@ const LEAD_STAGE_STYLE = {
   'Lost':      'bg-rose-500/10 text-rose-400 border-rose-500/20',
 };
 
-// SKU lookup
-const INVENTORY_BY_SKU_MAP = new Map();
-MOCK_INVENTORY.forEach(i => INVENTORY_BY_SKU_MAP.set(i.sku, i));
-const itemFromSku = (sku) => INVENTORY_BY_SKU_MAP.get(sku) || null;
+// SKU lookup — module-level stub kept for reference; real lookup defined inside component
+// so it can access live apiProducts in production mode
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN COMPONENT
@@ -273,6 +271,12 @@ const itemFromSku = (sku) => INVENTORY_BY_SKU_MAP.get(sku) || null;
 export default function FieldSalesPortal() {
   const { submitApprovalRequest, approvalRequests, quickCreateAction, clearQuickCreateAction, activeUser,
           apiCustomers, apiOrders, apiProducts, refreshOrders } = useKernal();
+
+  // SKU lookup: uses live apiProducts in production, MOCK_INVENTORY in demo
+  const itemFromSku = useCallback((sku) => {
+    if (DEMO_MODE) return MOCK_INVENTORY.find(i => i.sku === sku) || null;
+    return (apiProducts || []).find(i => i.sku === sku) || null;
+  }, [apiProducts]);
 
   // Derive active rep identity from the logged-in user rather than the hardcoded constant,
   // so switching users in the header correctly updates the rep identity shown in Field Sales.
@@ -473,7 +477,7 @@ export default function FieldSalesPortal() {
             const idx = newItems.findIndex(i => i.sku === c.sku);
             if (c.action === 'add' && idx === -1) {
               const inv = itemFromSku(c.sku);
-              newItems.push({ sku: c.sku, description: c.description, qty: c.toQty, unitPrice: inv ? inv.basePrice : 0 });
+              newItems.push({ sku: c.sku, description: c.description, qty: c.toQty, unitPrice: inv ? (inv.basePrice ?? inv.base_price ?? 0) : 0 });
             } else if (c.action === 'remove' && idx >= 0) {
               newItems.splice(idx, 1);
             } else if (c.action === 'change' && idx >= 0) {
@@ -527,7 +531,7 @@ export default function FieldSalesPortal() {
       const inv = itemFromSku(sku);
       const cust = cartCustomer;
       const contractPrice = cust?.contractPricing && cust.contractPricing[inv?.id];
-      const unitPrice = contractPrice ?? inv?.basePrice ?? 0;
+      const unitPrice = contractPrice ?? inv?.basePrice ?? inv?.base_price ?? 0;
       return { ...prev, [sku]: { qty, unitPrice } };
     });
   };
@@ -1644,7 +1648,8 @@ function OrderEntrySection({ customers, cartCustomer, cart, cartItems, cartTotal
   }
 
   const guideSkus = new Set(cartCustomer.orderGuide.map(g => g.sku));
-  const catalog = MOCK_INVENTORY.filter(item => {
+  const liveCatalog = DEMO_MODE ? MOCK_INVENTORY : (apiProducts || []);
+  const catalog = liveCatalog.filter(item => {
     if (filter === 'guide' && !guideSkus.has(item.sku)) return false;
     if (search && !(item.name.toLowerCase().includes(search.toLowerCase()) || item.sku.toLowerCase().includes(search.toLowerCase()))) return false;
     return true;
@@ -2480,7 +2485,7 @@ function ChangeRequestModal({ order, customer, onClose, onSubmit }) {
             <div className="flex gap-2 mb-2">
               <select value={newSku} onChange={e => setNewSku(e.target.value)} className={`${UI.select} flex-1`}>
                 <option value="">Pick a SKU to add…</option>
-                {MOCK_INVENTORY.filter(i => !order.items.some(it => it.sku === i.sku) && !additions.some(a => a.sku === i.sku)).map(i => (
+                {(DEMO_MODE ? MOCK_INVENTORY : (apiProducts || [])).filter(i => !order.items.some(it => it.sku === i.sku) && !additions.some(a => a.sku === i.sku)).map(i => (
                   <option key={i.id} value={i.sku}>{i.sku} — {i.name}</option>
                 ))}
               </select>
