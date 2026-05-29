@@ -140,11 +140,20 @@ export const api = {
   // ── CRM ──────────────────────────────────────────────────────────────────
   crm: {
     customers: {
-      list:   (params = {}) => authFetch(`/api/v1/crm/customers${qs(params)}`),
-      get:    (id)           => authFetch(`/api/v1/crm/customers/${id}`),
-      create: (body)         => authFetch('/api/v1/crm/customers', { method: 'POST',  body: JSON.stringify(body) }),
-      update: (id, body)     => authFetch(`/api/v1/crm/customers/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-      delete: (id)           => authFetch(`/api/v1/crm/customers/${id}`, { method: 'DELETE' }),
+      list:           (params = {}) => authFetch(`/api/v1/crm/customers${qs(params)}`),
+      get:            (id)           => authFetch(`/api/v1/crm/customers/${id}`),
+      create:         (body)         => authFetch('/api/v1/crm/customers', { method: 'POST',  body: JSON.stringify(body) }),
+      update:         (id, body)     => authFetch(`/api/v1/crm/customers/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+      delete:         (id)           => authFetch(`/api/v1/crm/customers/${id}`, { method: 'DELETE' }),
+      // Admin / accounting only
+      assignSalesman: (id, salesmanId) => authFetch(`/api/v1/crm/customers/${id}/salesman`, {
+        method: 'PATCH',
+        body: JSON.stringify({ assigned_salesman_id: salesmanId || null }),
+      }),
+    },
+
+    team: {
+      list: () => authFetch('/api/v1/crm/team'),
     },
 
     contacts: {

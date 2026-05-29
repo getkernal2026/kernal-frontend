@@ -257,6 +257,8 @@ const mapCustomer = (row) => ({
     deliverySuccessRate: row.analytics?.deliverySuccessRate || 100,
     topSkus:             row.analytics?.topSkus || [],
   },
+  // Salesman assignment
+  assignedSalesmanId: row.assigned_salesman_id || null,
   // Fields not yet in DB — preserve or default
   aiInsights:         row.aiInsights         || [],
   whitespaceAnalysis: row.whitespaceAnalysis || [],
@@ -526,6 +528,21 @@ export default function ERMCustomerSuccessModule() {
       .then(res => setLivePlaybooks(res.data || []))
       .catch(() => {});
   }, []);
+
+  // ── Salesman assignment ──────────────────────────────────────────────────────
+  // Only admin and accounting roles can assign salesmen.
+  const canManageSalesman = !DEMO_MODE && (activeUser?.role === 'admin' || activeUser?.role === 'accounting');
+  const [teamMembers, setTeamMembers]           = useState([]);
+  const [salesmanDraft, setSalesmanDraft]       = useState(null); // null = no pending change
+  const [salesmanSaving, setSalesmanSaving]     = useState(false);
+
+  useEffect(() => {
+    if (!canManageSalesman) return;
+    api.crm.team.list()
+      .then(res => setTeamMembers(res.data || []))
+      .catch(() => {});
+  }, [canManageSalesman]);
+
   const customerPricingEnabled = settings.features.customerPricing;
   const creditTermsEnabled     = settings.features?.creditTerms !== false;
   const pricingTiers = settings.pricing?.tiers || [];
@@ -633,6 +650,7 @@ export default function ERMCustomerSuccessModule() {
   const openDetail = useCallback(async (customer) => {
     setSelectedCustomerId(customer.id);
     setEditedCustomer(JSON.parse(JSON.stringify(customer)));
+    setSalesmanDraft(null);  // reset any pending salesman change when switching customers
     setView('detail');
     // In live mode, fetch full detail (sub-resources) after opening the view
     if (!DEMO_MODE) {
@@ -721,6 +739,24 @@ export default function ERMCustomerSuccessModule() {
     }
     showToast('Account profile updated successfully.');
   }, [editedCustomer, customers, requiresApproval, showToast, logAudit]);
+
+  const handleAssignSalesman = useCallback(async () => {
+    if (salesmanDraft === null || !editedCustomer) return;
+    const newId = salesmanDraft === '' ? null : salesmanDraft;
+    setSalesmanSaving(true);
+    try {
+      await api.crm.customers.assignSalesman(editedCustomer.id, newId);
+      const updated = { ...editedCustomer, assignedSalesmanId: newId };
+      setEditedCustomer(updated);
+      setCustomers(prev => prev.map(c => c.id === editedCustomer.id ? { ...c, assignedSalesmanId: newId } : c));
+      setSalesmanDraft(null);
+      showToast('Salesman assignment saved.');
+    } catch (err) {
+      showToast(`Assignment failed: ${err.message}`, 'error');
+    } finally {
+      setSalesmanSaving(false);
+    }
+  }, [salesmanDraft, editedCustomer, showToast]);
 
   const submitAccountChangeRequest = (reason) => {
     if (!pendingAccountChange) return;
@@ -2376,6 +2412,10 @@ export default function ERMCustomerSuccessModule() {
                 <span className={ec.churnRisk === 'High' ? 'text-rose-400 font-bold' : ec.churnRisk === 'Medium' ? 'text-cyan-500 font-bold' : 'text-emerald-400 font-bold'}>
                   {ec.churnRisk}
                 </span>
+                {ec.assignedSalesmanId && (() => {
+                  const rep = teamMembers.find(u => u.id === ec.assignedSalesmanId);
+                  return rep ? <>{' · '}Rep: <span className="font-medium text-cyan-400">{rep.full_name}</span></> : null;
+                })()}
               </p>
             </div>
           </div>
@@ -2627,6 +2667,44 @@ export default function ERMCustomerSuccessModule() {
                       </form>
                     )}
                   </div>
+                  {/* Assigned Salesman — admin / accounting only */}
+                  <div className="pt-4 border-t border-gray-800">
+                    <label className={UI.label}><User className="w-3 h-3 inline mr-1" />Assigned Salesman</label>
+                    {canManageSalesman && teamMembers.length > 0 ? (
+                      <div className="flex gap-2">
+                        <select
+                          value={salesmanDraft !== null ? salesmanDraft : (ec.assignedSalesmanId || '')}
+                          onChange={e => setSalesmanDraft(e.target.value)}
+                          className={`${UI.select} flex-1`}
+                        >
+                          <option value="">— Unassigned —</option>
+                          {teamMembers.map(u => (
+                            <option key={u.id} value={u.id}>{u.full_name || u.id}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={handleAssignSalesman}
+                          disabled={
+                            salesmanSaving ||
+                            salesmanDraft === null ||
+                            salesmanDraft === (ec.assignedSalesmanId || '')
+                          }
+                          className="px-3 py-1.5 rounded-lg bg-cyan-500 text-gray-950 text-xs font-semibold hover:bg-cyan-400 disabled:opacity-40 transition-colors whitespace-nowrap"
+                        >
+                          {salesmanSaving ? 'Saving…' : 'Assign'}
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-300 py-1">
+                        {ec.assignedSalesmanId
+                          ? teamMembers.find(u => u.id === ec.assignedSalesmanId)?.full_name || 'Assigned'
+                          : <span className="text-gray-600 italic">Unassigned</span>
+                        }
+                        {!canManageSalesman && <span className="text-[10px] text-gray-600 ml-2">(admin / accounting only)</span>}
+                      </p>
+                    )}
+                  </div>
+
                   <div className="pt-4 border-t border-gray-800">
                     <label className={UI.label}>Assigned Route (Module 4)</label>
                     <input type="text" value={ec.route} onChange={e => handleRouteChange(e.target.value)} className={UI.input} />
