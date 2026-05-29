@@ -429,6 +429,17 @@ export const api = {
     deleteSaved: (id)         => authFetch(`/api/v1/reports/saved/${id}`, { method: 'DELETE' }),
   },
 
+  // ── Integrations ─────────────────────────────────────────────────────────
+  integrations: {
+    getConnection:    ()           => authFetch('/api/v1/integrations/connection'),
+    connect:          (body)       => authFetch('/api/v1/integrations/connection', { method: 'POST',   body: JSON.stringify(body) }),
+    disconnect:       (id)         => authFetch(`/api/v1/integrations/connection/${id}`, { method: 'DELETE' }),
+    updateConfig:     (id, body)   => authFetch(`/api/v1/integrations/connection/${id}/config`,  { method: 'PATCH', body: JSON.stringify(body) }),
+    updateMapping:    (id, body)   => authFetch(`/api/v1/integrations/connection/${id}/mapping`, { method: 'PATCH', body: JSON.stringify(body) }),
+    syncLogs:         ()           => authFetch('/api/v1/integrations/sync-logs'),
+    recordSync:       (body)       => authFetch('/api/v1/integrations/sync', { method: 'POST', body: JSON.stringify(body) }),
+  },
+
   // ── Superadmin (requires superadmin role) ─────────────────────────────────
   superadmin: {
     // Stats

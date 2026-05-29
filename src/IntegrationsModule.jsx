@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useKernal } from './KernalContext.jsx';
 import { UI } from './ui.js';
 import { DEMO_MODE } from './lib/demoMode.js';
+import { api } from './lib/api.js';
 
 import {
   Link2, RefreshCw, CheckCircle2, XCircle, AlertCircle, Clock,
@@ -680,7 +681,7 @@ function SyncRulesTab({ connection, syncConfig, setSyncConfig, onSyncNow }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB: ACCOUNT MAPPING
 // ─────────────────────────────────────────────────────────────────────────────
-function AccountMappingTab({ connection, mapping, setMapping, showToast }) {
+function AccountMappingTab({ connection, mapping, setMapping, showToast, onSaveMapping }) {
   const isConnected = !!connection.active;
   const isQBO = connection.active === 'qbo';
   const externalAccounts = isQBO ? QBO_ACCOUNTS : XERO_ACCOUNTS;
@@ -702,10 +703,15 @@ function AccountMappingTab({ connection, mapping, setMapping, showToast }) {
     showToast('Auto-mapped ' + Object.values(defaults).filter(Boolean).length + ' accounts');
   };
 
-  const handleSave = () => {
-    setSaved(true);
-    showToast('Account mapping saved');
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    try {
+      if (onSaveMapping) await onSaveMapping(mapping);
+      setSaved(true);
+      showToast('Account mapping saved');
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      showToast('Failed to save mapping', 'error');
+    }
   };
 
   if (!isConnected) {
@@ -907,6 +913,21 @@ function SyncLogTab({ connection, syncLog, onSyncNow }) {
   );
 }
 
+// ── Row mapper: DB log → frontend shape ───────────────────────────────────────
+function mapApiLog(r) {
+  const d = new Date(r.synced_at);
+  return {
+    id:         r.id,
+    date:       d.toISOString().slice(0, 10),
+    time:       d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+    trigger:    r.trigger === 'manual' ? 'Manual (admin)' : 'Scheduled',
+    durationMs: r.duration_ms || 0,
+    status:     r.status,
+    counts:     r.counts   || {},
+    errors:     r.errors   || [],
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN MODULE
 // ─────────────────────────────────────────────────────────────────────────────
@@ -916,7 +937,8 @@ export default function IntegrationsModule() {
   const [tab, setTab] = useState('connect');
 
   const [connection, setConnection] = useState({
-    active: 'qbo',  // pre-connected for demo
+    active: DEMO_MODE ? 'qbo' : null,  // pre-connected for demo only
+    _id:    null,                        // UUID of the integration_connections row
   });
 
   const initSyncConfig = () => {
@@ -932,36 +954,156 @@ export default function IntegrationsModule() {
   const [syncLog, setSyncLog]       = useState(DEMO_MODE ? MOCK_SYNC_LOG : []);
   const [showSyncModal, setShowSyncModal] = useState(false);
 
-  // When connection changes, reset mapping defaults
-  const handleConnect = useCallback((platform) => {
-    setConnection({ active: platform });
-    setMapping(platform === 'qbo' ? DEFAULT_MAPPING_QBO : DEFAULT_MAPPING_XERO);
-    if (showToast) showToast(`Connected to ${platform === 'qbo' ? 'QuickBooks Online' : 'Xero'} — Gulf Coast Foodservice`, 'success');
+  // ── Mount: load connection + sync logs ────────────────────────────────────
+  useEffect(() => {
+    if (DEMO_MODE) return;
+
+    async function load() {
+      try {
+        const [connRes, logsRes] = await Promise.all([
+          api.integrations.getConnection(),
+          api.integrations.syncLogs(),
+        ]);
+
+        const conn = connRes?.data || null;
+        if (conn) {
+          setConnection({ active: conn.provider, _id: conn.id });
+          // Restore saved sync config + mapping if present
+          if (conn.sync_config && Object.keys(conn.sync_config).length > 0) {
+            setSyncConfig(prev => ({ ...prev, ...conn.sync_config }));
+          }
+          if (conn.account_mapping && Object.keys(conn.account_mapping).length > 0) {
+            setMapping(conn.account_mapping);
+          } else {
+            setMapping(conn.provider === 'qbo' ? DEFAULT_MAPPING_QBO : DEFAULT_MAPPING_XERO);
+          }
+        }
+
+        const logs = (logsRes?.data || []).map(mapApiLog);
+        setSyncLog(logs);
+      } catch (err) {
+        console.error('IntegrationsModule load:', err.message);
+      }
+    }
+
+    load();
+  }, []);
+
+  // ── Persist syncConfig changes (debounced) ────────────────────────────────
+  const syncConfigDebounceRef = useRef(null);
+  const handleSyncConfigChange = useCallback((updater) => {
+    setSyncConfig(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (!DEMO_MODE && connection._id) {
+        clearTimeout(syncConfigDebounceRef.current);
+        syncConfigDebounceRef.current = setTimeout(() => {
+          api.integrations.updateConfig(connection._id, { sync_config: next }).catch(console.error);
+        }, 1200);
+      }
+      return next;
+    });
+  }, [connection._id]);
+
+  // ── handleConnect ─────────────────────────────────────────────────────────
+  const handleConnect = useCallback(async (platform) => {
+    const platformLabel = platform === 'qbo' ? 'QuickBooks Online' : 'Xero';
+    const companyName   = platform === 'qbo' ? 'Gulf Coast Foodservice LLC' : 'Gulf Coast Foodservice';
+    const planName      = platform === 'qbo' ? 'QuickBooks Online Plus' : 'Xero Starter';
+
+    const defaultMap = platform === 'qbo' ? DEFAULT_MAPPING_QBO : DEFAULT_MAPPING_XERO;
+    setConnection({ active: platform, _id: null });
+    setMapping(defaultMap);
+    if (showToast) showToast(`Connected to ${platformLabel} — ${companyName}`, 'success');
     setTab('sync');
+
+    if (!DEMO_MODE) {
+      try {
+        const res = await api.integrations.connect({
+          provider: platform,
+          external_company_name: companyName,
+          plan_name: planName,
+        });
+        const conn = res?.data;
+        if (conn) {
+          setConnection({ active: platform, _id: conn.id });
+          // Save default mapping immediately
+          await api.integrations.updateMapping(conn.id, { account_mapping: defaultMap }).catch(console.error);
+        }
+      } catch (err) {
+        console.error('IntegrationsModule connect:', err.message);
+      }
+    }
   }, [showToast]);
 
-  const handleDisconnect = useCallback((platform) => {
-    setConnection({ active: null });
+  // ── handleDisconnect ──────────────────────────────────────────────────────
+  const handleDisconnect = useCallback(async (platform) => {
+    const prevConn = { ...connection };
+    setConnection({ active: null, _id: null });
     if (showToast) showToast(`Disconnected from ${platform === 'qbo' ? 'QuickBooks Online' : 'Xero'}`, 'info');
-  }, [showToast]);
+
+    if (!DEMO_MODE && prevConn._id) {
+      try {
+        await api.integrations.disconnect(prevConn._id);
+      } catch (err) {
+        console.error('IntegrationsModule disconnect:', err.message);
+        setConnection(prevConn); // revert on failure
+      }
+    }
+  }, [connection, showToast]);
+
+  // ── handleSaveMapping ─────────────────────────────────────────────────────
+  const handleSaveMapping = useCallback(async (currentMapping) => {
+    if (!DEMO_MODE && connection._id) {
+      try {
+        await api.integrations.updateMapping(connection._id, { account_mapping: currentMapping });
+      } catch (err) {
+        console.error('IntegrationsModule saveMapping:', err.message);
+        throw err; // let AccountMappingTab know it failed
+      }
+    }
+  }, [connection._id]);
 
   const handleSyncNow = () => {
     if (!connection.active) return;
     setShowSyncModal(true);
   };
 
-  const handleSyncDone = () => {
+  const handleSyncDone = async () => {
     setShowSyncModal(false);
-    // Prepend a new synthetic success run
+    const now = new Date();
     const newRun = {
-      id: `sync-${Date.now()}`,
-      date: '2026-05-26', time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      trigger: 'Manual (admin)', durationMs: 11800, status: 'success',
-      counts: { invoices: 47, payments: 18, bills: 12, billpay: 6, customers: 2, vendors: 0, items: 5, expenses: 3 },
-      errors: [],
+      id:         `sync-${Date.now()}`,
+      date:       now.toISOString().slice(0, 10),
+      time:       now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      trigger:    'Manual (admin)',
+      durationMs: 11800,
+      status:     'success',
+      counts:     { invoices: 47, payments: 18, bills: 12, billpay: 6, customers: 2, vendors: 0, items: 5, expenses: 3 },
+      errors:     [],
     };
     setSyncLog(prev => [newRun, ...prev]);
-    if (showToast) showToast('Sync complete — 93 records pushed to QuickBooks');
+    if (showToast) showToast('Sync complete — 93 records pushed to ' + (connection.active === 'xero' ? 'Xero' : 'QuickBooks'));
+
+    if (!DEMO_MODE && connection._id) {
+      try {
+        const res = await api.integrations.recordSync({
+          connection_id: connection._id,
+          provider:      connection.active,
+          trigger:       'manual',
+          duration_ms:   11800,
+          status:        'success',
+          counts:        newRun.counts,
+          errors:        [],
+        });
+        if (res?.data) {
+          // Replace temp entry with real DB row
+          const saved = mapApiLog(res.data);
+          setSyncLog(prev => [saved, ...prev.slice(1)]);
+        }
+      } catch (err) {
+        console.error('IntegrationsModule recordSync:', err.message);
+      }
+    }
   };
 
   const TABS = [
@@ -1025,10 +1167,10 @@ export default function IntegrationsModule() {
           <ConnectTab connection={connection} onConnect={handleConnect} onDisconnect={handleDisconnect} onSyncNow={handleSyncNow} />
         )}
         {tab === 'sync' && (
-          <SyncRulesTab connection={connection} syncConfig={syncConfig} setSyncConfig={setSyncConfig} onSyncNow={handleSyncNow} />
+          <SyncRulesTab connection={connection} syncConfig={syncConfig} setSyncConfig={handleSyncConfigChange} onSyncNow={handleSyncNow} />
         )}
         {tab === 'mapping' && (
-          <AccountMappingTab connection={connection} mapping={mapping} setMapping={setMapping} showToast={showToast || (() => {})} />
+          <AccountMappingTab connection={connection} mapping={mapping} setMapping={setMapping} showToast={showToast || (() => {})} onSaveMapping={handleSaveMapping} />
         )}
         {tab === 'log' && (
           <SyncLogTab connection={connection} syncLog={syncLog} onSyncNow={handleSyncNow} />
