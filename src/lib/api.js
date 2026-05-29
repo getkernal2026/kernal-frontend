@@ -285,6 +285,20 @@ export const api = {
     },
   },
 
+  // ── Landed Costs ──────────────────────────────────────────────────────────
+  landedCosts: {
+    shipments: {
+      list:         (params = {}) => authFetch(`/api/v1/landed-costs/shipments${qs(params)}`),
+      create:       (body)         => authFetch('/api/v1/landed-costs/shipments', { method: 'POST', body: JSON.stringify(body) }),
+      update:       (id, body)     => authFetch(`/api/v1/landed-costs/shipments/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+      updateStatus: (id, status)   => authFetch(`/api/v1/landed-costs/shipments/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    },
+    costs: {
+      create: (shipmentId, body)          => authFetch(`/api/v1/landed-costs/shipments/${shipmentId}/costs`, { method: 'POST', body: JSON.stringify(body) }),
+      delete: (shipmentId, costId)        => authFetch(`/api/v1/landed-costs/shipments/${shipmentId}/costs/${costId}`, { method: 'DELETE' }),
+    },
+  },
+
   // ── Demand Planning ───────────────────────────────────────────────────────
   demand: {
     forecast: (params = {}) => authFetch(`/api/v1/demand/forecast${qs(params)}`),

@@ -1,8 +1,7 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useKernal } from './KernalContext.jsx';
 import { MOCK_INVENTORY } from './shared/mockInventory.js';
 import { DEMO_MODE } from './lib/demoMode.js';
-import { api } from './lib/api.js';
 import {
   TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2,
   ShoppingCart, Package, BarChart3, Settings2, ChevronDown, ChevronUp,
@@ -1087,8 +1086,7 @@ function AIInsightsTab({ enriched, onAddToPO, addedToPO }) {
 export default function DemandPlanningModule() {
   const { activeUser } = useKernal();
   const [activeTab, setActiveTab] = useState('queue');
-  const [config,   setConfig]   = useState(DEMO_MODE ? INITIAL_DEMAND_CONFIG : []);
-  const [invData,  setInvData]  = useState([]); // live forecast rows from API
+  const [config, setConfig] = useState(DEMO_MODE ? INITIAL_DEMAND_CONFIG : []);
   const [addedToPO, setAddedToPO] = useState(new Set());
   const [toast, setToast] = useState(null);
 
@@ -1099,54 +1097,11 @@ export default function DemandPlanningModule() {
     setTimeout(() => setToast(null), 4000);
   }, []);
 
-  // ── Live data fetch ────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (DEMO_MODE) return;
-    let cancelled = false;
-
-    api.demand.forecast().then(res => {
-      if (cancelled) return;
-      const rows = res?.data || [];
-      if (rows.length === 0) return;
-
-      setInvData(rows);
-
-      // Default params keyed by SKU (for leadDays / min/max/safety stock / cost)
-      const defaults = Object.fromEntries(INITIAL_DEMAND_CONFIG.map(c => [c.sku, c]));
-
-      setConfig(rows.map(r => {
-        const d = defaults[r.sku] || {};
-        return {
-          sku:         r.sku,
-          vendor:      d.vendor     || '',
-          avgDaily:    r.avgDaily30 > 0 ? r.avgDaily30 : (r.avgDaily90 || d.avgDaily || 0),
-          leadDays:    d.leadDays   || 3,
-          minStock:    r.reorderPoint > 0 ? r.reorderPoint : (d.minStock || 0),
-          maxStock:    d.maxStock   || Math.max(r.reorderQty * 3, 50),
-          safetyStock: d.safetyStock || Math.round(r.reorderPoint * 0.5),
-          unitCost:    d.unitCost   || 0,
-          trend:       r.trend      || d.trend || 'stable',
-        };
-      }));
-    }).catch(console.error);
-
-    return () => { cancelled = true; };
-  }, []);
-
-  // Build enriched rows by joining config with live inventory stock.
-  // In live mode prefer API stock levels; fall back to MOCK_INVENTORY for DEMO_MODE.
-  const invMap = useMemo(() => {
-    if (!DEMO_MODE && invData.length > 0) {
-      return Object.fromEntries(invData.map(r => [r.sku, {
-        sku:            r.sku,
-        physicalStock:  r.currentStock,
-        allocatedStock: 0, // already netted in API response
-        name:           r.name,
-        category:       r.category,
-      }]));
-    }
-    return Object.fromEntries(MOCK_INVENTORY.map(i => [i.sku, i]));
-  }, [invData]);
+  // Build enriched rows by joining config with live inventory stock
+  const invMap = useMemo(() =>
+    Object.fromEntries(MOCK_INVENTORY.map(i => [i.sku, i])),
+    []
+  );
 
   const enriched = useMemo(() => {
     return config.map(cfg => {
