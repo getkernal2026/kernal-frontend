@@ -877,7 +877,7 @@ const Sparkline = ({ data, color = '#06b6d4', width = 120, height = 36 }) => {
 };
 
 export default function InventoryModule() {
-  const { settings, draftReorderPOs, addDraftReorderPO, quickCreateAction, clearQuickCreateAction, activeUser, logAudit, activeLocation, apiInventory, refreshInventory } = useKernal();
+  const { settings, draftReorderPOs, addDraftReorderPO, quickCreateAction, clearQuickCreateAction, activeUser, logAudit, activeLocation, apiInventory, apiProducts, refreshInventory, refreshProducts } = useKernal();
   // Loss Prevention: when strict mode is on and the user isn't an admin,
   // Library lot edits are locked and the scanner requires a linked PO/order id.
   const isAdmin          = activeUser?.role === 'admin';
@@ -945,11 +945,45 @@ export default function InventoryModule() {
     specs: { origin: '', allergens: '', shelfLife: '', storage: '', description: row.products?.description || '' },
   });
 
-  // ── Seed inventory from live API whenever apiInventory updates ─
+  // ── Map a plain product row (no inventory record yet) → frontend item model ─
+  const mapProductToItem = (prod) => ({
+    id:            `stub-${prod.id}`,          // placeholder — no inventory UUID yet
+    _productId:    prod.id,
+    _noInventory:  true,                       // flag: inventory record not yet created
+    name:          prod.name            || '',
+    sku:           prod.sku             || '',
+    barcode:       '',
+    category:      prod.category        || '',
+    uom:           prod.unit_of_measure || 'case',
+    basePrice:     Number(prod.price_per_unit) || 0,
+    price:         Number(prod.price_per_unit) || 0,
+    costBasis:     Number(prod.cost_per_unit)  || 0,
+    unitCost:      Number(prod.cost_per_unit)  || 0,
+    physicalStock: 0,
+    allocatedStock: 0,
+    reorderPoint:  0,
+    reorderQty:    0,
+    location:      'main',
+    isCatchWeight: false,
+    leadTimeDays:  3, avgDailyUsage: 0,
+    velocity: 'Medium', trend: 'stable', predictedDemand: 0,
+    lots:          [],
+    locationStock: {},
+    specs: { origin: '', allergens: '', shelfLife: '', storage: '', description: prod.description || '' },
+    isActive:      prod.is_active !== false,
+  });
+
+  // ── Seed inventory from live API whenever apiInventory or apiProducts update ─
+  // Shows real inventory rows first, then stubs for products without inventory records.
   useEffect(() => {
-    if (DEMO_MODE || !apiInventory?.length) return;
-    setInventory(apiInventory.map(mapApiItem));
-  }, [apiInventory]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (DEMO_MODE) return;
+    const invItems = (apiInventory || []).map(mapApiItem);
+    const invProductIds = new Set(invItems.map(i => i._productId));
+    const stubs = (apiProducts || [])
+      .filter(p => !invProductIds.has(p.id))
+      .map(mapProductToItem);
+    setInventory([...invItems, ...stubs]);
+  }, [apiInventory, apiProducts]); // eslint-disable-line react-hooks/exhaustive-deps
   const [activeTab, setActiveTab]       = useState('inventory');
   const [generatedPOs,  setGeneratedPOs]  = useState({});    // { sku: poNumber } — tracks which SKUs have a PO in flight
   const [reorderToast,  setReorderToast]  = useState(null);  // { msg, count }
@@ -1227,8 +1261,11 @@ export default function InventoryModule() {
         ));
         refreshInventory();
       })).catch(err => {
-        setInventory(prev => prev.filter(i => i.id !== item.id));
-        showApiToast(`Failed to save new SKU: ${err.message}`);
+        // Product may have been created successfully even if inventory creation failed.
+        // Refresh both so the product still appears as a stub in the list.
+        refreshProducts();
+        refreshInventory();
+        showApiToast(`SKU saved but stock record failed: ${err.message}`);
       });
     }
   };
