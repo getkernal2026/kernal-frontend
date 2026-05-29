@@ -848,6 +848,18 @@ function BillingTab({ tenants }) {
 
 // ── Tab: Bug Management ───────────────────────────────────────────────────────
 
+const AUTOFIX_STATUS = {
+  analyzing:    { label: '🔍 Analyzing',  color: 'text-blue-400' },
+  patching:     { label: '⚙️ Patching',   color: 'text-amber-400' },
+  queued:       { label: '⏳ Queued',     color: 'text-gray-400' },
+  pr_open:      { label: '⚡ PR Open',    color: 'text-cyan-400' },
+  pr_review:    { label: '👀 PR: Review', color: 'text-amber-400' },
+  deployed:     { label: '✅ Deployed',   color: 'text-emerald-400' },
+  failed:       { label: '❌ Failed',     color: 'text-red-400' },
+  no_change:    { label: '➖ No change',  color: 'text-gray-500' },
+  unresolvable: { label: '❓ Unknown file', color: 'text-gray-500' },
+};
+
 const SEV_COLORS = {
   critical: 'bg-red-500/20 text-red-300 border border-red-500/30',
   high:     'bg-orange-500/20 text-orange-300 border border-orange-500/30',
@@ -973,6 +985,33 @@ function BugDetailDrawer({ reportId, onClose, onUpdate }) {
               </div>
             )}
 
+            {/* AutoFix status */}
+            {report.autofix_status && (
+              <div className="bg-gray-800/60 border border-gray-700 rounded-lg p-3 space-y-1.5">
+                <p className="text-xs text-gray-400 font-medium">AutoFix</p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className={`text-sm font-semibold ${AUTOFIX_STATUS[report.autofix_status]?.color || 'text-gray-400'}`}>
+                    {AUTOFIX_STATUS[report.autofix_status]?.label || report.autofix_status}
+                  </span>
+                  {report.autofix_confidence != null && (
+                    <span className="text-xs text-gray-400">Confidence: {report.autofix_confidence}%</span>
+                  )}
+                  {report.autofix_fix_type && (
+                    <span className="text-xs text-gray-400">Type: {report.autofix_fix_type}</span>
+                  )}
+                </div>
+                {report.autofix_pr_url && (
+                  <a href={report.autofix_pr_url} target="_blank" rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 underline">
+                    View Pull Request →
+                  </a>
+                )}
+                {report.autofix_branch && (
+                  <p className="text-xs text-gray-600 font-mono">{report.autofix_branch}</p>
+                )}
+              </div>
+            )}
+
             {/* Triage notes */}
             <div>
               <p className="text-xs text-gray-400 mb-1">Triage Notes</p>
@@ -1015,6 +1054,20 @@ function BugDetailDrawer({ reportId, onClose, onUpdate }) {
                   Reopen
                 </button>
               )}
+              <button
+                onClick={async () => {
+                  setSaving(true);
+                  try {
+                    await api.superadmin.bugs.autofix(reportId);
+                    setReport(r => ({ ...r, autofix_status: 'queued' }));
+                    onUpdate({ ...report, autofix_status: 'queued' });
+                  } catch {}
+                  setSaving(false);
+                }}
+                disabled={saving}
+                className="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs rounded font-medium disabled:opacity-50 ml-auto">
+                ⚡ Re-run AutoFix
+              </button>
             </div>
           </div>
         )}
@@ -1192,10 +1245,10 @@ function BugsTab({ tenants }) {
               <tr className="border-b border-gray-700 text-left">
                 <th className="text-xs text-gray-400 font-medium pb-2 pr-3">Severity</th>
                 <th className="text-xs text-gray-400 font-medium pb-2 pr-3">Status</th>
+                <th className="text-xs text-gray-400 font-medium pb-2 pr-3">AutoFix</th>
                 <th className="text-xs text-gray-400 font-medium pb-2 pr-3">Tenant</th>
                 <th className="text-xs text-gray-400 font-medium pb-2 pr-3">Module</th>
                 <th className="text-xs text-gray-400 font-medium pb-2 pr-3 max-w-xs">Error</th>
-                <th className="text-xs text-gray-400 font-medium pb-2 pr-3">User</th>
                 <th className="text-xs text-gray-400 font-medium pb-2 pr-3">When</th>
                 <th className="text-xs text-gray-400 font-medium pb-2"></th>
               </tr>
@@ -1215,12 +1268,26 @@ function BugsTab({ tenants }) {
                       {r.status}
                     </span>
                   </td>
+                  <td className="py-2.5 pr-3 whitespace-nowrap">
+                    {r.autofix_status ? (
+                      <span className={`text-xs font-medium ${AUTOFIX_STATUS[r.autofix_status]?.color || 'text-gray-400'}`}>
+                        {AUTOFIX_STATUS[r.autofix_status]?.label || r.autofix_status}
+                        {r.autofix_confidence != null && ` ${r.autofix_confidence}%`}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-600">—</span>
+                    )}
+                    {r.autofix_pr_url && (
+                      <a href={r.autofix_pr_url} target="_blank" rel="noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="ml-1.5 text-[10px] text-blue-400 hover:text-blue-300 underline">PR</a>
+                    )}
+                  </td>
                   <td className="py-2.5 pr-3 text-gray-300 text-xs">{r.tenants?.name || '—'}</td>
                   <td className="py-2.5 pr-3 text-gray-400 text-xs font-mono">{r.module || '—'}</td>
                   <td className="py-2.5 pr-3 max-w-xs">
                     <p className="text-gray-200 text-xs truncate max-w-xs">{r.error_message || '—'}</p>
                   </td>
-                  <td className="py-2.5 pr-3 text-gray-400 text-xs">{r.user_name ? `${r.user_name} (${r.user_role || '?'})` : '—'}</td>
                   <td className="py-2.5 pr-3 text-gray-500 text-xs whitespace-nowrap">{timeAgo(r.occurred_at)}</td>
                   <td className="py-2.5">
                     <button onClick={(e) => { e.stopPropagation(); setSelected(r.id); }}
