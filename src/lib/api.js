@@ -257,6 +257,12 @@ export const api = {
       update: (routeId, stopId, body)   => authFetch(`/api/v1/logistics/routes/${routeId}/stops/${stopId}`, { method: 'PATCH', body: JSON.stringify(body) }),
       delete: (routeId, stopId)         => authFetch(`/api/v1/logistics/routes/${routeId}/stops/${stopId}`, { method: 'DELETE' }),
     },
+    // GPS driver location — called by DriverApp every ~10s
+    driverLocation:  (body)  => authFetch('/api/v1/logistics/driver-location',  { method: 'POST', body: JSON.stringify(body) }),
+    driverLocations: ()      => authFetch('/api/v1/logistics/driver-locations'),
+    // GPS field-sales rep location — called by FieldSalesPortal every ~10s
+    repLocation:     (body)  => authFetch('/api/v1/logistics/rep-location',      { method: 'POST', body: JSON.stringify(body) }),
+    repLocations:    ()      => authFetch('/api/v1/logistics/rep-locations'),
   },
 
   // ── GL / Chart of Accounts / Journal Entries / AP Bills ──────────────────
@@ -496,5 +502,21 @@ export const api = {
     getInvoices:    (tenantId)   => authFetch(`/api/v1/superadmin/tenants/${tenantId}/invoices`),
     attachBilling:  (tenantId, body) => authFetch(`/api/v1/superadmin/tenants/${tenantId}/billing/attach`, { method: 'POST', body: JSON.stringify(body) }),
     cancelBilling:  (tenantId)   => authFetch(`/api/v1/superadmin/tenants/${tenantId}/billing/cancel`, { method: 'DELETE' }),
+
+    // Bug reports (cross-tenant triage)
+    bugs: {
+      list:        (params = {}) => authFetch(`/api/v1/bugs${qs(params)}`),
+      stats:       ()             => authFetch('/api/v1/bugs/stats'),
+      get:         (id)           => authFetch(`/api/v1/bugs/${id}`),
+      update:      (id, body)     => authFetch(`/api/v1/bugs/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+      delete:      (id)           => authFetch(`/api/v1/bugs/${id}`, { method: 'DELETE' }),
+      autofix:     (id)           => authFetch(`/api/v1/bugs/${id}/autofix`,   { method: 'POST', body: JSON.stringify({}) }),
+      rollback:    (id)           => authFetch(`/api/v1/bugs/${id}/rollback`,  { method: 'POST', body: JSON.stringify({}) }),
+    },
+  },
+
+  // ── Bug Reports (tenant submission) ──────────────────────────────────────
+  bugs: {
+    report: (body) => authFetch('/api/v1/bugs', { method: 'POST', body: JSON.stringify(body) }),
   },
 };

@@ -512,7 +512,10 @@ export default function ERMCustomerSuccessModule() {
     setCrmLoading(true);
     api.crm.customers.list()
       .then(res => setCustomers((res.data || []).map(mapCustomer)))
-      .catch(() => {})
+      .catch(err => {
+        console.error('[CRM] Failed to load customers:', err?.status, err?.message);
+        showToast(`Could not load customers: ${err?.message || 'Network error'}`, 'error');
+      })
       .finally(() => setCrmLoading(false));
   }, []);
 
@@ -842,7 +845,11 @@ export default function ERMCustomerSuccessModule() {
             is_primary: true,
           }).catch(() => {});
         }
-      }).catch(err => showToast(`Create failed: ${err.message}`, 'error'));
+      }).catch(err => {
+        // Rollback: remove the optimistic record since it was never saved to DB
+        setCustomers(prev => prev.filter(c => c.id !== newRecord.id));
+        showToast(`Failed to save customer — ${err.message}`, 'error');
+      });
     }
   }, [newCustomerForm, showToast]);
 

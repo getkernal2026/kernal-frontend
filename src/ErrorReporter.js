@@ -1,11 +1,13 @@
 // ─── Kernel Error Reporter ────────────────────────────────────────────────────
 // Singleton module. No React dependency — safe to call from anywhere.
 //
-// Captures crash reports and sends them to a configured webhook.
-// Falls back to local storage when no webhook is set.
+// Captures crash reports, sends them to a configured webhook, AND persists
+// them to the backend database so the superadmin can see all bugs cross-tenant.
 //
 // Report structure gives a developer everything they need to reproduce
 // and patch an issue without having to ask follow-up questions.
+
+import { supabase } from './lib/supabase.js';
 
 export const BUILD_VERSION = 'Build66';
 const MAX_BREADCRUMBS     = 20;
@@ -215,8 +217,29 @@ export async function captureError({ error, moduleName, type = 'crash', extra = 
     }
   }
 
+  // Persist to backend DB (fire-and-forget — never blocks the UI)
+  postReportToDB(report).catch(() => {});
+
   notifyListeners();
   return report;
+}
+
+// ── Backend persistence ───────────────────────────────────────────────────────
+const API_BASE = import.meta.env.VITE_API_URL || 'https://kernal-backend-production.up.railway.app';
+
+async function postReportToDB(report) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return; // not logged in — skip
+    await fetch(`${API_BASE}/api/v1/bugs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization:  `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify(report),
+    });
+  } catch { /* network failure — silently ignored */ }
 }
 
 // ── Persisted report summaries (survives page reload) ─────────────────────────

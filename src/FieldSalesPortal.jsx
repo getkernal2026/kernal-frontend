@@ -7,6 +7,7 @@ import { MOCK_INVENTORY } from './shared/mockInventory.js';
 import { REP_RATES, MONTHLY_HISTORY, calcOrderCommission, QUALIFYING_STATUSES } from './shared/commissionData.js';
 import { DEMO_MODE } from './lib/demoMode.js';
 import { api } from './lib/api.js';
+import { supabase } from './lib/supabase.js';
 
 import {
   Home, Map as MapIcon, Building2, ShoppingCart, MapPin, TrendingUp,
@@ -279,6 +280,74 @@ export default function FieldSalesPortal() {
     ? { ...REP, id: activeUser.id, name: activeUser.name,
         initials: activeUser.name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase() }
     : REP;
+
+  // ── GPS tracking state ───────────────────────────────────────────────────────
+  const [gpsStatus,       setGpsStatus]       = useState('idle');   // idle | active | error
+  const [gpsPosition,     setGpsPosition]     = useState(null);     // { lat, lng, accuracy, heading, speed }
+  const [liveRepPositions,setLiveRepPositions]= useState({});       // keyed by truck_id (REP-{userId})
+  const [realtimeStatus,  setRealtimeStatus]  = useState('idle');   // idle | live | error
+  const gpsWatchIdRef    = useRef(null);
+  const gpsLastPostRef   = useRef(0);
+
+  // ── GPS watchPosition: start on mount, post every 10 s ──────────────────────
+  useEffect(() => {
+    if (!navigator.geolocation) { setGpsStatus('error'); return; }
+
+    gpsWatchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy, heading, speed } = pos.coords;
+        setGpsStatus('active');
+        setGpsPosition({ lat: latitude, lng: longitude, accuracy, heading, speed });
+
+        if (!DEMO_MODE) {
+          const now = Date.now();
+          if (now - gpsLastPostRef.current < 10_000) return;   // 10-s throttle
+          gpsLastPostRef.current = now;
+          api.logistics.repLocation({
+            lat:        latitude,
+            lng:        longitude,
+            heading:    heading   ?? null,
+            speed_mph:  speed != null ? speed * 2.23694 : null,  // m/s → mph
+            accuracy_m: accuracy  ?? null,
+          }).catch(() => {/* silent — GPS pings are best-effort */});
+        }
+      },
+      () => setGpsStatus('error'),
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 },
+    );
+
+    return () => {
+      if (gpsWatchIdRef.current != null) navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+    };
+  }, []);
+
+  // ── REST seed: load current rep positions on mount (production only) ─────────
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    api.logistics.repLocations()
+      .then(res => {
+        const map = {};
+        (res.data || []).forEach(loc => { map[loc.truck_id] = loc; });
+        setLiveRepPositions(map);
+      })
+      .catch(() => {/* non-fatal */});
+  }, []);
+
+  // ── Supabase Realtime: live rep position updates ─────────────────────────────
+  useEffect(() => {
+    const channel = supabase
+      .channel('field-sales-rep-locations')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_locations' }, (payload) => {
+        const loc = payload.new;
+        if (!loc?.truck_id?.startsWith('REP-')) return;   // ignore truck rows
+        setLiveRepPositions(prev => ({ ...prev, [loc.truck_id]: loc }));
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED')                           setRealtimeStatus('live');
+        else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') setRealtimeStatus('error');
+      });
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   // Quick Create: "New Order" from sidebar — jump to Order Entry (customer picker first)
   useEffect(() => {
@@ -623,6 +692,15 @@ export default function FieldSalesPortal() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* GPS status badge */}
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${
+            gpsStatus === 'active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+            gpsStatus === 'error'  ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                                     'bg-gray-700/50 text-gray-500 border-gray-700'
+          }`}>
+            <Navigation className="w-3 h-3" />
+            {gpsStatus === 'active' ? 'GPS Live' : gpsStatus === 'error' ? 'GPS Off' : 'GPS…'}
+          </span>
           {outbox.length > 0 && (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs font-bold">
               <UploadCloud className="w-3 h-3" /> {outbox.length} queued
@@ -666,9 +744,9 @@ export default function FieldSalesPortal() {
       </div>
 
       {/* Section content */}
-      <div className="flex-1 overflow-auto">
+      <div className={section === 'map' ? 'flex-1 overflow-hidden flex flex-col min-h-0' : 'flex-1 overflow-auto'}>
         {section === 'today'       && <TodaySection customers={customers} todayPlan={TODAY_PLAN} mtdRevenue={mtdRevenue} mtdCommission={mtdCommission} mtdOrders={mtdOrders} quotaTarget={quotaTarget} quotaProgress={quotaProgress} visitsThisWeek={visitsThisWeek} orders={orders} openCustomer={openCustomer} onStartOrder={startNewOrderForCustomer} activeRep={activeRep} />}
-        {section === 'map'         && <MapSection customers={customers} leads={leads} rep={REP} openCustomer={openCustomer} onAddLead={() => setShowAddLead(true)} onSelectLead={(id) => { setSelectedLeadId(id); setSection('leads'); }} />}
+        {section === 'map'         && <MapSection customers={customers} leads={leads} rep={activeRep} gpsPosition={gpsPosition} gpsStatus={gpsStatus} liveRepPositions={liveRepPositions} realtimeStatus={realtimeStatus} openCustomer={openCustomer} onAddLead={() => setShowAddLead(true)} onSelectLead={(id) => { setSelectedLeadId(id); setSection('leads'); }} />}
         {section === 'accounts'    && (
           selectedCustomer
             ? <AccountDetailSection customer={selectedCustomer} orders={ordersForCustomer(selectedCustomer.id)} activities={activitiesForCustomer(selectedCustomer.id)} onBack={() => setSelectedCustomerId(null)} onStartOrder={() => startNewOrderForCustomer(selectedCustomer.id)} onCollectPayment={() => setShowPayment(true)} onOpenOrder={(oid) => { setSelectedOrderId(oid); }} selectedOrder={selectedOrder} onCloseOrder={() => setSelectedOrderId(null)} onLogActivity={(type, note) => logActivity(selectedCustomer.id, type, note)} onDirectEditOrder={directEditOrder} onRequestChange={() => setShowChangeRequest(true)} setCustomers={setCustomers} showToast={showToast} />
@@ -856,34 +934,165 @@ function KPITile({ label, value, sub, color = 'cyan' }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SECTION: MAP
+// SECTION: MAP  — Leaflet live GPS map
 // ─────────────────────────────────────────────────────────────────────────────
-function MapSection({ customers, leads, rep, openCustomer, onAddLead, onSelectLead }) {
-  const [filter, setFilter] = useState('all');  // all | leads | accounts | at-risk | overdue-visit
-  const visibleCustomers = useMemo(() => {
-    if (filter === 'leads') return [];
-    if (filter === 'accounts') return customers;
-    if (filter === 'at-risk') return customers.filter(c => c.status === 'At Risk');
-    if (filter === 'overdue-visit') return customers.filter(c => daysSince(c.lastVisitDate) > 14);
-    return customers;
-  }, [customers, filter]);
-  const visibleLeads = (filter === 'all' || filter === 'leads') ? leads : [];
+
+// Default center: New Orleans metro
+const NEW_ORLEANS = [29.9511, -90.0715];
+
+function SalesRepLiveMap({ gpsPosition, liveRepPositions, repId, repName, customers, leads, openCustomer, onSelectLead }) {
+  const mapContainerRef = useRef(null);
+  const mapRef          = useRef(null);
+  const youMarkerRef    = useRef(null);
+  const repMarkersRef   = useRef({});   // truck_id → L.marker
+  const customerMarkersRef = useRef({}); // cust.id → L.marker
+
+  // ── Init Leaflet once ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (mapRef.current || !mapContainerRef.current) return;
+    if (!window.L) return;
+
+    const L = window.L;
+    const center = gpsPosition ? [gpsPosition.lat, gpsPosition.lng] : NEW_ORLEANS;
+    const map = L.map(mapContainerRef.current, { center, zoom: 13, zoomControl: true });
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap contributors © CARTO',
+      maxZoom: 19,
+    }).addTo(map);
+
+    mapRef.current = map;
+
+    // ── "YOU" pulsing marker ─────────────────────────────────────────────────
+    const youIcon = L.divIcon({
+      className: '',
+      html: `<div style="width:18px;height:18px;border-radius:50%;background:#06b6d4;border:3px solid #0e7490;box-shadow:0 0 0 4px rgba(6,182,212,0.35);position:relative;">
+               <div style="position:absolute;inset:0;border-radius:50%;background:#06b6d4;animation:ping 1.5s ease-in-out infinite;opacity:0.5;"></div>
+             </div>`,
+      iconSize: [18, 18],
+      iconAnchor: [9, 9],
+    });
+
+    if (!document.getElementById('fsp-leaflet-ping')) {
+      const style = document.createElement('style');
+      style.id = 'fsp-leaflet-ping';
+      style.textContent = `@keyframes ping{0%{transform:scale(1);opacity:.6}70%{transform:scale(2.2);opacity:0}100%{transform:scale(2.2);opacity:0}}`;
+      document.head.appendChild(style);
+    }
+
+    const youMarker = L.marker(center, { icon: youIcon, zIndexOffset: 1000 })
+      .bindPopup(`<b style="color:#06b6d4">YOU</b><br><span style="color:#9ca3af;font-size:11px">${repName}</span>`)
+      .addTo(map);
+    youMarkerRef.current = youMarker;
+
+    return () => { map.remove(); mapRef.current = null; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);  // run once
+
+  // ── Update "YOU" marker when gpsPosition changes ──────────────────────────
+  useEffect(() => {
+    if (!mapRef.current || !youMarkerRef.current || !gpsPosition) return;
+    const ll = [gpsPosition.lat, gpsPosition.lng];
+    youMarkerRef.current.setLatLng(ll);
+    mapRef.current.panTo(ll, { animate: true, duration: 1 });
+  }, [gpsPosition]);
+
+  // ── Other reps markers ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!mapRef.current || !window.L) return;
+    const L = window.L;
+    const myTruckId = `REP-${repId}`;
+
+    Object.values(liveRepPositions).forEach(loc => {
+      if (loc.truck_id === myTruckId) return;   // skip self
+      const ll = [parseFloat(loc.lat), parseFloat(loc.lng)];
+      const initials = (loc.driver_name || 'R').split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="width:32px;height:32px;border-radius:50%;background:#0891b2;border:2px solid #06b6d4;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.5)">${initials}</div>`,
+        iconSize: [32, 32], iconAnchor: [16, 16],
+      });
+      if (repMarkersRef.current[loc.truck_id]) {
+        repMarkersRef.current[loc.truck_id].setLatLng(ll);
+      } else {
+        repMarkersRef.current[loc.truck_id] = L.marker(ll, { icon })
+          .bindPopup(`<b style="color:#06b6d4">${loc.driver_name || 'Rep'}</b>`)
+          .addTo(mapRef.current);
+      }
+    });
+  }, [liveRepPositions, repId]);
+
+  // ── Customer markers (only if they have real geocoded lat/lng) ─────────────
+  useEffect(() => {
+    if (!mapRef.current || !window.L) return;
+    const L = window.L;
+    customers.forEach(c => {
+      if (!c.lat || !c.lng) return;   // skip if not geocoded
+      if (customerMarkersRef.current[c.id]) return;
+      const color = c.creditHold ? '#f43f5e' : c.status === 'At Risk' ? '#f59e0b' : '#10b981';
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="width:28px;height:28px;border-radius:50%;background:${color};border:2px solid #111827;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>`,
+        iconSize: [28, 28], iconAnchor: [14, 14],
+      });
+      customerMarkersRef.current[c.id] = L.marker([c.lat, c.lng], { icon })
+        .bindPopup(`<b style="color:#e5e7eb">${c.name}</b><br><span style="color:#9ca3af;font-size:11px">${fmtCompact(c.ytdSpend)} YTD</span>`)
+        .on('click', () => openCustomer(c.id))
+        .addTo(mapRef.current);
+    });
+  }, [customers, openCustomer]);
 
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-4">
-      {/* Header */}
-      <div className="flex items-start justify-between flex-wrap gap-3">
+    <div ref={mapContainerRef} style={{ position: 'absolute', inset: 0 }} />
+  );
+}
+
+function MapSection({ customers, leads, rep, gpsPosition, gpsStatus, liveRepPositions, realtimeStatus, openCustomer, onAddLead, onSelectLead }) {
+  const [filter, setFilter] = useState('all');
+  const [leafletReady, setLeafletReady] = useState(!!window.L);
+
+  // Lazy-load Leaflet CSS + JS if not already present
+  useEffect(() => {
+    if (window.L) { setLeafletReady(true); return; }
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(link);
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.onload = () => setLeafletReady(true);
+    document.head.appendChild(script);
+  }, []);
+
+  const otherReps = Object.values(liveRepPositions).filter(loc => loc.truck_id !== `REP-${rep.id}`);
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Header toolbar */}
+      <div className="px-6 py-3 border-b border-gray-800 flex items-center justify-between flex-wrap gap-3 shrink-0">
         <div>
-          <h2 className="text-xl font-bold text-gray-100 flex items-center gap-2"><MapIcon className="w-5 h-5 text-cyan-500" /> Territory Map</h2>
-          <p className="text-sm text-gray-500 mt-0.5">{rep.territory} · {customers.length} accounts · {leads.length} leads in pipeline</p>
+          <h2 className="text-lg font-bold text-gray-100 flex items-center gap-2"><MapIcon className="w-4 h-4 text-cyan-500" /> Live Territory Map</h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {customers.length} accounts · {leads.length} leads
+            {otherReps.length > 0 && ` · ${otherReps.length} rep${otherReps.length > 1 ? 's' : ''} in field`}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Realtime badge */}
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${
+            realtimeStatus === 'live'  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+            realtimeStatus === 'error' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                                         'bg-gray-700/50 text-gray-500 border-gray-700'
+          }`}>
+            <Activity className="w-3 h-3" />
+            {realtimeStatus === 'live' ? 'Realtime' : realtimeStatus === 'error' ? 'RT Error' : 'Connecting…'}
+          </span>
           {[
-            { id: 'all', label: 'All' },
-            { id: 'accounts', label: 'Accounts' },
-            { id: 'leads', label: 'Leads' },
-            { id: 'at-risk', label: 'At Risk' },
-            { id: 'overdue-visit', label: 'Overdue Visits' },
+            { id: 'all',           label: 'All' },
+            { id: 'accounts',      label: 'Accounts' },
+            { id: 'leads',         label: 'Leads' },
+            { id: 'at-risk',       label: 'At Risk' },
+            { id: 'overdue-visit', label: 'Overdue' },
           ].map(f => (
             <button key={f.id} onClick={() => setFilter(f.id)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${filter === f.id ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-gray-500 hover:text-gray-200 border border-transparent hover:bg-gray-800/60'}`}>
               {f.label}
@@ -893,63 +1102,61 @@ function MapSection({ customers, leads, rep, openCustomer, onAddLead, onSelectLe
         </div>
       </div>
 
-      {/* Map */}
-      <div className={`${UI.card} relative overflow-hidden`} style={{ height: '60vh', minHeight: '480px' }}>
-        {/* Grid + faint streets effect */}
-        <div className="absolute inset-0" style={{ background: 'radial-gradient(circle at 50% 50%, rgba(8,145,178,0.06) 0, transparent 70%), repeating-linear-gradient(0deg, rgba(75,85,99,0.06) 0 1px, transparent 1px 60px), repeating-linear-gradient(90deg, rgba(75,85,99,0.06) 0 1px, transparent 1px 60px)' }} />
-        {/* Stylized streets */}
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full pointer-events-none opacity-30">
-          <path d="M0,42 L100,38" stroke="#475569" strokeWidth="0.3" fill="none" />
-          <path d="M0,68 L100,62" stroke="#475569" strokeWidth="0.3" fill="none" />
-          <path d="M28,0 L32,100" stroke="#475569" strokeWidth="0.3" fill="none" />
-          <path d="M58,0 L62,100" stroke="#475569" strokeWidth="0.3" fill="none" />
-          <path d="M82,0 L84,100" stroke="#475569" strokeWidth="0.3" fill="none" />
-        </svg>
-
-        {/* Rep "you" marker */}
-        <div className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none z-10" style={{ left: `${rep.deviceLocation.x}%`, top: `${rep.deviceLocation.y}%` }}>
-          <div className="w-4 h-4 rounded-full bg-cyan-500 border-2 border-gray-950 shadow-lg relative">
-            <div className="absolute inset-0 rounded-full bg-cyan-500 animate-ping opacity-60" />
+      {/* Map container */}
+      <div className="flex-1 relative min-h-0" style={{ minHeight: '480px' }}>
+        {/* GPS status overlay if no position yet */}
+        {gpsStatus !== 'active' && !gpsPosition && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-gray-950/80 backdrop-blur-sm pointer-events-none">
+            <Navigation className={`w-8 h-8 mb-2 ${gpsStatus === 'error' ? 'text-rose-400' : 'text-cyan-400 animate-pulse'}`} />
+            <p className="text-sm font-bold text-gray-300">{gpsStatus === 'error' ? 'GPS unavailable — allow location access' : 'Acquiring GPS…'}</p>
+            <p className="text-xs text-gray-500 mt-1">Map will center on your position once GPS locks</p>
           </div>
-          <div className="mt-1 px-2 py-0.5 bg-gray-900 border border-gray-700 rounded text-[9px] font-bold text-cyan-400">YOU</div>
-        </div>
+        )}
 
-        {/* Customer pins */}
-        {visibleCustomers.map(c => {
-          const color = c.creditHold ? 'bg-rose-500' : c.status === 'At Risk' ? 'bg-amber-500' : 'bg-emerald-500';
-          return (
-            <button key={c.id} onClick={() => openCustomer(c.id)} className="absolute -translate-x-1/2 -translate-y-1/2 group z-20" style={{ left: `${c.location.x}%`, top: `${c.location.y}%` }}>
-              <div className={`p-2 rounded-full text-gray-950 shadow-lg ${color} hover:scale-110 transition-transform`}>
-                <Building2 className="w-4 h-4" />
-              </div>
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 px-2 py-1 bg-gray-900 border border-gray-700 rounded-lg text-[10px] font-bold text-gray-100 whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity shadow-xl">
-                {c.name}
-                <span className="block text-[9px] font-normal text-gray-500">{fmtCompact(c.ytdSpend)} YTD</span>
-              </div>
-            </button>
-          );
-        })}
+        {leafletReady ? (
+          <SalesRepLiveMap
+            gpsPosition={gpsPosition}
+            liveRepPositions={liveRepPositions}
+            repId={rep.id}
+            repName={rep.name}
+            customers={customers}
+            leads={leads}
+            openCustomer={openCustomer}
+            onSelectLead={onSelectLead}
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-gray-500 text-sm animate-pulse">Loading map…</div>
+          </div>
+        )}
 
-        {/* Lead pins */}
-        {visibleLeads.map(l => (
-          <button key={l.id} onClick={() => onSelectLead(l.id)} className="absolute -translate-x-1/2 -translate-y-1/2 group z-20" style={{ left: `${l.location.x}%`, top: `${l.location.y}%` }}>
-            <div className="p-2 rounded-full text-gray-950 bg-sky-400 shadow-lg hover:scale-110 transition-transform border-2 border-dashed border-gray-950">
-              <MapPin className="w-4 h-4" />
-            </div>
-            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 px-2 py-1 bg-gray-900 border border-sky-500/30 rounded-lg text-[10px] font-bold text-sky-400 whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity shadow-xl">
-              {l.name}
-              <span className="block text-[9px] font-normal text-gray-500">Est. {fmtCompact(l.estValue)}/yr · {l.stage}</span>
-            </div>
-          </button>
-        ))}
+        {/* Other reps panel */}
+        {otherReps.length > 0 && (
+          <div className="absolute top-4 right-4 z-[9999] bg-gray-900/95 backdrop-blur border border-gray-700 rounded-xl p-3 shadow-2xl min-w-[180px]">
+            <p className="text-[10px] uppercase font-bold text-gray-500 mb-2 flex items-center gap-1.5"><Activity className="w-3 h-3 text-cyan-500" /> Reps in Field</p>
+            {otherReps.map(loc => {
+              const initials = (loc.driver_name || 'R').split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
+              const mins = Math.floor((Date.now() - new Date(loc.updated_at).getTime()) / 60000);
+              return (
+                <div key={loc.truck_id} className="flex items-center gap-2 py-1">
+                  <div className="w-7 h-7 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center text-[10px] font-bold shrink-0">{initials}</div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-gray-200 truncate">{loc.driver_name || loc.truck_id}</p>
+                    <p className="text-[10px] text-gray-500">{mins < 2 ? 'Just now' : `${mins}m ago`}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Legend */}
-        <div className="absolute bottom-4 left-4 bg-gray-900/90 backdrop-blur border border-gray-700 rounded-lg p-3 text-xs space-y-1.5 shadow-2xl z-30">
+        <div className="absolute bottom-4 left-4 z-[9999] bg-gray-900/95 backdrop-blur border border-gray-700 rounded-lg p-3 text-xs space-y-1.5 shadow-2xl">
+          <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-cyan-500" /><span className="text-gray-300">You (live GPS)</span></div>
+          <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-cyan-700" /><span className="text-gray-300">Other rep</span></div>
           <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-emerald-500" /><span className="text-gray-300">Active account</span></div>
           <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-amber-500" /><span className="text-gray-300">At risk</span></div>
           <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-rose-500" /><span className="text-gray-300">Credit hold</span></div>
-          <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-sky-400 border border-dashed border-gray-300" /><span className="text-gray-300">Lead</span></div>
-          <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-cyan-500" /><span className="text-gray-300">You</span></div>
         </div>
       </div>
     </div>

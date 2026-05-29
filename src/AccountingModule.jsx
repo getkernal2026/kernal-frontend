@@ -936,6 +936,44 @@ export default function AccountingModule() {
     orderId:  row.order_id            || null,
   });
 
+  // ── Row mappers — bank accounts / checks / expenses ──────────────────────────
+  const mapApiBankAccount = (r) => ({
+    _id:         r.id,
+    id:          r.id,
+    name:        r.name,
+    number:      r.number      || '',
+    balance:     Number(r.balance) || 0,
+    bank:        r.bank        || '',
+    routing:     r.routing     || '',
+    type:        r.type        || 'Checking',
+    creditLimit: r.credit_limit != null ? Number(r.credit_limit) : undefined,
+  });
+
+  const mapApiCheck = (r) => ({
+    _id:       r.id,
+    id:        `CHK-${r.check_number}`,
+    num:       r.check_number,
+    date:      r.check_date,
+    payee:     r.payee,
+    amount:    Number(r.amount),
+    memo:      r.memo    || '',
+    accountId: r.account_id || '',
+    status:    r.status  || 'Outstanding',
+    glCode:    r.gl_code || '',
+  });
+
+  const mapApiExpense = (r) => ({
+    _id:         r.id,
+    id:          r.id,
+    date:        r.expense_date,
+    description: r.description,
+    amount:      Number(r.amount),
+    accountId:   r.account_id || '',
+    vendor:      r.vendor     || '',
+    category:    r.category   || '',
+    glCode:      r.gl_code    || '',
+  });
+
   // ── Seed invoices from API on mount ──────────────────────────────────────────
   useEffect(() => {
     if (DEMO_MODE) return;
@@ -943,6 +981,20 @@ export default function AccountingModule() {
       .then(r => { if (r.data?.length) setInvoices(r.data.map(mapApiInvoice)); })
       .catch(() => {});
   }, []);
+
+  // ── Fetch bank accounts, checks, expenses on mount ───────────────────────────
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    api.accounting.bankAccounts.list()
+      .then(r => { const rows = r?.data || r; if (Array.isArray(rows) && rows.length) setBankAccounts(rows.map(mapApiBankAccount)); })
+      .catch(() => {});
+    api.accounting.checks.list({ limit: 500 })
+      .then(r => { if (r?.data?.length) setChecks(r.data.map(mapApiCheck)); })
+      .catch(() => {});
+    api.accounting.expenses.list({ limit: 500 })
+      .then(r => { if (r?.data?.length) setExpenses(r.data.map(mapApiExpense)); })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load today's close-out routes from API ────────────────────────────────
   const loadCloseoutRoutes = useCallback((date) => {
@@ -1306,17 +1358,38 @@ export default function AccountingModule() {
     const amt  = parseFloat(form.amount);
     if (!form.payee || !amt) return;
     const maxNum = checks.reduce((m, c) => Math.max(m, c.num), 1046);
+    const nextNum = maxNum + 1;
+    const acctId  = form.accountId;
     const newCheck = {
-      id: `CHK-${maxNum + 1}`, num: maxNum + 1,
+      id: `CHK-${nextNum}`, num: nextNum,
       date: form.date, payee: form.payee,
       amount: amt, memo: form.memo,
-      accountId: form.accountId, glCode: form.glCode,
+      accountId: acctId, glCode: form.glCode,
       status: 'Outstanding',
     };
     setChecks(prev => [newCheck, ...prev]);
-    setBankAccounts(prev => prev.map(a => a.id === form.accountId ? { ...a, balance: a.balance - amt } : a));
-    showToast(`Check #${newCheck.num} written for ${fmt(amt)}`);
+    setBankAccounts(prev => prev.map(a => a.id === acctId ? { ...a, balance: a.balance - amt } : a));
+    showToast(`Check #${nextNum} written for ${fmt(amt)}`);
     closeModal();
+
+    if (!DEMO_MODE) {
+      api.accounting.checks.create({
+        check_number: nextNum,
+        check_date:   form.date,
+        payee:        form.payee,
+        amount:       amt,
+        memo:         form.memo  || null,
+        account_id:   acctId     || null,
+        gl_code:      form.glCode || null,
+      }).then(r => {
+        const row = r?.data || r;
+        if (row?.id) setChecks(prev => prev.map(c => c.id === newCheck.id ? { ...mapApiCheck(row), id: newCheck.id, num: nextNum } : c));
+        // Re-fetch bank balance to stay in sync
+        api.accounting.bankAccounts.list()
+          .then(res => { const rows = res?.data || res; if (Array.isArray(rows) && rows.length) setBankAccounts(rows.map(mapApiBankAccount)); })
+          .catch(() => {});
+      }).catch(() => {});
+    }
   }, [checkForm, checks, closeModal, showToast]);
 
   const handleVoidCheck = useCallback((checkId) => {
@@ -1336,6 +1409,16 @@ export default function AccountingModule() {
       severity: 'warning',
     });
     showToast(`Check #${chk.num} voided`, 'warning');
+
+    if (!DEMO_MODE && chk._id) {
+      api.accounting.checks.updateStatus(chk._id, 'Void')
+        .then(() => {
+          api.accounting.bankAccounts.list()
+            .then(res => { const rows = res?.data || res; if (Array.isArray(rows) && rows.length) setBankAccounts(rows.map(mapApiBankAccount)); })
+            .catch(() => {});
+        })
+        .catch(() => {});
+    }
   }, [checks, showToast, logAudit]);
 
   const handleCreateInvoice = useCallback((e) => {
@@ -1497,20 +1580,54 @@ export default function AccountingModule() {
     const form = expForm;
     const amt  = parseFloat(form.amount);
     if (!form.vendor || !amt) return;
-    const newExp = { id: `EXP-${String(Date.now()).slice(-4)}`, ...form, amount: amt };
-    setExpenses(prev => [newExp, ...prev]);
+    const optimistic = { id: `EXP-${String(Date.now()).slice(-4)}`, ...form, amount: amt };
+    setExpenses(prev => [optimistic, ...prev]);
     setBankAccounts(prev => prev.map(a => a.id === form.accountId ? { ...a, balance: a.balance - amt } : a));
     showToast(`Expense of ${fmt(amt)} recorded`);
     closeModal();
+
+    if (!DEMO_MODE) {
+      api.accounting.expenses.create({
+        expense_date: form.date,
+        description:  form.description,
+        amount:       amt,
+        account_id:   form.accountId || null,
+        vendor:       form.vendor    || null,
+        category:     form.category  || null,
+        gl_code:      form.glCode    || null,
+      }).then(r => {
+        const row = r?.data || r;
+        if (row?.id) setExpenses(prev => prev.map(x => x.id === optimistic.id ? mapApiExpense(row) : x));
+        api.accounting.bankAccounts.list()
+          .then(res => { const rows = res?.data || res; if (Array.isArray(rows) && rows.length) setBankAccounts(rows.map(mapApiBankAccount)); })
+          .catch(() => {});
+      }).catch(() => {});
+    }
   }, [expForm, closeModal, showToast]);
 
   const handleAddBankAccount = useCallback((e) => {
     e.preventDefault();
     const form = bankForm;
-    const newBA = { ...form, id: `BA${String(Date.now()).slice(-4)}`, balance: parseFloat(form.balance) || 0 };
-    setBankAccounts(prev => [...prev, newBA]);
+    const bal  = parseFloat(form.balance) || 0;
+    const optimistic = { ...form, id: `BA${String(Date.now()).slice(-4)}`, balance: bal };
+    setBankAccounts(prev => [...prev, optimistic]);
     showToast('Bank account added');
     closeModal();
+
+    if (!DEMO_MODE) {
+      api.accounting.bankAccounts.create({
+        name:         form.name,
+        number:       form.number   || null,
+        balance:      bal,
+        bank:         form.bank     || null,
+        routing:      form.routing  || null,
+        type:         form.type     || 'Checking',
+        credit_limit: form.creditLimit != null ? Number(form.creditLimit) : null,
+      }).then(r => {
+        const row = r?.data || r;
+        if (row?.id) setBankAccounts(prev => prev.map(a => a.id === optimistic.id ? mapApiBankAccount(row) : a));
+      }).catch(() => {});
+    }
   }, [bankForm, closeModal, showToast]);
 
   const handleStartReconcile = useCallback((e) => {
