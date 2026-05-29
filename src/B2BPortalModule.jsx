@@ -685,8 +685,10 @@ export default function B2BPortalModule() {
         const profile = await api.b2b.me();
         setCurrentCustomer(profile);
       } catch {
-        // Session expired or profile missing — stay on login screen
-        await supabase.auth.signOut();
+        // api.b2b.me() failed — either the session belongs to an admin user
+        // (not a B2B customer) or the B2B profile doesn't exist.
+        // Do NOT call signOut() here — that would destroy the admin session.
+        // Just stay on the B2B login screen with no current customer set.
       }
     });
   }, []);

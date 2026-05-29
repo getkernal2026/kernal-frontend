@@ -228,9 +228,10 @@ function EmbeddedFleetMap({ isDark }) {
     const embeddedMapIntervalHandle = setInterval(() => setTick(prev => prev + 1), 2000);
     return () => clearInterval(embeddedMapIntervalHandle);
   }, []);
+  const _baseRoutes = DEMO_MODE ? INIT_ROUTES : [];
   const visibleRoutes = activeLocation === 'all'
-    ? INIT_ROUTES
-    : INIT_ROUTES.filter(r => r.locationId === activeLocation);
+    ? _baseRoutes
+    : _baseRoutes.filter(r => r.locationId === activeLocation);
   const locMeta = LOCATIONS.find(l => l.id === activeLocation);
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -242,7 +243,7 @@ function EmbeddedFleetMap({ isDark }) {
             {locMeta.short}
           </span>
         )}
-        <span className="text-xs text-gray-500">Powered by Fleet Intelligence · Traccar telemetry</span>
+        <span className="text-xs text-gray-500">Powered by Fleet Intelligence · Supabase Realtime GPS</span>
       </div>
       <div className="flex-1 min-h-0">
         <MapView
@@ -1282,6 +1283,58 @@ function DriverApp({ orders, setOrders, fleet, isOnline, syncQueue, setSyncQueue
   const [signInTime,        setSignInTime]        = useState('');
   const [paymentData,       setPaymentData]       = useState({});
 
+  // ── GPS tracking ─────────────────────────────────────────────────────────────
+  // 'idle' | 'acquiring' | 'active' | 'denied' | 'unavailable'
+  const [gpsStatus, setGpsStatus]   = useState('idle');
+  const gpsWatchIdRef = useRef(null);   // navigator.geolocation watchPosition ID
+  const gpsLastPostRef = useRef(0);     // timestamp of last POST (throttle to 10s)
+
+  useEffect(() => {
+    if (DEMO_MODE || !activeDriverTruck) return;
+    if (!navigator.geolocation) { setGpsStatus('unavailable'); return; }
+
+    setGpsStatus('acquiring');
+
+    gpsWatchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        setGpsStatus('active');
+        const now = Date.now();
+        // Throttle: POST at most once every 10 seconds
+        if (now - gpsLastPostRef.current < 10_000) return;
+        gpsLastPostRef.current = now;
+
+        const { latitude, longitude, heading, speed, accuracy } = pos.coords;
+        const truckRow = fleet.find(t => t.truckId === activeDriverTruck);
+
+        api.logistics.driverLocation({
+          truck_id:    activeDriverTruck,
+          route_id:    activeRouteId || null,
+          driver_name: truckRow?.driver || null,
+          lat:         latitude,
+          lng:         longitude,
+          heading:     heading  != null ? heading  : null,
+          // speed comes in m/s from the browser; convert to mph
+          speed_mph:   speed    != null ? speed * 2.23694 : null,
+          accuracy_m:  accuracy != null ? accuracy : null,
+        }).catch(err => console.warn('[GPS] POST failed:', err));
+      },
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) setGpsStatus('denied');
+        else setGpsStatus('unavailable');
+        console.warn('[GPS] watchPosition error:', err.message);
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+    );
+
+    return () => {
+      if (gpsWatchIdRef.current != null) {
+        navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+        gpsWatchIdRef.current = null;
+      }
+      setGpsStatus('idle');
+    };
+  }, [activeDriverTruck]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const dispatchedTrucks = fleet.filter(t => t.status === 'Dispatched');
 
   if (!activeDriverTruck) {
@@ -1483,6 +1536,28 @@ function DriverApp({ orders, setOrders, fleet, isOnline, syncQueue, setSyncQueue
       {isOnline && syncQueue.length > 0 && (
         <div className="bg-emerald-400/10 border-b border-emerald-400/20 text-emerald-400 text-xs font-bold px-4 py-2 flex items-center justify-center gap-2">
           <RefreshCw className="w-4 h-4 animate-spin" /> Syncing {syncQueue.length} pending action{syncQueue.length !== 1 ? 's' : ''}…
+        </div>
+      )}
+
+      {/* GPS status banner — live mode only */}
+      {!DEMO_MODE && gpsStatus === 'acquiring' && (
+        <div className="bg-cyan-500/8 border-b border-cyan-500/15 text-cyan-500 text-xs font-medium px-4 py-1.5 flex items-center justify-center gap-1.5">
+          <Navigation className="w-3 h-3 animate-pulse" /> Acquiring GPS signal…
+        </div>
+      )}
+      {!DEMO_MODE && gpsStatus === 'active' && (
+        <div className="bg-emerald-500/8 border-b border-emerald-500/15 text-emerald-400 text-xs font-medium px-4 py-1.5 flex items-center justify-center gap-1.5">
+          <Navigation className="w-3 h-3" /> GPS active — location sharing on
+        </div>
+      )}
+      {!DEMO_MODE && gpsStatus === 'denied' && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 text-amber-400 text-xs font-medium px-4 py-1.5 flex items-center justify-center gap-1.5">
+          <AlertCircle className="w-3 h-3" /> GPS permission denied — dispatch cannot see your location
+        </div>
+      )}
+      {!DEMO_MODE && gpsStatus === 'unavailable' && (
+        <div className="bg-gray-700/30 border-b border-gray-700 text-gray-500 text-xs font-medium px-4 py-1.5 flex items-center justify-center gap-1.5">
+          <Navigation className="w-3 h-3" /> GPS unavailable on this device
         </div>
       )}
 

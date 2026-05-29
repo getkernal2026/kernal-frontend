@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useKernal } from './KernalContext.jsx';
 import { UI } from './ui.js';
+import { DEMO_MODE } from './lib/demoMode.js';
+import { supabase } from './lib/supabase.js';
+import { api } from './lib/api.js';
 import {
   MapPin, Truck, Wifi, WifiOff, Navigation, CheckCircle2, Clock, AlertCircle,
   RotateCcw, Zap, Radio, Activity, ChevronDown, ChevronUp, ArrowRight,
@@ -87,6 +90,10 @@ export const INIT_ROUTES = [
   },
 ];
 
+// Production: show no routes unless DEMO_MODE is on (real GPS data not yet wired).
+// ACTIVE_ROUTES stays exported so LogisticsModule can reference the constant directly.
+const ACTIVE_ROUTES = DEMO_MODE ? INIT_ROUTES : [];
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function haversineKm(a, b) {
   const R = 6371;
@@ -143,7 +150,10 @@ const STOP_STATUS = {
 
 // ── Map View ───────────────────────────────────────────────────────────────────
 // Exported so LogisticsModule can embed it in the Delivery Operations dispatcher view
-export function MapView({ routes, tick, isDark, selectedId, onSelect }) {
+// livePositions: { [route_id]: { lat, lng, truck_id, speed_mph, heading } }
+//   — passed in from the parent after a Realtime subscription; if absent, falls
+//     back to the tick-based demo animation.
+export function MapView({ routes, tick, isDark, selectedId, onSelect, livePositions = {} }) {
   const containerRef = useRef(null);
   const mapRef       = useRef(null);
   const markersRef   = useRef({});
@@ -217,7 +227,7 @@ export function MapView({ routes, tick, isDark, selectedId, onSelect }) {
       .bindPopup(`<b>${DEPOT.name}</b><br/>${DEPOT.address}`);
 
     // Routes: polylines + stop markers + truck markers
-    INIT_ROUTES.forEach(route => {
+    ACTIVE_ROUTES.forEach(route => {
       const waypoints = [DEPOT, ...route.stops, DEPOT];
       const latlngs = waypoints.map(w => [w.lat, w.lng]);
       L.polyline(latlngs, { color: route.color, weight: 3, opacity: 0.55, dashArray: '6,4' }).addTo(map);
@@ -258,24 +268,27 @@ export function MapView({ routes, tick, isDark, selectedId, onSelect }) {
     };
   }, [ready]); // eslint-disable-line
 
-  // Animate trucks on tick
+  // Animate trucks — prefer live GPS positions, fall back to tick-based demo
   useEffect(() => {
     if (!mapRef.current) return;
-    INIT_ROUTES.forEach(route => {
+    ACTIVE_ROUTES.forEach(route => {
       const marker = markersRef.current[route.id];
       if (!marker) return;
-      const pos = getTruckPos(route, tick);
+      // Live GPS position takes priority over simulated movement
+      const live = livePositions[route.id];
+      const pos  = live ? { lat: live.lat, lng: live.lng } : getTruckPos(route, tick);
       marker.setLatLng([pos.lat, pos.lng]);
       marker.setIcon(truckIcon(route.color, route.id === selectedId));
     });
-  }, [tick, selectedId, truckIcon]);
+  }, [tick, selectedId, truckIcon, livePositions]);
 
   // Pan to selected route
   useEffect(() => {
     if (!mapRef.current || !selectedId) return;
-    const route = INIT_ROUTES.find(r => r.id === selectedId);
+    const route = ACTIVE_ROUTES.find(r => r.id === selectedId);
     if (!route) return;
-    const pos = getTruckPos(route, tick);
+    const live = livePositions[route.id];
+    const pos  = live ? { lat: live.lat, lng: live.lng } : getTruckPos(route, tick);
     mapRef.current.panTo([pos.lat, pos.lng], { animate: true, duration: 0.8 });
   }, [selectedId]); // eslint-disable-line
 
@@ -300,7 +313,7 @@ function RouteOptimizerView({ isDark }) {
   const [optimized, setOptimized] = useState(null);
   const [running, setRunning] = useState(false);
 
-  const route = INIT_ROUTES.find(r => r.id === selectedRouteId);
+  const route = ACTIVE_ROUTES.find(r => r.id === selectedRouteId);
   const origDist = useMemo(() => route ? totalDistance(route.stops) : 0, [route]);
   const optDist  = useMemo(() => optimized ? totalDistance(optimized) : null, [optimized]);
   const saving   = optDist ? ((origDist - optDist) / origDist * 100).toFixed(1) : null;
@@ -327,7 +340,7 @@ function RouteOptimizerView({ isDark }) {
 
       {/* Route selector */}
       <div className="flex gap-2 flex-wrap">
-        {INIT_ROUTES.map(r => (
+        {ACTIVE_ROUTES.map(r => (
           <button key={r.id} onClick={() => { setSelectedRouteId(r.id); setOptimized(null); }}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${selectedRouteId===r.id ? 'border-transparent text-white' : `${card} ${sub}`}`}
             style={selectedRouteId===r.id ? { background: r.color, borderColor: r.color } : {}}>
@@ -515,55 +528,68 @@ function FleetStatusView({ routes, tick, isDark }) {
   );
 }
 
-// ── Traccar Hub ─────────────────────────────────────────────────────────────────
-function TraccarHubView({ routes, tick, isDark }) {
-  const [pings, setPings] = useState(() => [
-    { id:1, truck:'Truck #1', plate:'XK-4821', color:'#22d3ee', lat:27.9512, lng:-82.4601, speed:23, signal:'4G LTE', ts:'10:23:14.892', battery:87 },
-    { id:2, truck:'Truck #2', plate:'MR-7734', color:'#a78bfa', lat:27.9579, lng:-82.4453, speed:0,  signal:'4G LTE', ts:'10:23:17.445', battery:62 },
-    { id:3, truck:'Truck #3', plate:'TL-2265', color:'#34d399', lat:27.9487, lng:-82.5119, speed:31, signal:'4G LTE', ts:'10:23:19.112', battery:74 },
-    { id:4, truck:'Truck #4', plate:'BA-9981', color:'#fbbf24', lat:27.9650, lng:-82.4690, speed:28, signal:'4G LTE', ts:'10:23:21.778', battery:91 },
-  ]);
-
-  // Simulate incoming pings every ~3 seconds
-  useEffect(() => {
-    if (tick % 2 !== 0) return;
-    const routeIdx = tick % INIT_ROUTES.length;
-    const route = INIT_ROUTES[routeIdx];
-    const pos = getTruckPos(route, tick);
-    const now = new Date();
-    const ts = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}.${String(now.getMilliseconds()).padStart(3,'0')}`;
-    const speed = route.status === 'at_stop' ? 0 : Math.round(15 + Math.random() * 25);
-
-    setPings(prev => [
-      { id: Date.now(), truck: route.truck.split(' — ')[0], plate: route.plate, color: route.color, lat: parseFloat(pos.lat.toFixed(4)), lng: parseFloat(pos.lng.toFixed(4)), speed, signal: '4G LTE', ts, battery: Math.round(60 + Math.random() * 35) },
-      ...prev.slice(0, 23),
-    ]);
-  }, [tick]);
-
+// ── GPS Telemetry View ─────────────────────────────────────────────────────────
+// Replaced fake Traccar server UI with real Supabase Realtime feed.
+// Props flow down from GPSDispatchModule which owns the Realtime subscription.
+function GPSTelemetryView({ routes, tick, isDark, pings, realtimeStatus, livePositions }) {
   const card = isDark ? 'bg-gray-800/60 border-gray-700' : 'bg-white border-[#e2e8f0]';
   const sub  = isDark ? 'text-gray-400' : 'text-slate-500';
 
+  // In demo mode, fall back to simulated pings seeded from tick
+  const [demoPings, setDemoPings] = useState(() => DEMO_MODE ? [
+    { id:1, truck_id:'TRK-01', driver_name:'Marcus T.',  color:'#22d3ee', lat:27.9512, lng:-82.4601, speed_mph:23, ts:'10:23:14.892' },
+    { id:2, truck_id:'TRK-02', driver_name:'Darnell W.', color:'#a78bfa', lat:27.9579, lng:-82.4453, speed_mph:0,  ts:'10:23:17.445' },
+    { id:3, truck_id:'TRK-03', driver_name:'Sofia R.',   color:'#34d399', lat:27.9487, lng:-82.5119, speed_mph:31, ts:'10:23:19.112' },
+    { id:4, truck_id:'TRK-04', driver_name:'James P.',   color:'#fbbf24', lat:27.9650, lng:-82.4690, speed_mph:28, ts:'10:23:21.778' },
+  ] : []);
+
+  useEffect(() => {
+    if (!DEMO_MODE || tick % 2 !== 0) return;
+    const route = ACTIVE_ROUTES[tick % ACTIVE_ROUTES.length];
+    const pos   = getTruckPos(route, tick);
+    const now   = new Date();
+    const ts    = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}.${String(now.getMilliseconds()).padStart(3,'0')}`;
+    setDemoPings(prev => [
+      { id: Date.now(), truck_id: route.id, driver_name: route.driver.name, color: route.color,
+        lat: parseFloat(pos.lat.toFixed(5)), lng: parseFloat(pos.lng.toFixed(5)),
+        speed_mph: route.status === 'at_stop' ? 0 : Math.round(15 + Math.random() * 25), ts },
+      ...prev.slice(0, 49),
+    ]);
+  }, [tick]);
+
+  const displayPings = DEMO_MODE ? demoPings : pings;
+
+  // Status indicator config
+  const statusCfg = {
+    live:        { dot: 'bg-emerald-400 animate-pulse', label: 'Live', color: 'text-emerald-400' },
+    connecting:  { dot: 'bg-amber-400 animate-pulse',   label: 'Connecting…', color: 'text-amber-400' },
+    error:       { dot: 'bg-red-400',                   label: 'Disconnected', color: 'text-red-400' },
+    demo:        { dot: 'bg-cyan-400 animate-pulse',    label: 'Demo Mode', color: 'text-cyan-400' },
+  };
+  const sc = statusCfg[realtimeStatus] || statusCfg.connecting;
+
   return (
     <div className="space-y-5 max-w-3xl">
-      {/* Server connection card */}
+      {/* Realtime connection card */}
       <div className={`${card} border rounded-xl p-4`}>
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center"><Radio size={15} className="text-emerald-400" /></div>
+          <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+            <Radio size={15} className="text-emerald-400" />
+          </div>
           <div>
-            <div className={`text-sm font-bold ${isDark?'text-white':'text-slate-900'}`}>Traccar GPS Server</div>
-            <div className={`text-xs ${sub}`}>traccar.metrofood.com:8082</div>
+            <div className={`text-sm font-bold ${isDark?'text-white':'text-slate-900'}`}>Supabase Realtime</div>
+            <div className={`text-xs ${sub}`}>driver_locations · postgres_changes</div>
           </div>
           <div className="ml-auto flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs font-semibold text-emerald-400">Connected</span>
+            <span className={`w-2 h-2 rounded-full ${sc.dot}`} />
+            <span className={`text-xs font-semibold ${sc.color}`}>{sc.label}</span>
           </div>
         </div>
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           {[
-            { label:'Active Devices',   val: '4' },
-            { label:'Pings / min',      val: '48' },
-            { label:'Protocol',         val: 'WebSocket' },
-            { label:'Avg Latency',      val: '38 ms' },
+            { label: 'Active Trucks',  val: routes.length },
+            { label: 'Ping Interval',  val: '10 s' },
+            { label: 'Transport',      val: 'WebSocket' },
           ].map(({ label, val }) => (
             <div key={label} className={`text-center p-2 rounded-lg ${isDark?'bg-gray-900/60':'bg-gray-50'}`}>
               <div className={`text-base font-bold ${isDark?'text-white':'text-slate-900'}`}>{val}</div>
@@ -573,27 +599,33 @@ function TraccarHubView({ routes, tick, isDark }) {
         </div>
       </div>
 
-      {/* Device registry */}
+      {/* Last-known positions */}
       <div>
-        <div className={`text-xs font-bold uppercase tracking-widest mb-2 ${sub}`}>Registered Devices</div>
+        <div className={`text-xs font-bold uppercase tracking-widest mb-2 ${sub}`}>Last Known Positions</div>
         <div className="space-y-2">
           {routes.map(route => {
-            const pos = getTruckPos(route, tick);
-            const sm  = STATUS_META[route.status] || STATUS_META.idle;
+            const live = !DEMO_MODE && livePositions[route.id];
+            const pos  = live ? live : getTruckPos(route, tick);
+            const sm   = STATUS_META[route.status] || STATUS_META.idle;
+            const stale = live && ((Date.now() - new Date(live.updated_at).getTime()) > 5 * 60 * 1000);
             return (
               <div key={route.id} className={`${card} border rounded-xl px-4 py-3 flex items-center gap-3`}>
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: route.color + '22' }}>
                   <Signal size={14} style={{ color: route.color }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className={`text-xs font-semibold ${isDark?'text-white':'text-slate-900'}`}>{route.truck.split(' — ')[0]} · {route.plate}</div>
-                  <div className={`text-[10px] ${sub}`}>{route.driver.name} · Samsung Galaxy Tab A8</div>
+                  <div className={`text-xs font-semibold ${isDark?'text-white':'text-slate-900'}`}>{route.truck.split(' — ')[0]}</div>
+                  <div className={`text-[10px] ${sub}`}>{route.driver.name}</div>
                 </div>
-                <div className={`text-[10px] font-mono ${sub}`}>{pos.lat.toFixed(4)}, {pos.lng.toFixed(4)}</div>
+                <div className={`text-[10px] font-mono ${sub}`}>{parseFloat(pos.lat).toFixed(5)}, {parseFloat(pos.lng).toFixed(5)}</div>
+                {live && live.speed_mph != null && (
+                  <span className={`text-[10px] ${sub}`}>{parseFloat(live.speed_mph).toFixed(0)} mph</span>
+                )}
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sm.badge}`}>{sm.label}</span>
                 <div className="flex items-center gap-1">
-                  <Wifi size={11} className="text-emerald-400" />
-                  <span className="text-[10px] text-emerald-400 font-semibold">4G</span>
+                  {stale
+                    ? <WifiOff size={11} className="text-red-400" />
+                    : <Wifi    size={11} className="text-emerald-400" />}
                 </div>
               </div>
             );
@@ -605,28 +637,40 @@ function TraccarHubView({ routes, tick, isDark }) {
       <div>
         <div className={`text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2 ${sub}`}>
           <Activity size={11} className="text-cyan-400" />
-          Live WebSocket Feed
-          <span className="text-[9px] font-bold text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">LIVE</span>
+          {DEMO_MODE ? 'Simulated Ping Feed' : 'Live Realtime Feed'}
+          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${DEMO_MODE ? 'text-cyan-400 bg-cyan-500/10' : 'text-emerald-400 bg-emerald-500/10'}`}>
+            {DEMO_MODE ? 'DEMO' : 'LIVE'}
+          </span>
         </div>
         <div className={`${card} border rounded-xl overflow-hidden`}>
-          <div className={`font-mono text-[11px] divide-y ${isDark?'divide-gray-700/50':'divide-gray-100'}`} style={{ maxHeight: '280px', overflowY: 'auto' }}>
-            {pings.map(ping => (
-              <div key={ping.id} className={`px-3 py-1.5 flex items-center gap-2 ${isDark?'hover:bg-gray-700/30':'hover:bg-gray-50'}`}>
-                <span className={`${sub} flex-shrink-0`}>{ping.ts}</span>
-                <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: ping.color }} />
-                <span className={`font-semibold ${isDark?'text-gray-200':'text-slate-800'} flex-shrink-0`}>{ping.truck} ({ping.plate})</span>
-                <span className={`${sub}`}>→</span>
-                <span className="text-cyan-400">{ping.lat}, {ping.lng}</span>
-                <span className={`ml-auto ${sub} flex-shrink-0`}>{ping.speed} mph · {ping.signal}</span>
-              </div>
-            ))}
-          </div>
+          {displayPings.length === 0 ? (
+            <div className={`px-4 py-8 text-center text-xs ${sub}`}>
+              Waiting for GPS pings from active trucks…
+            </div>
+          ) : (
+            <div className={`font-mono text-[11px] divide-y ${isDark?'divide-gray-700/50':'divide-gray-100'}`} style={{ maxHeight: '280px', overflowY: 'auto' }}>
+              {displayPings.map(ping => (
+                <div key={ping.id} className={`px-3 py-1.5 flex items-center gap-2 ${isDark?'hover:bg-gray-700/30':'hover:bg-gray-50'}`}>
+                  <span className={`${sub} flex-shrink-0`}>{ping.ts}</span>
+                  {ping.color && <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: ping.color }} />}
+                  <span className={`font-semibold ${isDark?'text-gray-200':'text-slate-800'} flex-shrink-0`}>
+                    {ping.truck_id}{ping.driver_name ? ` (${ping.driver_name})` : ''}
+                  </span>
+                  <span className={sub}>→</span>
+                  <span className="text-cyan-400">{parseFloat(ping.lat).toFixed(5)}, {parseFloat(ping.lng).toFixed(5)}</span>
+                  {ping.speed_mph != null && (
+                    <span className={`ml-auto ${sub} flex-shrink-0`}>{parseFloat(ping.speed_mph).toFixed(0)} mph</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Architecture note */}
       <div className={`text-xs ${sub} border ${isDark?'border-gray-700 bg-gray-800/30':'border-gray-200 bg-gray-50'} rounded-xl px-4 py-3`}>
-        <span className="font-semibold text-cyan-400">Production architecture:</span> Driver tablets (Samsung Galaxy Tab A8, cellular) run the Kernel Driver PWA, which pings this Traccar server every 10 s via WebSocket over the existing cellular data plan. No third-party GPS subscription required. Server hosted on a $12/mo VPS — supports up to 50 concurrent vehicles.
+        <span className="font-semibold text-cyan-400">Architecture:</span> Driver tablets run the Kernal Driver PWA, which posts GPS coordinates to <code className="text-cyan-300">POST /api/v1/logistics/driver-location</code> every 10 s. The backend upserts into <code className="text-cyan-300">driver_locations</code> and Supabase pushes the change to all subscribed dispatch clients via WebSocket — no polling required.
       </div>
     </div>
   );
@@ -647,6 +691,60 @@ export default function GPSDispatchModule() {
   const [tick, setTick]       = useState(0);
   const [selectedId, setSelectedId] = useState(null);
 
+  // ── Live GPS state (Supabase Realtime) ──────────────────────────────────────
+  // livePositions: { [route_id | truck_id]: driver_location row }
+  const [livePositions,  setLivePositions]  = useState({});
+  // realtimeStatus: 'connecting' | 'live' | 'error' | 'demo'
+  const [realtimeStatus, setRealtimeStatus] = useState(DEMO_MODE ? 'demo' : 'connecting');
+  // pings: rolling log of Realtime change events for the telemetry feed
+  const [gpsRealtimePings, setGpsRealtimePings] = useState([]);
+
+  // Seed initial positions from REST (so map isn't blank while Realtime connects)
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    api.logistics.driverLocations()
+      .then(({ data }) => {
+        const map = {};
+        (data || []).forEach(loc => {
+          const key = loc.route_id || loc.truck_id;
+          map[key] = loc;
+        });
+        setLivePositions(map);
+      })
+      .catch(() => {/* non-fatal — map falls back to demo animation */});
+  }, []);
+
+  // Supabase Realtime subscription on driver_locations
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    const channel = supabase
+      .channel('gps-dispatch-driver-locations')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'driver_locations' },
+        payload => {
+          const loc = payload.new;
+          if (!loc) return;
+          const key = loc.route_id || loc.truck_id;
+          setLivePositions(prev => ({ ...prev, [key]: loc }));
+
+          // Add timestamped ping to feed
+          const now = new Date();
+          const ts  = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}.${String(now.getMilliseconds()).padStart(3,'0')}`;
+          setGpsRealtimePings(prev => [
+            { id: Date.now(), truck_id: loc.truck_id, driver_name: loc.driver_name,
+              lat: loc.lat, lng: loc.lng, speed_mph: loc.speed_mph, ts },
+            ...prev.slice(0, 49),
+          ]);
+        },
+      )
+      .subscribe(status => {
+        if (status === 'SUBSCRIBED') setRealtimeStatus('live');
+        else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') setRealtimeStatus('error');
+      });
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
   // Simulation clock — advances truck positions.
   // Long handle name prevents Rolldown from aliasing it to the same letter as gpsCanAccess.
   useEffect(() => {
@@ -665,17 +763,17 @@ export default function GPSDispatchModule() {
   const head  = isDark ? 'text-white'    : 'text-slate-900';
 
   // KPI strip totals
-  const enRoute   = INIT_ROUTES.filter(r => r.status === 'en_route').length;
-  const atStop    = INIT_ROUTES.filter(r => r.status === 'at_stop').length;
-  const returning = INIT_ROUTES.filter(r => r.status === 'returning').length;
-  const totalDelivered = INIT_ROUTES.flatMap(r => r.stops).filter(s => s.status === 'delivered').length;
-  const totalStops     = INIT_ROUTES.flatMap(r => r.stops).length;
+  const enRoute   = ACTIVE_ROUTES.filter(r => r.status === 'en_route').length;
+  const atStop    = ACTIVE_ROUTES.filter(r => r.status === 'at_stop').length;
+  const returning = ACTIVE_ROUTES.filter(r => r.status === 'returning').length;
+  const totalDelivered = ACTIVE_ROUTES.flatMap(r => r.stops).filter(s => s.status === 'delivered').length;
+  const totalStops     = ACTIVE_ROUTES.flatMap(r => r.stops).length;
 
   const TABS = [
-    { id:'map',       label:'Live Map',        icon: MapPin   },
-    { id:'optimizer', label:'Route Optimizer', icon: Navigation },
-    { id:'fleet',     label:'Fleet Status',    icon: Truck    },
-    { id:'traccar',   label:'Traccar Hub',     icon: Radio    },
+    { id:'map',       label:'Live Map',        icon: MapPin      },
+    { id:'optimizer', label:'Route Optimizer', icon: Navigation  },
+    { id:'fleet',     label:'Fleet Status',    icon: Truck       },
+    { id:'telemetry', label:'GPS Telemetry',   icon: Activity    },
   ];
 
   return (
@@ -688,8 +786,10 @@ export default function GPSDispatchModule() {
             <p className={`text-xs mt-0.5 ${sub}`}>Real-time positioning · Route optimization · Traccar telemetry · Tampa, FL</p>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs font-semibold text-emerald-400">4 trucks live</span>
+            <span className={`w-2 h-2 rounded-full ${realtimeStatus === 'live' || realtimeStatus === 'demo' ? 'bg-emerald-400 animate-pulse' : realtimeStatus === 'error' ? 'bg-red-400' : 'bg-amber-400 animate-pulse'}`} />
+            <span className={`text-xs font-semibold ${realtimeStatus === 'live' ? 'text-emerald-400' : realtimeStatus === 'demo' ? 'text-cyan-400' : realtimeStatus === 'error' ? 'text-red-400' : 'text-amber-400'}`}>
+              {realtimeStatus === 'live' ? `${ACTIVE_ROUTES.length} trucks live` : realtimeStatus === 'demo' ? 'Demo mode' : realtimeStatus === 'error' ? 'Realtime offline' : 'Connecting…'}
+            </span>
           </div>
         </div>
 
@@ -728,10 +828,10 @@ export default function GPSDispatchModule() {
       <div className="p-6">
         {tab === 'map' && (
           <div className="space-y-4">
-            <MapView routes={INIT_ROUTES} tick={tick} isDark={isDark} selectedId={selectedId} onSelect={setSelectedId} />
+            <MapView routes={ACTIVE_ROUTES} tick={tick} isDark={isDark} selectedId={selectedId} onSelect={setSelectedId} livePositions={livePositions} />
             {/* Route legend below map */}
             <div className="flex flex-wrap gap-2">
-              {INIT_ROUTES.map(r => {
+              {ACTIVE_ROUTES.map(r => {
                 const sm  = STATUS_META[r.status] || STATUS_META.idle;
                 const del = r.stops.filter(s => s.status === 'delivered').length;
                 return (
@@ -753,8 +853,17 @@ export default function GPSDispatchModule() {
           </div>
         )}
         {tab === 'optimizer' && <RouteOptimizerView isDark={isDark} />}
-        {tab === 'fleet'     && <FleetStatusView routes={INIT_ROUTES} tick={tick} isDark={isDark} />}
-        {tab === 'traccar'   && <TraccarHubView  routes={INIT_ROUTES} tick={tick} isDark={isDark} />}
+        {tab === 'fleet'     && <FleetStatusView routes={ACTIVE_ROUTES} tick={tick} isDark={isDark} />}
+        {tab === 'telemetry' && (
+          <GPSTelemetryView
+            routes={ACTIVE_ROUTES}
+            tick={tick}
+            isDark={isDark}
+            pings={gpsRealtimePings}
+            realtimeStatus={realtimeStatus}
+            livePositions={livePositions}
+          />
+        )}
       </div>
     </div>
   );

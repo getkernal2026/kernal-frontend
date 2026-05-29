@@ -257,6 +257,9 @@ export const api = {
       update: (routeId, stopId, body)   => authFetch(`/api/v1/logistics/routes/${routeId}/stops/${stopId}`, { method: 'PATCH', body: JSON.stringify(body) }),
       delete: (routeId, stopId)         => authFetch(`/api/v1/logistics/routes/${routeId}/stops/${stopId}`, { method: 'DELETE' }),
     },
+    // GPS driver location — called by DriverApp every ~10s
+    driverLocation:  (body)  => authFetch('/api/v1/logistics/driver-location',  { method: 'POST', body: JSON.stringify(body) }),
+    driverLocations: ()      => authFetch('/api/v1/logistics/driver-locations'),
   },
 
   // ── GL / Chart of Accounts / Journal Entries / AP Bills ──────────────────
