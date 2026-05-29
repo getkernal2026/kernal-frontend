@@ -1,7 +1,6 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useKernal } from './KernalContext.jsx';
 import { DEMO_MODE } from './lib/demoMode.js';
-import { api } from './lib/api.js';
 import {
   BookOpen, Plus, ChevronDown, ChevronRight, ChevronUp,
   Lock, Unlock, FileText, AlertTriangle, CheckCircle2,
@@ -1060,48 +1059,6 @@ function AccountLedgerModal({ account, journals, onClose }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ROW MAPPERS  (DB snake_case → frontend camelCase)
-// ─────────────────────────────────────────────────────────────────────────────
-const mapApiAccount = (r) => ({
-  _id:       r.id,
-  id:        r.account_code,
-  num:       r.account_code,
-  name:      r.name,
-  type:      r.type,
-  sub:       r.sub_type || '',
-  normalBal: (r.normal_balance || '').toLowerCase(),
-  balance:   Number(r.balance || 0),
-});
-
-const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const mapApiPeriod = (r) => ({
-  _id:    r.id,
-  id:     r.id,   // UUID used as selector value + handleClose key
-  label:  `${MONTH_LABELS[(r.period_month || 1) - 1]} ${r.period_year}`,
-  status: r.status || 'Open',
-  entries: Number(r.entry_count || 0),
-  posted:  Number(r.total_posted || 0),
-});
-
-const mapApiJournal = (r) => ({
-  _id:       r.id,
-  id:        r.entry_number || r.id,
-  date:      r.entry_date,
-  period:    r.period_id || '',
-  memo:      r.description || '',
-  ref:       r.reference_number || '',
-  type:      r.source === 'manual' ? 'Manual' : 'System',
-  status:    r.status || 'Draft',
-  createdBy: r.created_by || 'System',
-  lines:     (r.lines || []).map(l => ({
-    acct:   l.account_code,
-    desc:   l.description || l.account_name || '',
-    debit:  Number(l.debit  || 0),
-    credit: Number(l.credit || 0),
-  })),
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
 // MAIN MODULE
 // ─────────────────────────────────────────────────────────────────────────────
 export default function GLModule() {
@@ -1117,35 +1074,6 @@ export default function GLModule() {
 
   const canWrite = activeUser && ['admin', 'manager', 'accountant'].includes(activeUser.role);
 
-  // ── Live data fetch ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (DEMO_MODE) return;
-    let cancelled = false;
-
-    Promise.all([
-      api.gl.accounts.list(),
-      api.gl.periods.list(),
-      api.gl.entries.list({ limit: 500 }),
-    ]).then(([acctRes, periodRes, entryRes]) => {
-      if (cancelled) return;
-      const acctRows   = acctRes?.data  || acctRes  || [];
-      const periodRows = periodRes?.data || periodRes || [];
-      const entryRows  = entryRes?.data  || entryRes  || [];
-
-      const mappedPeriods = periodRows.map(mapApiPeriod);
-      setAccounts(acctRows.map(mapApiAccount));
-      setPeriods(mappedPeriods);
-      setJournals(entryRows.map(mapApiJournal));
-
-      // Set activePeriod to most recent open period (or first period)
-      const openPeriod = mappedPeriods.find(p => p.status === 'Open');
-      if (openPeriod) setActivePeriod(openPeriod.id);
-      else if (mappedPeriods.length > 0) setActivePeriod(mappedPeriods[0].id);
-    }).catch(console.error);
-
-    return () => { cancelled = true; };
-  }, []);
-
   const currentPeriod = useMemo(() => periods.find(p => p.id === activePeriod), [periods, activePeriod]);
 
   // KPIs
@@ -1156,77 +1084,12 @@ export default function GLModule() {
   const netIncomeMTD    = totalRevMTD - totalExpMTD;
   const draftCount      = journals.filter(j => j.status === 'Draft').length;
 
-  // ── Actions ──────────────────────────────────────────────────────────────────
-
-  // Post Draft → Posted (optimistic; no dedicated API endpoint yet)
-  const handlePost = (jeId) =>
-    setJournals(p => p.map(j => j.id === jeId ? { ...j, status: 'Posted' } : j));
-
-  // Void a Posted entry
-  const handleVoid = async (jeId) => {
-    const je = journals.find(j => j.id === jeId);
-    if (!je) return;
-    setJournals(p => p.map(j => j.id === jeId ? { ...j, status: 'Void' } : j)); // optimistic
-    if (!DEMO_MODE && je._id) {
-      try {
-        await api.gl.entries.void(je._id);
-      } catch (err) {
-        console.error('void entry failed', err);
-        setJournals(p => p.map(j => j.id === jeId ? { ...j, status: je.status } : j)); // revert
-      }
-    }
-  };
-
-  // Create a new journal entry
-  const handleAddJE = async (je) => {
-    const optimisticId = je.id;
-    setJournals(p => [je, ...p]); // optimistic
-    if (!DEMO_MODE) {
-      try {
-        const body = {
-          entry_date:       je.date,
-          description:      je.memo,
-          source:           'manual',
-          reference_number: je.ref || null,
-          status:           je.status,
-          period_id:        je.period || null,
-          lines: je.lines.map(l => {
-            const acct = accounts.find(a => a.num === l.acct);
-            return {
-              account_code: l.acct,
-              account_name: acct?.name || l.acct,
-              debit:        l.debit,
-              credit:       l.credit,
-              description:  l.desc || null,
-            };
-          }),
-        };
-        const saved = await api.gl.entries.create(body);
-        const mapped = mapApiJournal(saved);
-        setJournals(p => p.map(j => j.id === optimisticId ? mapped : j));
-      } catch (err) {
-        console.error('create journal entry failed', err);
-        setJournals(p => p.filter(j => j.id !== optimisticId)); // revert
-      }
-    }
-  };
-
-  // Close a period
-  const handleClosePeriod = async (id) => {
-    setPeriods(p => p.map(pd => pd.id === id ? { ...pd, status: 'Closed' } : pd)); // optimistic
-    if (!DEMO_MODE) {
-      try {
-        await api.gl.periods.close(id);
-      } catch (err) {
-        console.error('close period failed', err);
-        setPeriods(p => p.map(pd => pd.id === id ? { ...pd, status: 'Open' } : pd)); // revert
-      }
-    }
-  };
-
-  // Reopen a period (optimistic; no API endpoint yet)
-  const handleReopenPeriod = (id) =>
-    setPeriods(p => p.map(pd => pd.id === id ? { ...pd, status: 'Open' } : pd));
+  // Actions
+  const handlePost  = (jeId) => setJournals(p => p.map(j => j.id === jeId ? { ...j, status: 'Posted' } : j));
+  const handleVoid  = (jeId) => setJournals(p => p.map(j => j.id === jeId ? { ...j, status: 'Void'   } : j));
+  const handleAddJE = (je)   => setJournals(p => [je, ...p]);
+  const handleClosePeriod  = (id) => setPeriods(p => p.map(pd => pd.id === id ? { ...pd, status: 'Closed' } : pd));
+  const handleReopenPeriod = (id) => setPeriods(p => p.map(pd => pd.id === id ? { ...pd, status: 'Open'   } : pd));
 
   const TABS = [
     { id:'coa',  label:'Chart of Accounts', Icon: Layers    },
