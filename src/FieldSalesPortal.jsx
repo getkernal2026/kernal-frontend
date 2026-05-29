@@ -744,7 +744,7 @@ export default function FieldSalesPortal() {
       </div>
 
       {/* Section content */}
-      <div className="flex-1 overflow-auto">
+      <div className={section === 'map' ? 'flex-1 overflow-hidden flex flex-col min-h-0' : 'flex-1 overflow-auto'}>
         {section === 'today'       && <TodaySection customers={customers} todayPlan={TODAY_PLAN} mtdRevenue={mtdRevenue} mtdCommission={mtdCommission} mtdOrders={mtdOrders} quotaTarget={quotaTarget} quotaProgress={quotaProgress} visitsThisWeek={visitsThisWeek} orders={orders} openCustomer={openCustomer} onStartOrder={startNewOrderForCustomer} activeRep={activeRep} />}
         {section === 'map'         && <MapSection customers={customers} leads={leads} rep={activeRep} gpsPosition={gpsPosition} gpsStatus={gpsStatus} liveRepPositions={liveRepPositions} realtimeStatus={realtimeStatus} openCustomer={openCustomer} onAddLead={() => setShowAddLead(true)} onSelectLead={(id) => { setSelectedLeadId(id); setSection('leads'); }} />}
         {section === 'accounts'    && (
@@ -1043,7 +1043,7 @@ function SalesRepLiveMap({ gpsPosition, liveRepPositions, repId, repName, custom
   }, [customers, openCustomer]);
 
   return (
-    <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+    <div ref={mapContainerRef} style={{ position: 'absolute', inset: 0 }} />
   );
 }
 
