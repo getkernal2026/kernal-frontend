@@ -849,15 +849,22 @@ function BillingTab({ tenants }) {
 // ── Tab: Bug Management ───────────────────────────────────────────────────────
 
 const AUTOFIX_STATUS = {
-  analyzing:    { label: '🔍 Analyzing',  color: 'text-blue-400' },
-  patching:     { label: '⚙️ Patching',   color: 'text-amber-400' },
-  queued:       { label: '⏳ Queued',     color: 'text-gray-400' },
-  pr_open:      { label: '⚡ PR Open',    color: 'text-cyan-400' },
-  pr_review:    { label: '👀 PR: Review', color: 'text-amber-400' },
-  deployed:     { label: '✅ Deployed',   color: 'text-emerald-400' },
-  failed:       { label: '❌ Failed',     color: 'text-red-400' },
-  no_change:    { label: '➖ No change',  color: 'text-gray-500' },
-  unresolvable: { label: '❓ Unknown file', color: 'text-gray-500' },
+  analyzing:    { label: '🔍 Analyzing',      color: 'text-blue-400' },
+  patching:     { label: '⚙️ Patching',        color: 'text-amber-400' },
+  queued:       { label: '⏳ Queued',          color: 'text-gray-400' },
+  pr_open:      { label: '⚡ PR Open',         color: 'text-cyan-400' },
+  pr_review:    { label: '👀 PR: Review',      color: 'text-amber-400' },
+  deployed:     { label: '✅ Deployed',        color: 'text-emerald-400' },
+  rolled_back:  { label: '⏪ Rolled Back',     color: 'text-orange-400' },
+  failed:       { label: '❌ Failed',          color: 'text-red-400' },
+  no_change:    { label: '➖ No change',       color: 'text-gray-500' },
+  unresolvable: { label: '❓ Unknown file',    color: 'text-gray-500' },
+};
+
+const ROLLBACK_STATUS = {
+  rolling_back:    { label: '⏳ Rolling back…',  color: 'text-amber-400' },
+  rolled_back:     { label: '⏪ Rolled back',     color: 'text-orange-400' },
+  rollback_failed: { label: '❌ Rollback failed', color: 'text-red-400' },
 };
 
 const SEV_COLORS = {
@@ -1009,6 +1016,22 @@ function BugDetailDrawer({ reportId, onClose, onUpdate }) {
                 {report.autofix_branch && (
                   <p className="text-xs text-gray-600 font-mono">{report.autofix_branch}</p>
                 )}
+                {/* Watchdog window indicator */}
+                {report.autofix_watchdog_until && !report.rollback_status && new Date(report.autofix_watchdog_until) > new Date() && (
+                  <p className="text-xs text-cyan-500/70 flex items-center gap-1">
+                    <span>🛡️</span> Watchdog active — auto-rolls back if same module crashes before {new Date(report.autofix_watchdog_until).toLocaleTimeString()}
+                  </p>
+                )}
+                {/* Rollback status */}
+                {report.rollback_status && (
+                  <div className={`text-xs font-semibold flex items-center gap-1.5 mt-1 ${ROLLBACK_STATUS[report.rollback_status]?.color || 'text-gray-400'}`}>
+                    {ROLLBACK_STATUS[report.rollback_status]?.label || report.rollback_status}
+                    {report.rollback_at && <span className="text-gray-500 font-normal">· {timeAgo(report.rollback_at)}</span>}
+                  </div>
+                )}
+                {report.rollback_reason && report.rollback_reason !== 'manual' && (
+                  <p className="text-xs text-gray-500 italic">Trigger: {report.rollback_reason}</p>
+                )}
               </div>
             )}
 
@@ -1054,20 +1077,40 @@ function BugDetailDrawer({ reportId, onClose, onUpdate }) {
                   Reopen
                 </button>
               )}
-              <button
-                onClick={async () => {
-                  setSaving(true);
-                  try {
-                    await api.superadmin.bugs.autofix(reportId);
-                    setReport(r => ({ ...r, autofix_status: 'queued' }));
-                    onUpdate({ ...report, autofix_status: 'queued' });
-                  } catch {}
-                  setSaving(false);
-                }}
-                disabled={saving}
-                className="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs rounded font-medium disabled:opacity-50 ml-auto">
-                ⚡ Re-run AutoFix
-              </button>
+              <div className="flex gap-2 ml-auto">
+                {/* Rollback — only shown when a patch was deployed and hasn't been rolled back */}
+                {report.autofix_status === 'deployed' && !report.rollback_status && (
+                  <button
+                    onClick={async () => {
+                      if (!confirm('Roll back this auto-patch? This will restore the original file and trigger a new Vercel deployment.')) return;
+                      setSaving(true);
+                      try {
+                        await api.superadmin.bugs.rollback(reportId);
+                        setReport(r => ({ ...r, rollback_status: 'rolling_back', autofix_status: 'rolled_back' }));
+                        onUpdate({ ...report, rollback_status: 'rolling_back', autofix_status: 'rolled_back' });
+                      } catch (e) { alert('Rollback failed: ' + e.message); }
+                      setSaving(false);
+                    }}
+                    disabled={saving}
+                    className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white text-xs rounded font-medium disabled:opacity-50">
+                    ⏪ Rollback Patch
+                  </button>
+                )}
+                <button
+                  onClick={async () => {
+                    setSaving(true);
+                    try {
+                      await api.superadmin.bugs.autofix(reportId);
+                      setReport(r => ({ ...r, autofix_status: 'queued' }));
+                      onUpdate({ ...report, autofix_status: 'queued' });
+                    } catch {}
+                    setSaving(false);
+                  }}
+                  disabled={saving}
+                  className="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs rounded font-medium disabled:opacity-50">
+                  ⚡ Re-run AutoFix
+                </button>
+              </div>
             </div>
           </div>
         )}

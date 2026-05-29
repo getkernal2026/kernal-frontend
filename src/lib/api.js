@@ -510,7 +510,8 @@ export const api = {
       get:         (id)           => authFetch(`/api/v1/bugs/${id}`),
       update:      (id, body)     => authFetch(`/api/v1/bugs/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
       delete:      (id)           => authFetch(`/api/v1/bugs/${id}`, { method: 'DELETE' }),
-      autofix:     (id)           => authFetch(`/api/v1/bugs/${id}/autofix`, { method: 'POST', body: JSON.stringify({}) }),
+      autofix:     (id)           => authFetch(`/api/v1/bugs/${id}/autofix`,   { method: 'POST', body: JSON.stringify({}) }),
+      rollback:    (id)           => authFetch(`/api/v1/bugs/${id}/rollback`,  { method: 'POST', body: JSON.stringify({}) }),
     },
   },
 
