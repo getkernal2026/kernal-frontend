@@ -846,10 +846,11 @@ export default function GPSDispatchModule() {
         payload => {
           const loc = payload.new;
           if (!loc) return;
+          if (loc.truck_id?.startsWith('REP-')) return;  // field-sales reps — not trucks
           const key = loc.route_id || loc.truck_id;
           setLivePositions(prev => ({ ...prev, [key]: loc }));
 
-          // Add timestamped ping to feed
+          // Add timestamped ping to telemetry feed (trucks only — reps already filtered above)
           const now = new Date();
           const ts  = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}.${String(now.getMilliseconds()).padStart(3,'0')}`;
           setGpsRealtimePings(prev => [
