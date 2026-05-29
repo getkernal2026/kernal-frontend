@@ -260,6 +260,9 @@ export const api = {
     // GPS driver location — called by DriverApp every ~10s
     driverLocation:  (body)  => authFetch('/api/v1/logistics/driver-location',  { method: 'POST', body: JSON.stringify(body) }),
     driverLocations: ()      => authFetch('/api/v1/logistics/driver-locations'),
+    // GPS field-sales rep location — called by FieldSalesPortal every ~10s
+    repLocation:     (body)  => authFetch('/api/v1/logistics/rep-location',      { method: 'POST', body: JSON.stringify(body) }),
+    repLocations:    ()      => authFetch('/api/v1/logistics/rep-locations'),
   },
 
   // ── GL / Chart of Accounts / Journal Entries / AP Bills ──────────────────
