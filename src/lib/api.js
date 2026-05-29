@@ -227,21 +227,6 @@ export const api = {
       addLine:      (id, body)     => authFetch(`/api/v1/accounting/invoices/${id}/lines`, { method: 'POST',  body: JSON.stringify(body) }),
       deleteLine:   (id, lineId)   => authFetch(`/api/v1/accounting/invoices/${id}/lines/${lineId}`, { method: 'DELETE' }),
     },
-    bankAccounts: {
-      list:   ()         => authFetch('/api/v1/accounting/bank-accounts'),
-      create: (body)     => authFetch('/api/v1/accounting/bank-accounts', { method: 'POST', body: JSON.stringify(body) }),
-      delete: (id)       => authFetch(`/api/v1/accounting/bank-accounts/${id}`, { method: 'DELETE' }),
-    },
-    checks: {
-      list:         (params = {}) => authFetch(`/api/v1/accounting/checks${qs(params)}`),
-      create:       (body)         => authFetch('/api/v1/accounting/checks', { method: 'POST', body: JSON.stringify(body) }),
-      updateStatus: (id, status)   => authFetch(`/api/v1/accounting/checks/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
-    },
-    expenses: {
-      list:   (params = {}) => authFetch(`/api/v1/accounting/expenses${qs(params)}`),
-      create: (body)         => authFetch('/api/v1/accounting/expenses', { method: 'POST', body: JSON.stringify(body) }),
-      delete: (id)           => authFetch(`/api/v1/accounting/expenses/${id}`, { method: 'DELETE' }),
-    },
   },
 
   // ── Logistics ─────────────────────────────────────────────────────────────
