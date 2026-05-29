@@ -846,12 +846,413 @@ function BillingTab({ tenants }) {
   );
 }
 
+// ── Tab: Bug Management ───────────────────────────────────────────────────────
+
+const SEV_COLORS = {
+  critical: 'bg-red-500/20 text-red-300 border border-red-500/30',
+  high:     'bg-orange-500/20 text-orange-300 border border-orange-500/30',
+  medium:   'bg-amber-500/20 text-amber-300 border border-amber-500/30',
+  low:      'bg-gray-500/20 text-gray-400',
+};
+
+const BUG_STATUS_COLORS = {
+  open:          'bg-red-500/20 text-red-300',
+  investigating: 'bg-amber-500/20 text-amber-300',
+  resolved:      'bg-emerald-500/20 text-emerald-300',
+  ignored:       'bg-gray-500/20 text-gray-500',
+};
+
+function timeAgo(ts) {
+  if (!ts) return '—';
+  const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
+  if (diff < 60)   return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+// Detail drawer for a single bug report
+function BugDetailDrawer({ reportId, onClose, onUpdate }) {
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving,  setSaving]  = useState(false);
+  const [notes,   setNotes]   = useState('');
+
+  useEffect(() => {
+    if (!reportId) return;
+    setLoading(true);
+    api.superadmin.bugs.get(reportId)
+      .then(r => { setReport(r); setNotes(r.notes || ''); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [reportId]);
+
+  const setStatus = async (status) => {
+    setSaving(true);
+    try {
+      const updated = await api.superadmin.bugs.update(reportId, { status, notes });
+      setReport(updated);
+      onUpdate(updated);
+    } catch {}
+    setSaving(false);
+  };
+
+  const saveNotes = async () => {
+    setSaving(true);
+    try {
+      const updated = await api.superadmin.bugs.update(reportId, { notes });
+      setReport(updated);
+      onUpdate(updated);
+    } catch {}
+    setSaving(false);
+  };
+
+  if (!reportId) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative w-full max-w-2xl bg-gray-900 border-l border-gray-700 flex flex-col h-full overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
+          <h3 className="text-base font-semibold text-white">Bug Report</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">×</button>
+        </div>
+
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center text-gray-500">Loading…</div>
+        ) : !report ? (
+          <div className="flex-1 flex items-center justify-center text-red-400">Failed to load</div>
+        ) : (
+          <div className="flex-1 overflow-y-auto p-5 space-y-5">
+            {/* Meta strip */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`px-2 py-0.5 rounded text-xs font-medium ${SEV_COLORS[report.severity] || ''}`}>{report.severity}</span>
+              <span className={`px-2 py-0.5 rounded text-xs font-medium ${BUG_STATUS_COLORS[report.status] || ''}`}>{report.status}</span>
+              <span className="text-xs text-gray-500">{report.tenants?.name || report.tenant_id?.slice(0, 8) + '…'}</span>
+              <span className="text-xs text-gray-500 ml-auto">{timeAgo(report.occurred_at)}</span>
+            </div>
+
+            {/* Error message */}
+            <div>
+              <p className="text-xs text-gray-400 mb-1">Error Message</p>
+              <p className="text-sm text-red-300 font-mono break-words bg-gray-800/60 rounded p-3">{report.error_message || '(no message)'}</p>
+            </div>
+
+            {/* Context */}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div><span className="text-gray-500">Module: </span><span className="text-gray-200">{report.module || '—'}</span></div>
+              <div><span className="text-gray-500">Type: </span><span className="text-gray-200">{report.type || '—'}</span></div>
+              <div><span className="text-gray-500">User: </span><span className="text-gray-200">{report.user_name || '—'}</span></div>
+              <div><span className="text-gray-500">Role: </span><span className="text-gray-200">{report.user_role || '—'}</span></div>
+              <div><span className="text-gray-500">Build: </span><span className="text-gray-200 font-mono">{report.build || '—'}</span></div>
+              <div><span className="text-gray-500">Session: </span><span className="text-gray-200">{report.session_duration_min != null ? `${report.session_duration_min}m` : '—'}</span></div>
+            </div>
+
+            {/* Stack trace */}
+            {report.error_stack && (
+              <div>
+                <p className="text-xs text-gray-400 mb-1">Stack Trace</p>
+                <pre className="text-xs text-gray-300 font-mono bg-gray-800/60 rounded p-3 overflow-x-auto whitespace-pre-wrap max-h-48">{report.error_stack}</pre>
+              </div>
+            )}
+
+            {/* Breadcrumb trail */}
+            {Array.isArray(report.trail) && report.trail.length > 0 && (
+              <div>
+                <p className="text-xs text-gray-400 mb-2">Breadcrumb Trail</p>
+                <div className="space-y-1">
+                  {report.trail.map((t, i) => (
+                    <div key={i} className="flex gap-2 text-xs">
+                      <span className="text-gray-600 font-mono w-14 shrink-0">{t.time || t.ts?.slice(11,19) || '—'}</span>
+                      <span className="text-blue-400/70 w-20 shrink-0">{t.category}</span>
+                      <span className="text-gray-300">{t.action || t.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Triage notes */}
+            <div>
+              <p className="text-xs text-gray-400 mb-1">Triage Notes</p>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                placeholder="Add notes for your team…"
+                className="w-full bg-gray-800 border border-gray-600 text-white text-sm rounded px-3 py-2 focus:outline-none focus:border-blue-500 resize-none"
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button onClick={saveNotes} disabled={saving}
+                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded font-medium disabled:opacity-50">
+                Save Notes
+              </button>
+              {report.status !== 'investigating' && (
+                <button onClick={() => setStatus('investigating')} disabled={saving}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs rounded font-medium disabled:opacity-50">
+                  Mark Investigating
+                </button>
+              )}
+              {report.status !== 'resolved' && (
+                <button onClick={() => setStatus('resolved')} disabled={saving}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs rounded font-medium disabled:opacity-50">
+                  Mark Resolved
+                </button>
+              )}
+              {report.status !== 'ignored' && (
+                <button onClick={() => setStatus('ignored')} disabled={saving}
+                  className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white text-xs rounded font-medium disabled:opacity-50">
+                  Ignore
+                </button>
+              )}
+              {report.status !== 'open' && (
+                <button onClick={() => setStatus('open')} disabled={saving}
+                  className="px-3 py-1.5 bg-red-600/70 hover:bg-red-600 text-white text-xs rounded font-medium disabled:opacity-50">
+                  Reopen
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BugsTab({ tenants }) {
+  const [reports,  setReports]  = useState([]);
+  const [stats,    setStats]    = useState(null);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState(null);
+  const [selected, setSelected] = useState(null);  // report id for drawer
+
+  // Filters
+  const [filterTenant,   setFilterTenant]   = useState('');
+  const [filterStatus,   setFilterStatus]   = useState('');
+  const [filterSeverity, setFilterSeverity] = useState('');
+
+  // Notification settings
+  const [showNotifSettings, setShowNotifSettings] = useState(false);
+  const [webhookUrl,  setWebhookUrl]  = useState(() => {
+    try { return localStorage.getItem('kernal_superadmin_bug_webhook') || ''; } catch { return ''; }
+  });
+  const [webhookSaved, setWebhookSaved] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    const params = {};
+    if (filterTenant)   params.tenant_id = filterTenant;
+    if (filterStatus)   params.status    = filterStatus;
+    if (filterSeverity) params.severity  = filterSeverity;
+    params.limit = 200;
+
+    Promise.all([
+      api.superadmin.bugs.list(params),
+      api.superadmin.bugs.stats(),
+    ])
+      .then(([listRes, statsRes]) => {
+        setReports(listRes.data || []);
+        setStats(statsRes.data);
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [filterTenant, filterStatus, filterSeverity]);
+
+  useEffect(load, [load]);
+
+  const saveWebhook = () => {
+    try { localStorage.setItem('kernal_superadmin_bug_webhook', webhookUrl); } catch {}
+    setWebhookSaved(true);
+    setTimeout(() => setWebhookSaved(false), 2500);
+  };
+
+  const testWebhook = async () => {
+    if (!webhookUrl) return;
+    try {
+      await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: '🐛 [Kernel Superadmin] Bug notification test — webhook is working!',
+          source: 'kernal-superadmin',
+          timestamp: new Date().toISOString(),
+        }),
+      });
+      alert('Test notification sent!');
+    } catch (e) {
+      alert('Failed: ' + e.message);
+    }
+  };
+
+  const handleUpdate = (updated) => {
+    setReports(prev => prev.map(r => r.id === updated.id ? { ...r, ...updated } : r));
+  };
+
+  return (
+    <div className="p-6 space-y-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-white">Bug Reports</h2>
+        <div className="flex gap-2">
+          <button onClick={load} className="px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 rounded">
+            Refresh
+          </button>
+          <button onClick={() => setShowNotifSettings(!showNotifSettings)}
+            className="px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 rounded">
+            🔔 Notifications
+          </button>
+        </div>
+      </div>
+
+      {/* Stats bar */}
+      {stats && (
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <StatCard label="Total"       value={stats.total}    color="text-white" />
+          <StatCard label="Open"        value={stats.open}     color={stats.open > 0 ? 'text-red-400' : 'text-gray-400'} />
+          <StatCard label="Critical"    value={stats.critical} color={stats.critical > 0 ? 'text-red-400' : 'text-gray-400'} />
+          <StatCard label="Resolved"    value={stats.resolved} color="text-emerald-400" />
+          <StatCard label="Last 24h"    value={stats.last24h}  color={stats.last24h > 0 ? 'text-amber-400' : 'text-gray-400'} />
+        </div>
+      )}
+
+      {/* Notification settings panel */}
+      {showNotifSettings && (
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 space-y-3">
+          <p className="text-sm font-medium text-white">Bug Notification Webhook</p>
+          <p className="text-xs text-gray-400">Paste a Make.com, Zapier, Slack, or Discord webhook URL. A POST will be sent each time a new bug is reported.</p>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={webhookUrl}
+              onChange={(e) => setWebhookUrl(e.target.value)}
+              placeholder="https://hooks.slack.com/…"
+              className="flex-1 bg-gray-700 border border-gray-600 text-white text-sm rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+            />
+            <button onClick={saveWebhook} className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded font-medium">
+              {webhookSaved ? '✓ Saved' : 'Save'}
+            </button>
+            <button onClick={testWebhook} disabled={!webhookUrl}
+              className="px-3 py-2 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded font-medium disabled:opacity-40">
+              Test
+            </button>
+          </div>
+          <p className="text-xs text-gray-500">Note: This webhook is stored locally in your browser and fires from the frontend when a bug is captured. For server-side alerting, configure a webhook in your infrastructure.</p>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3">
+        <select value={filterTenant} onChange={(e) => setFilterTenant(e.target.value)}
+          className="bg-gray-800 border border-gray-700 text-gray-300 text-sm rounded px-3 py-1.5 focus:outline-none focus:border-blue-500">
+          <option value="">All Tenants</option>
+          {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
+          className="bg-gray-800 border border-gray-700 text-gray-300 text-sm rounded px-3 py-1.5 focus:outline-none focus:border-blue-500">
+          <option value="">All Statuses</option>
+          <option value="open">Open</option>
+          <option value="investigating">Investigating</option>
+          <option value="resolved">Resolved</option>
+          <option value="ignored">Ignored</option>
+        </select>
+        <select value={filterSeverity} onChange={(e) => setFilterSeverity(e.target.value)}
+          className="bg-gray-800 border border-gray-700 text-gray-300 text-sm rounded px-3 py-1.5 focus:outline-none focus:border-blue-500">
+          <option value="">All Severities</option>
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+        {(filterTenant || filterStatus || filterSeverity) && (
+          <button onClick={() => { setFilterTenant(''); setFilterStatus(''); setFilterSeverity(''); }}
+            className="text-xs text-gray-400 hover:text-white underline">
+            Clear filters
+          </button>
+        )}
+      </div>
+
+      {/* Table */}
+      {loading && <div className="text-gray-400 text-sm py-4">Loading reports…</div>}
+      {error   && <div className="text-red-400 text-sm py-4">Error: {error}</div>}
+
+      {!loading && !error && reports.length === 0 && (
+        <div className="text-center py-12">
+          <p className="text-2xl mb-2">🐛</p>
+          <p className="text-gray-400 text-sm">No bug reports found. That's a good sign!</p>
+        </div>
+      )}
+
+      {!loading && !error && reports.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-700 text-left">
+                <th className="text-xs text-gray-400 font-medium pb-2 pr-3">Severity</th>
+                <th className="text-xs text-gray-400 font-medium pb-2 pr-3">Status</th>
+                <th className="text-xs text-gray-400 font-medium pb-2 pr-3">Tenant</th>
+                <th className="text-xs text-gray-400 font-medium pb-2 pr-3">Module</th>
+                <th className="text-xs text-gray-400 font-medium pb-2 pr-3 max-w-xs">Error</th>
+                <th className="text-xs text-gray-400 font-medium pb-2 pr-3">User</th>
+                <th className="text-xs text-gray-400 font-medium pb-2 pr-3">When</th>
+                <th className="text-xs text-gray-400 font-medium pb-2"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-800">
+              {reports.map((r) => (
+                <tr key={r.id}
+                  onClick={() => setSelected(r.id)}
+                  className="hover:bg-gray-800/50 cursor-pointer transition-colors">
+                  <td className="py-2.5 pr-3">
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${SEV_COLORS[r.severity] || ''}`}>
+                      {r.severity}
+                    </span>
+                  </td>
+                  <td className="py-2.5 pr-3">
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${BUG_STATUS_COLORS[r.status] || ''}`}>
+                      {r.status}
+                    </span>
+                  </td>
+                  <td className="py-2.5 pr-3 text-gray-300 text-xs">{r.tenants?.name || '—'}</td>
+                  <td className="py-2.5 pr-3 text-gray-400 text-xs font-mono">{r.module || '—'}</td>
+                  <td className="py-2.5 pr-3 max-w-xs">
+                    <p className="text-gray-200 text-xs truncate max-w-xs">{r.error_message || '—'}</p>
+                  </td>
+                  <td className="py-2.5 pr-3 text-gray-400 text-xs">{r.user_name ? `${r.user_name} (${r.user_role || '?'})` : '—'}</td>
+                  <td className="py-2.5 pr-3 text-gray-500 text-xs whitespace-nowrap">{timeAgo(r.occurred_at)}</td>
+                  <td className="py-2.5">
+                    <button onClick={(e) => { e.stopPropagation(); setSelected(r.id); }}
+                      className="text-xs text-blue-400 hover:text-blue-300">View</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-xs text-gray-600 mt-3">{reports.length} report{reports.length !== 1 ? 's' : ''} shown (max 200)</p>
+        </div>
+      )}
+
+      {/* Detail drawer */}
+      {selected && (
+        <BugDetailDrawer
+          reportId={selected}
+          onClose={() => setSelected(null)}
+          onUpdate={handleUpdate}
+        />
+      )}
+    </div>
+  );
+}
+
 // ── Root component ────────────────────────────────────────────────────────────
 const TABS = [
   { id: 'overview', label: '📊 Overview' },
   { id: 'tenants',  label: '🏢 Tenants' },
   { id: 'users',    label: '👤 Users' },
   { id: 'billing',  label: '💳 Billing' },
+  { id: 'bugs',     label: '🐛 Bugs' },
 ];
 
 export default function SuperAdminModule({ authUser, onSignOut }) {
@@ -909,6 +1310,7 @@ export default function SuperAdminModule({ authUser, onSignOut }) {
         {tab === 'tenants'  && <TenantsTab />}
         {tab === 'users'    && <UsersTab tenants={tenants} />}
         {tab === 'billing'  && <BillingTab tenants={tenants} />}
+        {tab === 'bugs'     && <BugsTab tenants={tenants} />}
       </main>
     </div>
   );

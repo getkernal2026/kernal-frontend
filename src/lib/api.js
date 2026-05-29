@@ -502,5 +502,19 @@ export const api = {
     getInvoices:    (tenantId)   => authFetch(`/api/v1/superadmin/tenants/${tenantId}/invoices`),
     attachBilling:  (tenantId, body) => authFetch(`/api/v1/superadmin/tenants/${tenantId}/billing/attach`, { method: 'POST', body: JSON.stringify(body) }),
     cancelBilling:  (tenantId)   => authFetch(`/api/v1/superadmin/tenants/${tenantId}/billing/cancel`, { method: 'DELETE' }),
+
+    // Bug reports (cross-tenant triage)
+    bugs: {
+      list:        (params = {}) => authFetch(`/api/v1/bugs${qs(params)}`),
+      stats:       ()             => authFetch('/api/v1/bugs/stats'),
+      get:         (id)           => authFetch(`/api/v1/bugs/${id}`),
+      update:      (id, body)     => authFetch(`/api/v1/bugs/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+      delete:      (id)           => authFetch(`/api/v1/bugs/${id}`, { method: 'DELETE' }),
+    },
+  },
+
+  // ── Bug Reports (tenant submission) ──────────────────────────────────────
+  bugs: {
+    report: (body) => authFetch('/api/v1/bugs', { method: 'POST', body: JSON.stringify(body) }),
   },
 };
