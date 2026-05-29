@@ -429,6 +429,25 @@ export const api = {
     deleteSaved: (id)         => authFetch(`/api/v1/reports/saved/${id}`, { method: 'DELETE' }),
   },
 
+  // ── Developer API ─────────────────────────────────────────────────────────
+  developer: {
+    apiKeys: {
+      list:   ()       => authFetch('/api/v1/developer/api-keys'),
+      create: (body)   => authFetch('/api/v1/developer/api-keys', { method: 'POST',   body: JSON.stringify(body) }),
+      revoke: (id)     => authFetch(`/api/v1/developer/api-keys/${id}`, { method: 'DELETE' }),
+    },
+    webhooks: {
+      list:   ()       => authFetch('/api/v1/developer/webhooks'),
+      create: (body)   => authFetch('/api/v1/developer/webhooks', { method: 'POST',   body: JSON.stringify(body) }),
+      update: (id, body) => authFetch(`/api/v1/developer/webhooks/${id}`, { method: 'PATCH',  body: JSON.stringify(body) }),
+      delete: (id)     => authFetch(`/api/v1/developer/webhooks/${id}`, { method: 'DELETE' }),
+      test:   (id)     => authFetch(`/api/v1/developer/webhooks/${id}/test`, { method: 'POST', body: JSON.stringify({}) }),
+    },
+    events: {
+      list:   ()       => authFetch('/api/v1/developer/events'),
+    },
+  },
+
   // ── Integrations ─────────────────────────────────────────────────────────
   integrations: {
     getConnection:    ()           => authFetch('/api/v1/integrations/connection'),

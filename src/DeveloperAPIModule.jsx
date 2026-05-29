@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { api } from './lib/api.js';
 import {
   Key, Zap, Activity, Terminal,
   Plus, Trash2, Copy, Eye, EyeOff, RotateCcw,
@@ -207,8 +208,7 @@ function fmtTs(ts) {
 }
 
 // ═══ Sub-tab: API Keys ════════════════════════════════════════════════════════
-function ApiKeysTab({ isDark }) {
-  const [keys, setKeys]               = useState(DEMO_MODE ? INIT_API_KEYS : []);
+function ApiKeysTab({ isDark, keys, setKeys }) {
   const [revealId, setRevealId]       = useState(null);
   const [copiedId, setCopiedId]       = useState(null);
   const [showModal, setShowModal]     = useState(false);
@@ -226,9 +226,17 @@ function ApiKeysTab({ isDark }) {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const confirmRevoke = (id) => {
+  const confirmRevoke = async (id) => {
+    // Optimistic
     setKeys(prev => prev.map(k => k.id === id ? { ...k, status:'revoked', revokedAt: new Date().toISOString().slice(0,10) } : k));
     setRevokeId(null);
+    if (!DEMO_MODE) {
+      try { await api.developer.apiKeys.revoke(id); }
+      catch (err) {
+        console.error('revoke key:', err.message);
+        setKeys(prev => prev.map(k => k.id === id ? { ...k, status:'active', revokedAt: undefined } : k));
+      }
+    }
   };
 
   const toggleScope = (sid) => {
@@ -238,27 +246,38 @@ function ApiKeysTab({ isDark }) {
     }));
   };
 
-  const createKey = () => {
+  const createKey = async () => {
     if (!form.name.trim() || form.scopes.length === 0) return;
-    const rand = () => Math.random().toString(36).slice(2);
-    const rawKey = `krn_${form.env}_${rand()}${rand()}${rand()}`;
-    const masked = rawKey.slice(0, 12) + '••••••••••••••••••••' + rawKey.slice(-8);
-    const newKey = {
-      id: `key_${form.env}_${rand().slice(0,4)}`,
-      name: form.name.trim(),
-      key: rawKey,
-      masked,
-      scopes: [...form.scopes],
-      env: form.env,
-      status: 'active',
-      createdAt: new Date().toISOString().slice(0,10),
-      lastUsed: '—',
-      requests: 0,
-    };
-    setKeys(prev => [newKey, ...prev]);
-    setNewCreated({ key: rawKey, name: newKey.name });
-    setShowModal(false);
-    setForm({ name:'', env:'live', scopes:[] });
+
+    if (DEMO_MODE) {
+      const rand = () => Math.random().toString(36).slice(2);
+      const rawKey = `krn_${form.env}_${rand()}${rand()}${rand()}`;
+      const masked = rawKey.slice(0, 16) + '••••••••••••••••••••' + rawKey.slice(-8);
+      const newKey = {
+        id: `key_${form.env}_${rand().slice(0,4)}`,
+        name: form.name.trim(), key: rawKey, masked,
+        scopes: [...form.scopes], env: form.env, status: 'active',
+        createdAt: new Date().toISOString().slice(0,10), lastUsed: '—', requests: 0,
+      };
+      setKeys(prev => [newKey, ...prev]);
+      setNewCreated({ key: rawKey, name: newKey.name });
+      setShowModal(false);
+      setForm({ name:'', env:'live', scopes:[] });
+      return;
+    }
+
+    try {
+      const res = await api.developer.apiKeys.create({ name: form.name.trim(), env: form.env, scopes: form.scopes });
+      const created = res?.data;
+      if (created) {
+        setKeys(prev => [created, ...prev]);
+        setNewCreated({ key: created.key, name: created.name });
+      }
+      setShowModal(false);
+      setForm({ name:'', env:'live', scopes:[] });
+    } catch (err) {
+      console.error('createKey:', err.message);
+    }
   };
 
   return (
@@ -580,8 +599,7 @@ function ApiExplorerTab({ isDark }) {
 }
 
 // ═══ Sub-tab: Webhooks ════════════════════════════════════════════════════════
-function WebhooksTab({ isDark }) {
-  const [webhooks, setWebhooks]   = useState(DEMO_MODE ? INIT_WEBHOOKS : []);
+function WebhooksTab({ isDark, webhooks, setWebhooks }) {
   const [showModal, setShowModal] = useState(false);
   const [testingId, setTestingId] = useState(null);
   const [testedId, setTestedId]   = useState(null);
@@ -590,24 +608,42 @@ function WebhooksTab({ isDark }) {
   const subText = isDark ? 'text-gray-400' : 'text-gray-500';
   const border  = isDark ? 'border-gray-700/60' : 'border-slate-200';
 
-  const toggleStatus = (id) => {
-    setWebhooks(prev => prev.map(w => w.id === id
-      ? { ...w, status: w.status === 'disabled' ? 'active' : 'disabled' }
-      : w
-    ));
+  const toggleStatus = async (id) => {
+    const wh = webhooks.find(w => w.id === id);
+    if (!wh) return;
+    const newStatus = wh.status === 'disabled' ? 'active' : 'disabled';
+    setWebhooks(prev => prev.map(w => w.id === id ? { ...w, status: newStatus } : w));
+    if (!DEMO_MODE) {
+      try { await api.developer.webhooks.update(id, { status: newStatus }); }
+      catch (err) {
+        console.error('toggleStatus:', err.message);
+        setWebhooks(prev => prev.map(w => w.id === id ? { ...w, status: wh.status } : w));
+      }
+    }
   };
 
-  const deleteWebhook = (id) => {
+  const deleteWebhook = async (id) => {
     setWebhooks(prev => prev.filter(w => w.id !== id));
+    if (!DEMO_MODE) {
+      try { await api.developer.webhooks.delete(id); }
+      catch (err) {
+        console.error('deleteWebhook:', err.message);
+        // can't easily revert a delete, just log
+      }
+    }
   };
 
-  const testWebhook = (id) => {
+  const testWebhook = async (id) => {
     setTestingId(id);
-    setTimeout(() => {
-      setTestingId(null);
-      setTestedId(id);
-      setTimeout(() => setTestedId(null), 3000);
-    }, 1400);
+    if (!DEMO_MODE) {
+      try { await api.developer.webhooks.test(id); }
+      catch (err) { console.error('testWebhook:', err.message); }
+    } else {
+      await new Promise(r => setTimeout(r, 1400));
+    }
+    setTestingId(null);
+    setTestedId(id);
+    setTimeout(() => setTestedId(null), 3000);
   };
 
   const toggleEvent = (eid) => {
@@ -617,23 +653,31 @@ function WebhooksTab({ isDark }) {
     }));
   };
 
-  const createWebhook = () => {
+  const createWebhook = async () => {
     if (!form.name.trim() || !form.url.trim() || form.events.length === 0) return;
-    const newWh = {
-      id: `wh_${Date.now()}`,
-      name: form.name.trim(),
-      url: form.url.trim(),
-      events: [...form.events],
-      status: 'active',
-      secret: 'whsec_••••••••',
-      createdAt: new Date().toISOString().slice(0,10),
-      lastDelivery: '—',
-      successRate: null,
-      totalDeliveries: 0,
-    };
-    setWebhooks(prev => [newWh, ...prev]);
-    setShowModal(false);
-    setForm({ name:'', url:'', events:[] });
+
+    if (DEMO_MODE) {
+      const newWh = {
+        id: `wh_${Date.now()}`, name: form.name.trim(), url: form.url.trim(),
+        events: [...form.events], status: 'active', secret: 'whsec_••••••••',
+        createdAt: new Date().toISOString().slice(0,10), lastDelivery: '—',
+        successRate: null, totalDeliveries: 0,
+      };
+      setWebhooks(prev => [newWh, ...prev]);
+      setShowModal(false);
+      setForm({ name:'', url:'', events:[] });
+      return;
+    }
+
+    try {
+      const res = await api.developer.webhooks.create({ name: form.name.trim(), url: form.url.trim(), events: form.events });
+      const created = res?.data;
+      if (created) setWebhooks(prev => [created, ...prev]);
+      setShowModal(false);
+      setForm({ name:'', url:'', events:[] });
+    } catch (err) {
+      console.error('createWebhook:', err.message);
+    }
   };
 
   const statusMeta = {
@@ -811,8 +855,7 @@ function WebhooksTab({ isDark }) {
 }
 
 // ═══ Sub-tab: Event Log ═══════════════════════════════════════════════════════
-function EventLogTab({ isDark }) {
-  const [events]                        = useState(DEMO_MODE ? INIT_EVENT_LOG : []);
+function EventLogTab({ isDark, events }) {
   const [typeFilter, setTypeFilter]     = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [expandedEvt, setExpandedEvt]   = useState(null);
@@ -930,6 +973,31 @@ export default function DeveloperAPIModule() {
   const { isDark } = useKernal();
   const [tab, setTab] = useState('keys');
 
+  // ── Hoisted state (passed down to sub-tabs) ───────────────────────────────
+  const [apiKeys,   setApiKeys]   = useState(DEMO_MODE ? INIT_API_KEYS   : []);
+  const [webhooks,  setWebhooks]  = useState(DEMO_MODE ? INIT_WEBHOOKS   : []);
+  const [events,    setEvents]    = useState(DEMO_MODE ? INIT_EVENT_LOG  : []);
+
+  // ── Mount: load all three in parallel ─────────────────────────────────────
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    async function load() {
+      try {
+        const [keysRes, whRes, evtRes] = await Promise.all([
+          api.developer.apiKeys.list(),
+          api.developer.webhooks.list(),
+          api.developer.events.list(),
+        ]);
+        setApiKeys(keysRes?.data  || []);
+        setWebhooks(whRes?.data   || []);
+        setEvents(evtRes?.data    || []);
+      } catch (err) {
+        console.error('DeveloperAPIModule load:', err.message);
+      }
+    }
+    load();
+  }, []);
+
   const TABS = [
     { id: 'keys',     label: 'API Keys',     Icon: Key      },
     { id: 'explorer', label: 'API Explorer', Icon: Terminal },
@@ -941,11 +1009,12 @@ export default function DeveloperAPIModule() {
   const border   = isDark ? 'border-gray-800'  : 'border-slate-200';
   const subText  = isDark ? 'text-gray-400'    : 'text-gray-500';
 
-  // Summary stats
-  const liveKeys    = INIT_API_KEYS.filter(k => k.status === 'active' && k.env === 'live').length;
-  const activeWhs   = INIT_WEBHOOKS.filter(w => w.status === 'active').length;
-  const failingWhs  = INIT_WEBHOOKS.filter(w => w.status === 'failing').length;
-  const todayReqs   = INIT_EVENT_LOG.filter(e => e.ts.startsWith('2026-05-27')).length;
+  // Summary stats — computed from live state
+  const today      = new Date().toISOString().slice(0, 10);
+  const liveKeys   = apiKeys.filter(k => k.status === 'active' && k.env === 'live').length;
+  const activeWhs  = webhooks.filter(w => w.status === 'active').length;
+  const failingWhs = webhooks.filter(w => w.status === 'failing').length;
+  const todayReqs  = events.filter(e => e.ts?.startsWith(today)).length;
 
   return (
     <div className={`h-full flex flex-col gap-0 ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>
@@ -1010,10 +1079,10 @@ export default function DeveloperAPIModule() {
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto px-6 py-5">
-        {tab === 'keys'     && <ApiKeysTab     isDark={isDark} />}
+        {tab === 'keys'     && <ApiKeysTab     isDark={isDark} keys={apiKeys}    setKeys={setApiKeys}    />}
         {tab === 'explorer' && <ApiExplorerTab isDark={isDark} />}
-        {tab === 'webhooks' && <WebhooksTab    isDark={isDark} />}
-        {tab === 'log'      && <EventLogTab    isDark={isDark} />}
+        {tab === 'webhooks' && <WebhooksTab    isDark={isDark} webhooks={webhooks} setWebhooks={setWebhooks} />}
+        {tab === 'log'      && <EventLogTab    isDark={isDark} events={events}  />}
       </div>
     </div>
   );
