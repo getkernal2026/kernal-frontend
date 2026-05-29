@@ -432,7 +432,8 @@ export const api = {
   // ── Superadmin (requires superadmin role) ─────────────────────────────────
   superadmin: {
     // Stats
-    getStats:       ()           => authFetch('/api/v1/superadmin/stats'),
+    getStats:       ()              => authFetch('/api/v1/superadmin/stats'),
+    revenueChart:   (months = 12)   => authFetch(`/api/v1/superadmin/revenue-chart?months=${months}`),
 
     // Tenants
     listTenants:    ()           => authFetch('/api/v1/superadmin/tenants'),

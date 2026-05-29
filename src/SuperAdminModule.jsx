@@ -43,15 +43,48 @@ function StatCard({ label, value, sub, color = 'text-white' }) {
   );
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const fmtMrr = (cents) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format((cents || 0) / 100);
+
+// Simple inline bar chart for revenue history
+function RevenueBar({ data }) {
+  if (!data || data.length === 0) return null;
+  const max = Math.max(...data.map((d) => d.amount), 1);
+  return (
+    <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+      <p className="text-sm font-medium text-gray-300 mb-4">Monthly Revenue (12 months)</p>
+      <div className="flex items-end gap-1 h-28">
+        {data.map((d) => {
+          const pct = max > 0 ? (d.amount / max) * 100 : 0;
+          return (
+            <div key={d.yearMonth} className="flex flex-col items-center flex-1 min-w-0 gap-1">
+              <div className="w-full rounded-t" style={{ height: `${Math.max(pct, 2)}%`, background: 'rgba(139,92,246,.7)' }} title={`${d.month}: ${fmtMrr(d.amount)}`} />
+              <span className="text-[9px] text-gray-500 truncate w-full text-center">{d.month.split(' ')[0]}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Tab: Overview ─────────────────────────────────────────────────────────────
 function OverviewTab() {
-  const [stats, setStats]   = useState(null);
+  const [stats,   setStats]   = useState(null);
+  const [chart,   setChart]   = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError]   = useState(null);
+  const [error,   setError]   = useState(null);
 
   useEffect(() => {
-    api.superadmin.getStats()
-      .then((r) => setStats(r.data))
+    Promise.all([
+      api.superadmin.getStats(),
+      api.superadmin.revenueChart(12),
+    ])
+      .then(([statsRes, chartRes]) => {
+        setStats(statsRes.data);
+        setChart(chartRes.data || []);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
@@ -59,23 +92,58 @@ function OverviewTab() {
   if (loading) return <div className="text-gray-400 p-6">Loading stats…</div>;
   if (error)   return <div className="text-red-400 p-6">Error: {error}</div>;
 
+  const mrrDelta = stats.newMrrThisMonth - (stats.churnedThisMonth > 0 ? stats.churnedThisMonth * 29900 : 0);
+
   return (
     <div className="p-6 space-y-6">
       <h2 className="text-lg font-semibold text-white">Platform Overview</h2>
 
+      {/* Tenant / user counts */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Total Tenants"   value={stats.totalTenants}  sub={`${stats.activeTenants} active`} color="text-white" />
-        <StatCard label="Total Users"     value={stats.totalUsers}    sub={`${stats.activeUsers} active`}  color="text-white" />
+        <StatCard label="Total Tenants"     value={stats.totalTenants}  sub={`${stats.activeTenants} active`} color="text-white" />
+        <StatCard label="Total Users"       value={stats.totalUsers}    sub={`${stats.activeUsers} active`}   color="text-white" />
         <StatCard label="New Tenants (30d)" value={stats.newTenants30d} color="text-emerald-400" />
         <StatCard label="New Users (30d)"   value={stats.newUsers30d}   color="text-blue-400" />
       </div>
 
+      {/* MRR metrics */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard
+          label="MRR"
+          value={fmtMrr(stats.mrr)}
+          sub={stats.mrrSource === 'stripe' ? 'from Stripe' : 'estimated'}
+          color="text-violet-400"
+        />
+        <StatCard
+          label="New MRR (this month)"
+          value={fmtMrr(stats.newMrrThisMonth)}
+          color="text-emerald-400"
+        />
+        <StatCard
+          label="Churned (this month)"
+          value={stats.churnedThisMonth}
+          sub="tenants"
+          color={stats.churnedThisMonth > 0 ? 'text-red-400' : 'text-gray-400'}
+        />
+        <StatCard
+          label="MRR by Plan"
+          value={`$${Math.round((stats.mrr || 0) / 100).toLocaleString()}`}
+          sub={`S:${stats.planCounts.starter} G:${stats.planCounts.growth} E:${stats.planCounts.enterprise}`}
+          color="text-cyan-400"
+        />
+      </div>
+
+      {/* Revenue chart */}
+      <RevenueBar data={chart} />
+
+      {/* Plan breakdown */}
       <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
         <p className="text-sm font-medium text-gray-300 mb-4">Tenants by Plan</p>
         <div className="grid grid-cols-3 gap-4">
           {Object.entries(stats.planCounts).map(([plan, count]) => (
             <div key={plan} className="text-center">
               <p className="text-xl font-bold text-white">{count}</p>
+              <p className="text-xs text-gray-500 mt-1">{fmtMrr(stats.mrrByPlan?.[plan] || 0)} MRR</p>
               <Badge label={plan.charAt(0).toUpperCase() + plan.slice(1)} color={PLAN_COLORS[plan] || ''} />
             </div>
           ))}

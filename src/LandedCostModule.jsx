@@ -1,7 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useKernal } from './KernalContext.jsx';
 import { DEMO_MODE } from './lib/demoMode.js';
-import { api } from './lib/api.js';
 import {
   Anchor, Ship, DollarSign, Package, BarChart2, Globe,
   Plus, X, ChevronRight, Info, TrendingUp,
@@ -545,38 +544,12 @@ function ReportsTab({ shipments }) {
   );
 }
 
-// ─── Row mappers (DB → frontend shape) ────────────────────────────────────────
-const mapApiCost = (c) => ({
-  _id:     c.id,
-  id:      c.id,
-  type:    c.type,
-  amount:  Number(c.amount),
-  carrier: c.carrier   || '',
-  ref:     c.reference || '',
-});
-
-const mapApiShipment = (r) => ({
-  _id:         r.id,
-  id:          r.shipment_number,
-  origin:      r.origin       || '',
-  originCode:  r.origin_code  || '',
-  supplier:    r.vendor_name  || '',
-  arrivalDate: r.arrived_date || r.eta || '',
-  status:      r.status       || 'draft',
-  poIds:       r.po_numbers
-    ? r.po_numbers.split(',').map(s => s.trim()).filter(Boolean)
-    : [],
-  poValue:     Number(r.po_value   || 0),
-  allocMethod: r.alloc_method || 'value',
-  costs:       (r.costs || []).map(mapApiCost),
-});
-
 // ─── Main Export ──────────────────────────────────────────────────────────────
 export default function LandedCostModule() {
   const { can } = useKernal();
-  const [tab, setTab]             = useState('shipments');
+  const [tab, setTab]           = useState('shipments');
   const [shipments, setShipments] = useState(DEMO_MODE ? INIT_SHIPMENTS : []);
-  const [selectedId, setSelectedId] = useState(DEMO_MODE ? 'SHP-2026-001' : null);
+  const [selectedId, setSelectedId] = useState('SHP-2026-001');
 
   const tabs = [
     { id: 'shipments',  label: 'Shipments',  Icon: Ship       },
@@ -585,72 +558,9 @@ export default function LandedCostModule() {
     { id: 'reports',    label: 'Reports',    Icon: BarChart2  },
   ];
 
-  // ── Live data fetch ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (DEMO_MODE) return;
-    let cancelled = false;
-    api.landedCosts.shipments.list().then(res => {
-      if (cancelled) return;
-      const rows = (res?.data || []).map(mapApiShipment);
-      setShipments(rows);
-      if (rows.length > 0) setSelectedId(rows[0].id);
-    }).catch(console.error);
-    return () => { cancelled = true; };
-  }, []);
-
-  // ── Handlers ─────────────────────────────────────────────────────────────────
-
-  const handleAddCost = async (shipId, cost) => {
-    setShipments(prev => prev.map(s => s.id === shipId ? { ...s, costs: [...s.costs, cost] } : s)); // optimistic
-    if (!DEMO_MODE) {
-      const ship = shipments.find(s => s.id === shipId);
-      if (!ship?._id) return;
-      try {
-        const saved = await api.landedCosts.costs.create(ship._id, {
-          type: cost.type, amount: cost.amount,
-          carrier: cost.carrier || null, reference: cost.ref || null,
-        });
-        const mapped = mapApiCost(saved);
-        setShipments(prev => prev.map(s => s.id === shipId
-          ? { ...s, costs: s.costs.map(c => c.id === cost.id ? mapped : c) }
-          : s));
-      } catch (err) {
-        console.error('add cost failed', err);
-        setShipments(prev => prev.map(s => s.id === shipId
-          ? { ...s, costs: s.costs.filter(c => c.id !== cost.id) }
-          : s)); // revert
-      }
-    }
-  };
-
-  const handleRemoveCost = async (shipId, cid) => {
-    const ship = shipments.find(s => s.id === shipId);
-    const cost = ship?.costs.find(c => c.id === cid);
-    setShipments(prev => prev.map(s => s.id === shipId ? { ...s, costs: s.costs.filter(c => c.id !== cid) } : s)); // optimistic
-    if (!DEMO_MODE && ship?._id && cost?._id) {
-      try {
-        await api.landedCosts.costs.delete(ship._id, cost._id);
-      } catch (err) {
-        console.error('remove cost failed', err);
-        setShipments(prev => prev.map(s => s.id === shipId
-          ? { ...s, costs: [...s.costs, cost] }
-          : s)); // revert
-      }
-    }
-  };
-
-  const handleSetMethod = async (shipId, m) => {
-    const ship = shipments.find(s => s.id === shipId);
-    setShipments(prev => prev.map(s => s.id === shipId ? { ...s, allocMethod: m } : s)); // optimistic
-    if (!DEMO_MODE && ship?._id) {
-      try {
-        await api.landedCosts.shipments.update(ship._id, { alloc_method: m });
-      } catch (err) {
-        console.error('set alloc method failed', err);
-        setShipments(prev => prev.map(s => s.id === shipId ? { ...s, allocMethod: ship.allocMethod } : s)); // revert
-      }
-    }
-  };
+  const handleAddCost    = (shipId, cost) => setShipments(prev => prev.map(s => s.id === shipId ? { ...s, costs: [...s.costs, cost] } : s));
+  const handleRemoveCost = (shipId, cid)  => setShipments(prev => prev.map(s => s.id === shipId ? { ...s, costs: s.costs.filter(c => c.id !== cid) } : s));
+  const handleSetMethod  = (shipId, m)    => setShipments(prev => prev.map(s => s.id === shipId ? { ...s, allocMethod: m } : s));
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 1020 }}>
