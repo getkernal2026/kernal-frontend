@@ -17,7 +17,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     enabled: !!import.meta.env.VITE_SENTRY_DSN,
   });
 }
-import { MOCK_INVENTORY } from './shared/mockInventory.js';
+// MOCK_INVENTORY import removed — GlobalSearch uses live API data
 
 import SuperAdminModule         from './SuperAdminModule.jsx';
 import InventoryModule          from './InventoryModule.jsx';
@@ -55,54 +55,7 @@ import {
 
 import OnboardingTour, { TOURS, tourStorage } from './OnboardingTour.jsx';
 
-// ── Global Search — static record index ──────────────────────────────────────
-// One record per searchable entity. Dynamic records (inventory, users,
-// approvals) are merged in at query time via the GlobalSearch component.
-const STATIC_SEARCH_RECORDS = [
-  // ── Customers ──────────────────────────────────────────────────────────────
-  { id:'CUST-101', type:'customer', title:'Metro Restaurant Group',  sub:'2200 Magazine St · Net 30',           module:'crm'         },
-  { id:'CUST-102', type:'customer', title:'Downtown Catering Co.',   sub:'450 Poydras St · Net 30',             module:'crm'         },
-  { id:'CUST-103', type:'customer', title:'Harbor View Hotel',        sub:'88 Riverwalk Way · Net 15',           module:'crm'         },
-  { id:'CUST-104', type:'customer', title:'Sunset Bistro Chain',      sub:'901 Carrollton Ave · Net 30',         module:'crm'         },
-  { id:'CUST-105', type:'customer', title:'City School District',     sub:'3520 General Taylor St · Net 45',     module:'crm'         },
-  { id:'CUST-106', type:'customer', title:'Bayou Grill & Pub',        sub:'714 Decatur St · Net 15',             module:'crm'         },
-  { id:'CUST-107', type:'customer', title:'Crescent City Catering',   sub:'5500 Tchoupitoulas St · Net 30',      module:'crm'         },
-  { id:'CUST-501', type:'customer', title:"Joe's Steakhouse – Downtown",  sub:'Magazine St · Active · Health 82',   module:'crm'         },
-  { id:'CUST-502', type:'customer', title:'Pelican Bay Food Service', sub:'Metairie · Active · Health 91',       module:'crm'         },
-  { id:'CUST-503', type:'customer', title:'Garden District Grill',    sub:'Prytania St · Active · Health 74',    module:'crm'         },
-  { id:'CUST-504', type:'customer', title:'Magnolia Bistro',          sub:'Magazine St · Active · Health 68',    module:'crm'         },
-  // ── Invoices ───────────────────────────────────────────────────────────────
-  { id:'INV-501', type:'invoice', title:'INV-501 · Metro Restaurant Group',  sub:'$8,450.00 · Overdue',   module:'accounting', status:'Overdue'  },
-  { id:'INV-502', type:'invoice', title:'INV-502 · Downtown Catering Co.',   sub:'$3,200.00 · Open',      module:'accounting', status:'Open'     },
-  { id:'INV-503', type:'invoice', title:'INV-503 · Harbor View Hotel',        sub:'$12,800.00 · Paid',     module:'accounting', status:'Paid'     },
-  { id:'INV-504', type:'invoice', title:'INV-504 · Sunset Bistro Chain',      sub:'$5,600.00 · Partial',   module:'accounting', status:'Partial'  },
-  { id:'INV-505', type:'invoice', title:'INV-505 · City School District',     sub:'$22,000.00 · Open',     module:'accounting', status:'Open'     },
-  { id:'INV-506', type:'invoice', title:'INV-506 · Bayou Grill & Pub',        sub:'$1,910.05 · Open',      module:'accounting', status:'Open'     },
-  // ── Orders ─────────────────────────────────────────────────────────────────
-  { id:'SO-9890', type:'order', title:'SO-9890 · Pelican Bay Food Service', sub:'Submitted · $2,340.00',          module:'field'       },
-  { id:'SO-9891', type:'order', title:'SO-9891 · Magnolia Bistro',           sub:'Picking · $1,890.00',            module:'logistics'   },
-  { id:'SO-9892', type:'order', title:'SO-9892 · Garden District Grill',     sub:'Out for Delivery · $3,120.00',   module:'logistics'   },
-  { id:'SO-9893', type:'order', title:'SO-9893 · Bayou Grill & Pub',         sub:'Delivered · $1,910.05',          module:'logistics'   },
-  { id:'SO-9894', type:'order', title:"SO-9894 · Joe's Steakhouse",          sub:'Submitted · $4,210.00',          module:'field'       },
-  { id:'SO-9895', type:'order', title:'SO-9895 · Magnolia Bistro',           sub:'Delivered · Catch-weight',       module:'logistics'   },
-  { id:'SO-9896', type:'order', title:'SO-9896 · Garden District Grill',     sub:'Delivered · Catch-weight',       module:'logistics'   },
-  { id:'SO-9897', type:'order', title:'SO-9897 · City School District',      sub:'Picking · $8,240.00',            module:'logistics'   },
-  { id:'SO-9898', type:'order', title:'SO-9898 · Harbor View Hotel',         sub:'Out for Delivery · $6,580.00',   module:'logistics'   },
-  { id:'SO-9899', type:'order', title:'SO-9899 · Sunset Bistro Chain',       sub:'Submitted · $1,650.00',          module:'field'       },
-  // ── Purchase Orders ────────────────────────────────────────────────────────
-  { id:'PO-AP-0881', type:'po', title:'PO-AP-0881 · US Foods Distribution',  sub:'$8,200.00 · Sent',               module:'procurement' },
-  { id:'PO-AP-0882', type:'po', title:'PO-AP-0882 · US Foods Distribution',  sub:'$4,250.00 · Partially Received', module:'procurement' },
-  { id:'PO-AP-0883', type:'po', title:'PO-AP-0883 · Sysco Corporation',       sub:'$5,450.00 · Approved',           module:'procurement' },
-  { id:'PO-AP-0884', type:'po', title:'PO-AP-0884 · Sysco Corporation',       sub:'$3,470.50 · Sent',               module:'procurement' },
-  { id:'PO-AP-0885', type:'po', title:'PO-AP-0885 · Gordon Food Service',     sub:'$3,200.00 · Sent',               module:'procurement' },
-  { id:'PO-AP-0886', type:'po', title:'PO-AP-0886 · FleetPride Parts',        sub:'$1,450.00 · Approved',           module:'procurement' },
-  // ── Vendors ────────────────────────────────────────────────────────────────
-  { id:'V001', type:'vendor', title:'US Foods Distribution',  sub:'Mike Reyes · Net 30 · $12,450 balance',  module:'procurement' },
-  { id:'V002', type:'vendor', title:'Sysco Corporation',       sub:'Sarah Kim · Net 30 · $8,921 balance',    module:'procurement' },
-  { id:'V003', type:'vendor', title:'Gordon Food Service',     sub:'Tom Walsh · Net 15 · $3,200 balance',    module:'procurement' },
-  { id:'V004', type:'vendor', title:'FleetPride Parts',        sub:'Ana Rivera · Net 15 · $1,450 balance',   module:'procurement' },
-  { id:'V005', type:'vendor', title:'City Utilities',          sub:'Billing Dept · Due on Receipt · $620',   module:'procurement' },
-];
+// STATIC_SEARCH_RECORDS removed — GlobalSearch now uses live apiCustomers, apiOrders, apiInventory, apiProducts
 
 // Type display metadata — icon + color palette per record type
 const TYPE_META = {
@@ -133,41 +86,79 @@ const MODULE_LABELS = {
 
 // ── Global Search component ────────────────────────────────────────────────────
 function GlobalSearch({ isDark, onNavigate, onClose, recentSearches, onAddRecent }) {
-  const { users, approvalRequests } = useKernal();
+  const { users, approvalRequests, apiCustomers, apiOrders, apiInventory, apiProducts } = useKernal();
   const [query, setQuery]   = useState('');
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef(null);
 
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 30); }, []);
 
-  // Build full live index (static + dynamic)
-  const allRecords = useMemo(() => [
-    ...STATIC_SEARCH_RECORDS,
-    ...MOCK_INVENTORY.map(item => ({
-      id: item.sku,
-      type: 'sku',
-      title: item.name,
-      sub: `${item.sku} · ${item.category} · ${item.physicalStock - item.allocatedStock} avail`,
-      module: 'inventory',
-      keywords: [item.sku, item.name, item.category, item.barcode || '', item.preferredVendorName || ''],
-    })),
-    ...users.map(u => ({
-      id: u.id,
-      type: 'user',
-      title: u.name,
-      sub: `${ROLES[u.role]?.label || u.role} · ${u.active ? 'Active' : 'Inactive'}`,
-      module: 'users',
+  // Build full live index from real API data — no mock/static records
+  const allRecords = useMemo(() => {
+    // ── Customers (from CRM) ───────────────────────────────────────────────────
+    const customerRecords = (apiCustomers || []).map(c => ({
+      id:       c.id,
+      type:     'customer',
+      title:    c.name,
+      sub:      [c.address, c.city, c.payment_terms].filter(Boolean).join(' · '),
+      module:   'crm',
+      keywords: [c.id, c.name, c.email || '', c.phone || '', c.city || '', c.address || ''],
+    }));
+
+    // ── Orders (from Field Sales / any module) ─────────────────────────────────
+    const orderRecords = (apiOrders || []).map(o => ({
+      id:       o.order_number || o.id,
+      type:     'order',
+      title:    `${o.order_number || o.id} · ${o.customers?.name || 'Unknown Customer'}`,
+      sub:      `${o.status ? o.status.charAt(0).toUpperCase() + o.status.slice(1) : ''} · ${o.total_amount != null ? `$${Number(o.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}`,
+      module:   'field',
+      keywords: [o.order_number || '', o.id, o.customers?.name || '', o.status || ''],
+    }));
+
+    // ── SKUs — prefer inventory rows (have stock data), fill in from products ──
+    const invProductIds = new Set((apiInventory || []).map(r => r.product_id));
+    const skuRecords = [
+      ...(apiInventory || []).map(r => ({
+        id:       r.products?.sku || r.product_id,
+        type:     'sku',
+        title:    r.products?.name || r.product_id,
+        sub:      `${r.products?.sku || ''} · ${r.products?.unit_of_measure || ''} · ${Math.max(0, Number(r.quantity_on_hand) - Number(r.quantity_reserved))} avail`,
+        module:   'inventory',
+        keywords: [r.products?.sku || '', r.products?.name || '', r.products?.category || '', r.location_id || ''],
+      })),
+      // Products that don't have an inventory row yet
+      ...(apiProducts || []).filter(p => !invProductIds.has(p.id)).map(p => ({
+        id:       p.sku,
+        type:     'sku',
+        title:    p.name,
+        sub:      `${p.sku} · ${p.unit_of_measure || ''} · 0 avail`,
+        module:   'inventory',
+        keywords: [p.sku, p.name, p.category || ''],
+      })),
+    ];
+
+    // ── Users ─────────────────────────────────────────────────────────────────
+    const userRecords = (users || []).map(u => ({
+      id:       u.id,
+      type:     'user',
+      title:    u.name,
+      sub:      `${ROLES[u.role]?.label || u.role} · ${u.active ? 'Active' : 'Inactive'}`,
+      module:   'users',
       keywords: [u.id, u.name, u.role, u.email || ''],
-    })),
-    ...approvalRequests.map(r => ({
-      id: r.id,
-      type: 'approval',
-      title: r.title,
-      sub: `${r.flowType?.replace(/_/g,' ')} · ${r.status}`,
-      module: 'approvals',
+    }));
+
+    // ── Approvals ─────────────────────────────────────────────────────────────
+    const approvalRecords = (approvalRequests || []).map(r => ({
+      id:       r.id,
+      type:     'approval',
+      title:    r.title,
+      sub:      `${r.flowType?.replace(/_/g,' ')} · ${r.status}`,
+      module:   'approvals',
       keywords: [r.id, r.title, r.flowType || '', r.status || ''],
-    })),
-  ], [users, approvalRequests]);
+    }));
+
+    return [...customerRecords, ...orderRecords, ...skuRecords, ...userRecords, ...approvalRecords];
+  }, [apiCustomers, apiOrders, apiInventory, apiProducts, users, approvalRequests]);
 
   // Score + filter
   const results = useMemo(() => {
