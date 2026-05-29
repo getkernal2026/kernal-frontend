@@ -536,12 +536,15 @@ export function KernalProvider({ children }) {
   // These mirror the backend tables and are available to all modules via context.
   // Modules may still maintain their own enriched local state; these are the
   // ground-truth records from the DB.
-  const [apiProducts,  setApiProducts]  = useState([]);
-  const [apiInventory, setApiInventory] = useState([]);
-  const [apiCustomers, setApiCustomers] = useState([]);
-  const [apiOrders,    setApiOrders]    = useState([]);
-  const [apiLoading,   setApiLoading]   = useState(false);
-  const [apiError,     setApiError]     = useState(null);
+  const [apiProducts,       setApiProducts]       = useState([]);
+  const [apiInventory,      setApiInventory]      = useState([]);
+  const [apiCustomers,      setApiCustomers]      = useState([]);
+  const [apiOrders,         setApiOrders]         = useState([]);
+  const [apiVendors,        setApiVendors]        = useState([]);
+  const [apiPurchaseOrders, setApiPurchaseOrders] = useState([]);
+  const [apiInvoices,       setApiInvoices]       = useState([]);
+  const [apiLoading,        setApiLoading]        = useState(false);
+  const [apiError,          setApiError]          = useState(null);
 
   // Fetch core data once the user signs in
   useEffect(() => {
@@ -551,6 +554,9 @@ export function KernalProvider({ children }) {
       setApiInventory([]);
       setApiCustomers([]);
       setApiOrders([]);
+      setApiVendors([]);
+      setApiPurchaseOrders([]);
+      setApiInvoices([]);
       return;
     }
     let cancelled = false;
@@ -562,13 +568,19 @@ export function KernalProvider({ children }) {
       api.inventory.list({ limit: 500 }),
       api.customers.list({ limit: 500 }),
       api.orders.list({ limit: 100 }),
+      api.procurement.vendors.list({ limit: 500 }),
+      api.procurement.purchaseOrders.list({ limit: 200 }),
+      api.accounting.invoices.list({ limit: 200 }),
     ])
-      .then(([prod, inv, cust, ord]) => {
+      .then(([prod, inv, cust, ord, ven, pos, inv2]) => {
         if (cancelled) return;
-        setApiProducts(prod.data  || []);
-        setApiInventory(inv.data  || []);
-        setApiCustomers(cust.data || []);
-        setApiOrders(ord.data     || []);
+        setApiProducts(prod.data       || []);
+        setApiInventory(inv.data       || []);
+        setApiCustomers(cust.data      || []);
+        setApiOrders(ord.data          || []);
+        setApiVendors(ven.data         || []);
+        setApiPurchaseOrders(pos.data  || []);
+        setApiInvoices(inv2.data       || []);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -609,10 +621,13 @@ export function KernalProvider({ children }) {
   }, [authUser]);
 
   // Convenience refreshers for individual collections
-  const refreshProducts  = () => api.products.list({ limit: 500 }).then(r => setApiProducts(r.data  || []));
-  const refreshInventory = () => api.inventory.list({ limit: 500 }).then(r => setApiInventory(r.data || []));
-  const refreshCustomers = () => api.customers.list({ limit: 500 }).then(r => setApiCustomers(r.data || []));
-  const refreshOrders    = () => api.orders.list({ limit: 100 }).then(r => setApiOrders(r.data || []));
+  const refreshProducts       = () => api.products.list({ limit: 500 }).then(r => setApiProducts(r.data || []));
+  const refreshInventory      = () => api.inventory.list({ limit: 500 }).then(r => setApiInventory(r.data || []));
+  const refreshCustomers      = () => api.customers.list({ limit: 500 }).then(r => setApiCustomers(r.data || []));
+  const refreshOrders         = () => api.orders.list({ limit: 100 }).then(r => setApiOrders(r.data || []));
+  const refreshVendors        = () => api.procurement.vendors.list({ limit: 500 }).then(r => setApiVendors(r.data || []));
+  const refreshPurchaseOrders = () => api.procurement.purchaseOrders.list({ limit: 200 }).then(r => setApiPurchaseOrders(r.data || []));
+  const refreshInvoices       = () => api.accounting.invoices.list({ limit: 200 }).then(r => setApiInvoices(r.data || r || []));
 
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [users,    setUsers]    = useState(DEMO_MODE ? INITIAL_USERS : []);
@@ -1062,8 +1077,10 @@ export function KernalProvider({ children }) {
       authUser, authLoading, login, logout,
       // ── Live API data ──────────────────────────────────────────────────────
       apiProducts, apiInventory, apiCustomers, apiOrders,
+      apiVendors, apiPurchaseOrders, apiInvoices,
       apiLoading, apiError,
       refreshProducts, refreshInventory, refreshCustomers, refreshOrders,
+      refreshVendors, refreshPurchaseOrders, refreshInvoices,
       // ── App state ─────────────────────────────────────────────────────────
       settings, updateSetting,
       activeLocation, setActiveLocation,

@@ -86,7 +86,8 @@ const MODULE_LABELS = {
 
 // ── Global Search component ────────────────────────────────────────────────────
 function GlobalSearch({ isDark, onNavigate, onClose, recentSearches, onAddRecent }) {
-  const { users, approvalRequests, apiCustomers, apiOrders, apiInventory, apiProducts } = useKernal();
+  const { users, approvalRequests, apiCustomers, apiOrders, apiInventory, apiProducts,
+          apiVendors, apiPurchaseOrders, apiInvoices } = useKernal();
   const [query, setQuery]   = useState('');
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef(null);
@@ -137,6 +138,36 @@ function GlobalSearch({ isDark, onNavigate, onClose, recentSearches, onAddRecent
       })),
     ];
 
+    // ── Vendors ───────────────────────────────────────────────────────────────
+    const vendorRecords = (apiVendors || []).map(v => ({
+      id:       v.id,
+      type:     'vendor',
+      title:    v.name,
+      sub:      [v.category, v.contact_name, v.payment_terms].filter(Boolean).join(' · '),
+      module:   'procurement',
+      keywords: [v.id, v.name, v.category || '', v.contact_name || '', v.email || '', v.phone || ''],
+    }));
+
+    // ── Purchase Orders ───────────────────────────────────────────────────────
+    const poRecords = (apiPurchaseOrders || []).map(po => ({
+      id:       po.po_number || po.id,
+      type:     'po',
+      title:    `${po.po_number || po.id} · ${po.vendor_name || 'Unknown Vendor'}`,
+      sub:      `${po.status || ''} · ${po.total != null ? `$${Number(po.total).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}`,
+      module:   'procurement',
+      keywords: [po.po_number || '', po.id, po.vendor_name || '', po.status || ''],
+    }));
+
+    // ── Invoices ──────────────────────────────────────────────────────────────
+    const invoiceRecords = (apiInvoices || []).map(inv => ({
+      id:       inv.invoice_number || inv.id,
+      type:     'invoice',
+      title:    `${inv.invoice_number || inv.id} · ${inv.customer_name || 'Unknown Customer'}`,
+      sub:      `${inv.status || ''} · ${inv.total != null ? `$${Number(inv.total).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}`,
+      module:   'accounting',
+      keywords: [inv.invoice_number || '', inv.id, inv.customer_name || '', inv.status || ''],
+    }));
+
     // ── Users ─────────────────────────────────────────────────────────────────
     const userRecords = (users || []).map(u => ({
       id:       u.id,
@@ -157,8 +188,14 @@ function GlobalSearch({ isDark, onNavigate, onClose, recentSearches, onAddRecent
       keywords: [r.id, r.title, r.flowType || '', r.status || ''],
     }));
 
-    return [...customerRecords, ...orderRecords, ...skuRecords, ...userRecords, ...approvalRecords];
-  }, [apiCustomers, apiOrders, apiInventory, apiProducts, users, approvalRequests]);
+    return [
+      ...customerRecords, ...orderRecords, ...skuRecords,
+      ...vendorRecords, ...poRecords, ...invoiceRecords,
+      ...userRecords, ...approvalRecords,
+    ];
+  }, [apiCustomers, apiOrders, apiInventory, apiProducts,
+      apiVendors, apiPurchaseOrders, apiInvoices,
+      users, approvalRequests]);
 
   // Score + filter
   const results = useMemo(() => {
