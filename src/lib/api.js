@@ -448,6 +448,22 @@ export const api = {
     },
   },
 
+  // ── Ecommerce ─────────────────────────────────────────────────────────────
+  ecommerce: {
+    channels: {
+      list:   ()           => authFetch('/api/v1/ecommerce/channels'),
+      create: (body)       => authFetch('/api/v1/ecommerce/channels', { method: 'POST',   body: JSON.stringify(body) }),
+      update: (id, body)   => authFetch(`/api/v1/ecommerce/channels/${id}`, { method: 'PATCH',  body: JSON.stringify(body) }),
+      delete: (id)         => authFetch(`/api/v1/ecommerce/channels/${id}`, { method: 'DELETE' }),
+    },
+    orders: {
+      list:   (params = {}) => authFetch(`/api/v1/ecommerce/orders${qs(params)}`),
+      update: (id, body)    => authFetch(`/api/v1/ecommerce/orders/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    },
+    syncLogs: (params = {}) => authFetch(`/api/v1/ecommerce/sync-logs${qs(params)}`),
+    sync:     (body)        => authFetch('/api/v1/ecommerce/sync', { method: 'POST', body: JSON.stringify(body) }),
+  },
+
   // ── Integrations ─────────────────────────────────────────────────────────
   integrations: {
     getConnection:    ()           => authFetch('/api/v1/integrations/connection'),

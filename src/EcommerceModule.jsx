@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { api } from './lib/api.js';
 import {
   ShoppingBag, RefreshCw, CheckCircle, XCircle, AlertCircle, Clock,
   Plus, Package, Truck, ExternalLink, ChevronDown, ChevronRight,
@@ -169,10 +170,9 @@ function AmazonLogo({ size = 22 }) {
 }
 
 // ── Sub-tab: Channels ─────────────────────────────────────────────────────────
-function ChannelsTab({ isDark }) {
-  const [channels, setChannels] = useState(DEMO_MODE ? INIT_CHANNELS : []);
-  const [syncing, setSyncing]   = useState(null);
-  const [toast, setToast]       = useState(null);
+function ChannelsTab({ isDark, channels, setChannels, onSync, onToggleSetting }) {
+  const [syncing, setSyncing] = useState(null);
+  const [toast, setToast]     = useState(null);
 
   const subText = isDark ? 'text-gray-400' : 'text-gray-500';
   const border  = isDark ? 'border-gray-700/60' : 'border-slate-200';
@@ -182,23 +182,20 @@ function ChannelsTab({ isDark }) {
     setTimeout(() => setToast(null), 3200);
   };
 
-  const handleSync = (id) => {
+  const handleSync = async (id) => {
     setSyncing(id);
-    setTimeout(() => {
+    try {
+      await onSync(id);
+      notify(`${channels.find(c => (c._id || c.id) === id)?.platform} sync complete`);
+    } catch {
+      notify('Sync failed', 'error');
+    } finally {
       setSyncing(null);
-      setChannels(prev => prev.map(c => c.id === id
-        ? { ...c, lastSync: new Date().toISOString() }
-        : c
-      ));
-      notify(`${INIT_CHANNELS.find(c => c.id === id)?.platform} sync complete`);
-    }, 2200);
+    }
   };
 
-  const toggleSetting = (channelId, key) => {
-    setChannels(prev => prev.map(c => c.id === channelId
-      ? { ...c, syncSettings: { ...c.syncSettings, [key]: !c.syncSettings[key] } }
-      : c
-    ));
+  const toggleSetting = async (channelId, key) => {
+    await onToggleSetting(channelId, key);
   };
 
   return (
@@ -212,14 +209,15 @@ function ChannelsTab({ isDark }) {
 
       <div className="grid grid-cols-3 gap-4">
         {channels.map(ch => {
+          const uid         = ch._id || ch.id;
           const isConnected = ch.status === 'connected';
-          const isSyncing   = syncing === ch.id;
+          const isSyncing   = syncing === uid;
           return (
-            <div key={ch.id} className={`rounded-xl border ${isDark ? 'bg-gray-800/40' : 'bg-white'} ${ch.status === 'available' ? (isDark ? 'border-gray-700/40 opacity-60' : 'border-slate-200 opacity-60') : border} p-5 flex flex-col gap-4`}>
+            <div key={uid} className={`rounded-xl border ${isDark ? 'bg-gray-800/40' : 'bg-white'} ${ch.status === 'available' ? (isDark ? 'border-gray-700/40 opacity-60' : 'border-slate-200 opacity-60') : border} p-5 flex flex-col gap-4`}>
               {/* Header */}
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-3">
-                  {ch.id === 'shopify' ? <ShopifyLogo size={28} /> : ch.id === 'amazon' ? <AmazonLogo size={28} /> : <Globe className="w-7 h-7 text-violet-400" />}
+                  {ch.platform?.toLowerCase().includes('shopify') ? <ShopifyLogo size={28} /> : ch.platform?.toLowerCase().includes('amazon') ? <AmazonLogo size={28} /> : <Globe className="w-7 h-7 text-violet-400" />}
                   <div>
                     <p className={`font-semibold text-sm ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{ch.platform}</p>
                     <p className={`text-[10px] font-mono ${subText}`}>{ch.shopHandle}</p>
@@ -253,9 +251,9 @@ function ChannelsTab({ isDark }) {
                   {Object.entries(ch.syncSettings).map(([key, enabled]) => (
                     <div key={key} className="flex items-center justify-between px-3 py-1.5">
                       <span className={`text-xs capitalize ${subText}`}>{key.replace('_', ' ')}</span>
-                      <button onClick={() => toggleSetting(ch.id, key)}>
+                      <button onClick={() => toggleSetting(uid, key)}>
                         {enabled
-                          ? <ToggleRight className={`w-5 h-5 ${ch.id === 'shopify' ? 'text-emerald-400' : 'text-amber-400'}`} />
+                          ? <ToggleRight className={`w-5 h-5 ${ch.platform?.toLowerCase().includes('shopify') ? 'text-emerald-400' : 'text-amber-400'}`} />
                           : <ToggleLeft  className="w-5 h-5 text-gray-600" />
                         }
                       </button>
@@ -268,14 +266,14 @@ function ChannelsTab({ isDark }) {
               <div className="flex items-center gap-2 mt-auto">
                 {isConnected ? (<>
                   <button
-                    onClick={() => handleSync(ch.id)}
+                    onClick={() => handleSync(uid)}
                     disabled={isSyncing}
                     className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${isDark ? 'border-gray-700 text-gray-300 hover:border-gray-600 hover:text-white' : 'border-slate-200 text-gray-600 hover:border-slate-300'}`}
                   >
                     <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
                     {isSyncing ? 'Syncing…' : 'Sync Now'}
                   </button>
-                  <p className={`text-[10px] ${subText}`}>Last: {fmtTs(ch.lastSync)}</p>
+                  <p className={`text-[10px] ${subText}`}>Last: {fmtTs(ch.lastSync || ch.last_sync_at)}</p>
                 </>) : (
                   <button
                     onClick={() => notify(`${ch.platform} OAuth flow would open here`, 'success')}
@@ -442,8 +440,7 @@ function CatalogTab({ isDark }) {
 }
 
 // ── Sub-tab: Orders ────────────────────────────────────────────────────────────
-function OrdersTab({ isDark }) {
-  const [orders, setOrders]       = useState(DEMO_MODE ? INIT_CHANNEL_ORDERS : []);
+function OrdersTab({ isDark, orders, setOrders, onImport }) {
   const [statusFilter, setFilter] = useState('All');
   const [expanded, setExpanded]   = useState(null);
   const [importing, setImporting] = useState(null);
@@ -463,14 +460,16 @@ function OrdersTab({ isDark }) {
     setTimeout(() => setToast(null), 2800);
   };
 
-  const handleImport = (id) => {
+  const handleImport = async (id) => {
     setImporting(id);
-    setTimeout(() => {
-      setImporting(null);
-      const soNum = `SO-${9920 + Math.floor(Math.random() * 10)}`;
-      setOrders(prev => prev.map(o => o.id === id ? { ...o, status:'imported', kernalSO: soNum } : o));
+    try {
+      const soNum = await onImport(id);
       notify(`Order ${id} imported as ${soNum}`);
-    }, 1600);
+    } catch {
+      notify('Import failed');
+    } finally {
+      setImporting(null);
+    }
   };
 
   const newCount = orders.filter(o => o.status === 'new').length;
@@ -506,7 +505,7 @@ function OrdersTab({ isDark }) {
         {newCount > 0 && (
           <button
             onClick={() => {
-              orders.filter(o => o.status === 'new').forEach(o => handleImport(o.id));
+              orders.filter(o => o.status === 'new').forEach(o => handleImport(o._id || o.id));
             }}
             className="flex items-center gap-1.5 text-xs bg-blue-500 hover:bg-blue-400 text-white font-semibold px-3 py-1.5 rounded-lg transition-colors"
           >
@@ -518,19 +517,22 @@ function OrdersTab({ isDark }) {
       {/* Orders list */}
       <div className={`rounded-xl border ${border} overflow-hidden divide-y ${isDark ? 'divide-gray-700/50' : 'divide-slate-100'}`}>
         {filtered.map(o => {
-          const cm = CHANNEL_META[o.channel];
-          const sm = ORDER_STATUS_META[o.status];
-          const isExp = expanded === o.id;
+          const uid      = o._id || o.id;
+          const displayId = o.external_order_id || o.id;
+          const platform  = (o.channel_platform || o.channel || '').toLowerCase();
+          const cm        = CHANNEL_META[platform] || CHANNEL_META[o.channel] || { label: platform, bg: 'bg-gray-700/40', color: 'text-gray-300', border: 'border-gray-600/40' };
+          const sm        = ORDER_STATUS_META[o.status] || ORDER_STATUS_META.new;
+          const isExp     = expanded === uid;
           return (
-            <div key={o.id}>
+            <div key={uid}>
               <button
-                onClick={() => setExpanded(isExp ? null : o.id)}
+                onClick={() => setExpanded(isExp ? null : uid)}
                 className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${isDark ? 'hover:bg-gray-800/30' : 'hover:bg-gray-50'} ${isExp ? (isDark ? 'bg-gray-800/40' : 'bg-cyan-50/40') : ''}`}
               >
                 {/* Channel badge */}
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${cm.bg} ${cm.color} ${cm.border}`}>{cm.label.replace(' Business','')}</span>
                 {/* Order ID */}
-                <span className={`font-mono text-xs font-semibold ${isDark ? 'text-gray-200' : 'text-gray-700'} w-28 shrink-0`}>{o.id}</span>
+                <span className={`font-mono text-xs font-semibold ${isDark ? 'text-gray-200' : 'text-gray-700'} w-28 shrink-0`}>{displayId}</span>
                 {/* Customer */}
                 <span className={`text-sm font-medium ${isDark ? 'text-gray-100' : 'text-gray-800'} flex-1 truncate`}>{o.customerName}</span>
                 {/* Items summary */}
@@ -584,8 +586,8 @@ function OrdersTab({ isDark }) {
                       )}
                       {o.status === 'new' && (
                         <button
-                          onClick={() => handleImport(o.id)}
-                          disabled={importing === o.id}
+                          onClick={() => handleImport(uid)}
+                          disabled={importing === uid}
                           className="w-full flex items-center justify-center gap-1.5 text-xs bg-blue-500 hover:bg-blue-400 disabled:opacity-50 text-white font-semibold py-2 rounded-lg transition-colors"
                         >
                           {importing === o.id
@@ -607,15 +609,15 @@ function OrdersTab({ isDark }) {
 }
 
 // ── Sub-tab: Sync Log ──────────────────────────────────────────────────────────
-function SyncLogTab({ isDark }) {
+function SyncLogTab({ isDark, syncLogs }) {
   const [channelFilter, setChannelFilter] = useState('All');
 
   const subText = isDark ? 'text-gray-400' : 'text-gray-500';
   const border  = isDark ? 'border-gray-700/60' : 'border-slate-200';
 
   const filtered = useMemo(() =>
-    INIT_SYNC_LOG.filter(e => channelFilter === 'All' || e.channel === channelFilter)
-  , [channelFilter]);
+    syncLogs.filter(e => channelFilter === 'All' || e.channel === channelFilter || e.channel_platform === channelFilter)
+  , [syncLogs, channelFilter]);
 
   const statusIcon = (s) => {
     if (s === 'success') return <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />;
@@ -656,14 +658,17 @@ function SyncLogTab({ isDark }) {
           </thead>
           <tbody className={`divide-y ${isDark ? 'divide-gray-700/50' : 'divide-slate-100'}`}>
             {filtered.map(e => {
-              const cm = CHANNEL_META[e.channel] || CHANNEL_META.shopify;
+              const platform = (e.channel_platform || e.channel || '').toLowerCase();
+              const cm = CHANNEL_META[platform] || CHANNEL_META[e.channel] || { label: platform, bg: 'bg-gray-700/40', color: 'text-gray-300', border: 'border-gray-600/40' };
+              const syncType = e.sync_type || e.type;
+              const ts       = e.created_at || e.ts;
               return (
                 <tr key={e.id} className={`${isDark ? 'hover:bg-gray-800/30' : 'hover:bg-gray-50'} transition-colors`}>
-                  <td className={`px-4 py-2.5 text-xs tabular-nums ${subText}`}>{fmtTs(e.ts)}</td>
+                  <td className={`px-4 py-2.5 text-xs tabular-nums ${subText}`}>{fmtTs(ts)}</td>
                   <td className="px-4 py-2.5">
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${cm.bg} ${cm.color} ${cm.border}`}>{cm.label.replace(' Business','')}</span>
                   </td>
-                  <td className={`px-4 py-2.5 text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{SYNC_TYPE_LABELS[e.type] || e.type}</td>
+                  <td className={`px-4 py-2.5 text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{SYNC_TYPE_LABELS[syncType] || syncType}</td>
                   <td className={`px-4 py-2.5 text-right text-xs tabular-nums font-semibold ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>{e.records}</td>
                   <td className={`px-4 py-2.5 text-xs ${e.status === 'error' ? 'text-rose-400' : e.status === 'warning' ? 'text-amber-400' : subText} max-w-xs`}>{e.detail}</td>
                   <td className="px-4 py-2.5 text-center">
@@ -679,10 +684,182 @@ function SyncLogTab({ isDark }) {
   );
 }
 
+// ── Row mappers ───────────────────────────────────────────────────────────────
+function mapApiChannel(r) {
+  return {
+    _id:              r.id,
+    id:               r.platform?.toLowerCase() || r.id,  // keep for CHANNEL_META lookup
+    platform:         r.name || r.platform,
+    shopHandle:       r.shop_handle || '',
+    plan:             r.plan_name || '—',
+    status:           r.status,
+    lastSync:         r.last_sync_at || null,
+    last_sync_at:     r.last_sync_at || null,
+    productsSynced:   r.products_synced   || 0,
+    ordersImported:   r.orders_imported   || 0,
+    pendingOrders:    r.pending_orders    || 0,
+    revenueThisMonth: parseFloat(r.revenue_this_month) || 0,
+    syncSettings:     r.sync_settings || { inventory: true, pricing: true, orders: true, fulfillment: true },
+    // display styling — fall back to platform key
+    color:  CHANNEL_META[r.platform?.toLowerCase()]?.color  || 'text-cyan-400',
+    bg:     CHANNEL_META[r.platform?.toLowerCase()]?.bg     || 'bg-cyan-500/10',
+    border: CHANNEL_META[r.platform?.toLowerCase()]?.border || 'border-cyan-500/25',
+  };
+}
+
+function mapApiOrder(r) {
+  return {
+    _id:              r.id,
+    id:               r.external_order_id || r.id,
+    external_order_id: r.external_order_id,
+    channel:          (r.channel_platform || '').toLowerCase(),
+    channel_platform: r.channel_platform,
+    customerName:     r.customer_name,
+    email:            r.customer_email || '',
+    items:            Array.isArray(r.items) ? r.items : [],
+    total:            parseFloat(r.total) || 0,
+    status:           r.status,
+    kernalSO:         r.kernal_so || null,
+    trackingNum:      r.tracking_num || null,
+    placedAt:         r.placed_at,
+    importedAt:       r.imported_at,
+  };
+}
+
+function mapApiSyncLog(r) {
+  return {
+    id:               r.id,
+    channel:          (r.channel_platform || '').toLowerCase(),
+    channel_platform: r.channel_platform,
+    type:             r.sync_type,
+    sync_type:        r.sync_type,
+    status:           r.status,
+    records:          r.records || 0,
+    detail:           r.detail || '',
+    ts:               r.created_at,
+    created_at:       r.created_at,
+  };
+}
+
 // ═══ Main Module ══════════════════════════════════════════════════════════════
 export default function EcommerceModule() {
   const { isDark } = useKernal();
   const [tab, setTab] = useState('channels');
+
+  // ── Hoisted state ──────────────────────────────────────────────────────────
+  const [channels,  setChannels]  = useState(DEMO_MODE ? INIT_CHANNELS  : []);
+  const [orders,    setOrders]    = useState(DEMO_MODE ? INIT_CHANNEL_ORDERS : []);
+  const [syncLogs,  setSyncLogs]  = useState(DEMO_MODE ? INIT_SYNC_LOG  : []);
+
+  // ── Mount: load from API ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    (async () => {
+      try {
+        const [chRes, ordRes, logRes] = await Promise.all([
+          api.ecommerce.channels.list(),
+          api.ecommerce.orders.list({ limit: 100 }),
+          api.ecommerce.syncLogs({ limit: 50 }),
+        ]);
+        setChannels((chRes?.data  || chRes  || []).map(mapApiChannel));
+        setOrders(  (ordRes?.data || ordRes || []).map(mapApiOrder));
+        setSyncLogs((logRes?.data || logRes || []).map(mapApiSyncLog));
+      } catch (err) {
+        console.error('[EcommerceModule] load', err);
+      }
+    })();
+  }, []);
+
+  // ── Handler: sync a channel ────────────────────────────────────────────────
+  const handleSync = async (uid) => {
+    const ch = channels.find(c => (c._id || c.id) === uid);
+    if (!ch) return;
+
+    // Optimistic lastSync update
+    const prev = channels;
+    setChannels(cs => cs.map(c => (c._id || c.id) === uid
+      ? { ...c, lastSync: new Date().toISOString(), last_sync_at: new Date().toISOString() }
+      : c
+    ));
+
+    if (!DEMO_MODE) {
+      try {
+        await api.ecommerce.sync({
+          channel_id:       ch._id,
+          channel_platform: ch.platform || ch.channel_platform,
+          sync_type:        'order_pull',
+          records:          0,
+          status:           'success',
+          detail:           'Manual sync triggered',
+        });
+        // Refresh sync logs
+        const logRes = await api.ecommerce.syncLogs({ limit: 50 });
+        setSyncLogs((logRes?.data || logRes || []).map(mapApiSyncLog));
+      } catch (err) {
+        setChannels(prev);
+        throw err;
+      }
+    }
+  };
+
+  // ── Handler: toggle sync setting ──────────────────────────────────────────
+  const handleToggleSetting = async (uid, key) => {
+    const ch = channels.find(c => (c._id || c.id) === uid);
+    if (!ch) return;
+
+    const newSettings = { ...ch.syncSettings, [key]: !ch.syncSettings[key] };
+
+    // Optimistic
+    setChannels(cs => cs.map(c => (c._id || c.id) === uid
+      ? { ...c, syncSettings: newSettings }
+      : c
+    ));
+
+    if (!DEMO_MODE && ch._id) {
+      try {
+        await api.ecommerce.channels.update(ch._id, { sync_settings: newSettings });
+      } catch (err) {
+        // Revert
+        setChannels(cs => cs.map(c => (c._id || c.id) === uid
+          ? { ...c, syncSettings: ch.syncSettings }
+          : c
+        ));
+      }
+    }
+  };
+
+  // ── Handler: import an order ──────────────────────────────────────────────
+  const handleImport = async (uid) => {
+    const order = orders.find(o => (o._id || o.id) === uid);
+    if (!order) return;
+
+    const soNum = `SO-${9920 + Math.floor(Math.random() * 10)}`;
+
+    // Optimistic
+    setOrders(os => os.map(o => (o._id || o.id) === uid
+      ? { ...o, status: 'imported', kernalSO: soNum, kernal_so: soNum }
+      : o
+    ));
+
+    if (!DEMO_MODE && order._id) {
+      try {
+        await api.ecommerce.orders.update(order._id, {
+          status:       'imported',
+          kernal_so:    soNum,
+          imported_at:  new Date().toISOString(),
+        });
+      } catch (err) {
+        // Revert
+        setOrders(os => os.map(o => (o._id || o.id) === uid
+          ? { ...o, status: 'new', kernalSO: null, kernal_so: null }
+          : o
+        ));
+        throw err;
+      }
+    }
+
+    return soNum;
+  };
 
   const TABS = [
     { id: 'channels', label: 'Channels',     Icon: Globe         },
@@ -694,12 +871,14 @@ export default function EcommerceModule() {
   const border  = isDark ? 'border-gray-800'  : 'border-slate-200';
   const subText = isDark ? 'text-gray-400'    : 'text-gray-500';
 
-  // Header stats
-  const newOrders   = INIT_CHANNEL_ORDERS.filter(o => o.status === 'new').length;
-  const totalOrders = INIT_CHANNEL_ORDERS.length;
-  const activeProducts = INIT_CATALOG.filter(p => p.channels.shopify === 'live' || p.channels.amazon === 'live').length;
-  const syncErrors = INIT_SYNC_LOG.filter(e => e.status === 'error').length;
-  const syncWarnings = INIT_SYNC_LOG.filter(e => e.status === 'warning').length;
+  // Header stats — computed from live state
+  const newOrders      = orders.filter(o => o.status === 'new').length;
+  const activeChannels = channels.filter(c => c.status === 'connected').length;
+  const activeProducts = DEMO_MODE
+    ? INIT_CATALOG.filter(p => p.channels.shopify === 'live' || p.channels.amazon === 'live').length
+    : channels.reduce((s, c) => s + (c.productsSynced || 0), 0);
+  const syncIssues = syncLogs.filter(e => e.status === 'error' || e.status === 'warning').length;
+  const mtdRevenue = channels.reduce((s, c) => s + (c.revenueThisMonth || 0), 0);
 
   return (
     <div className={`h-full flex flex-col ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>
@@ -726,11 +905,11 @@ export default function EcommerceModule() {
       {/* Stats row */}
       <div className={`px-6 py-3 border-b ${border} flex items-center gap-6`}>
         {[
-          { label:'Active channels',   val: 2,             color:'text-emerald-400' },
-          { label:'New orders',        val: newOrders,     color: newOrders > 0 ? 'text-blue-400' : subText },
-          { label:'Products active',   val: activeProducts, color:'text-violet-400' },
-          { label:'Sync issues',       val: syncErrors + syncWarnings, color: (syncErrors + syncWarnings) > 0 ? 'text-amber-400' : subText },
-          { label:'MTD channel revenue', val:'$36,150',    color:'text-cyan-400' },
+          { label:'Active channels',     val: activeChannels, color: 'text-emerald-400' },
+          { label:'New orders',          val: newOrders,      color: newOrders > 0 ? 'text-blue-400' : subText },
+          { label:'Products active',     val: activeProducts, color: 'text-violet-400' },
+          { label:'Sync issues',         val: syncIssues,     color: syncIssues > 0 ? 'text-amber-400' : subText },
+          { label:'MTD channel revenue', val: mtdRevenue > 0 ? `$${mtdRevenue.toLocaleString('en-US', {minimumFractionDigits:0})}` : '—', color: 'text-cyan-400' },
         ].map(s => (
           <div key={s.label} className="flex items-center gap-2">
             <span className={`text-xl font-bold tabular-nums ${s.color}`}>{s.val}</span>
@@ -762,10 +941,10 @@ export default function EcommerceModule() {
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto px-6 py-5">
-        {tab === 'channels' && <ChannelsTab isDark={isDark} />}
+        {tab === 'channels' && <ChannelsTab isDark={isDark} channels={channels} setChannels={setChannels} onSync={handleSync} onToggleSetting={handleToggleSetting} />}
         {tab === 'catalog'  && <CatalogTab  isDark={isDark} />}
-        {tab === 'orders'   && <OrdersTab   isDark={isDark} />}
-        {tab === 'synclog'  && <SyncLogTab  isDark={isDark} />}
+        {tab === 'orders'   && <OrdersTab   isDark={isDark} orders={orders} setOrders={setOrders} onImport={handleImport} />}
+        {tab === 'synclog'  && <SyncLogTab  isDark={isDark} syncLogs={syncLogs} />}
       </div>
     </div>
   );
