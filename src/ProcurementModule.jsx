@@ -1673,7 +1673,27 @@ export default function ProcurementModule() {
   const [expandedScorecard,  setExpandedScorecard]  = useState(null);
 
   // Add / Edit Vendor modal
-  const BLANK_VENDOR_FORM = { name: '', category: '', contact: '', email: '', phone: '', leadTimeDays: '3', paymentTerms: 'Net-30', preferredVendor: false, notes: '' };
+  const BLANK_VENDOR_FORM = {
+    // Identity
+    name: '', legalName: '', dba: '', category: '', website: '', taxId: '', businessType: '', yearEstablished: '',
+    // Address
+    addressLine1: '', addressLine2: '', city: '', state: '', zip: '', country: 'US',
+    // Primary contact
+    contact: '', contactTitle: '', email: '', phone: '', contactMobile: '',
+    // Billing contact
+    billingContactName: '', billingContactTitle: '', billingContactEmail: '', billingContactPhone: '',
+    // Financial
+    paymentTerms: 'Net-30', accountNumber: '', currency: 'USD', creditLimit: '', paymentMethod: '',
+    earlyPayDiscount: '', remitToName: '', remitToAddress: '',
+    // Ordering
+    leadTimeDays: '3', minOrderAmount: '', minOrderQty: '', fobTerms: '', deliveryDays: '', orderCutoffTime: '',
+    // Compliance
+    w9OnFile: false, insuranceOnFile: false, insuranceExpiry: '', certifications: [],
+    fdaRegistrationNumber: '', licenseNumber: '',
+    // Status
+    vendorStatus: 'active', preferredVendor: false, rating: '', notes: '',
+  };
+  const [vendorModalTab, setVendorModalTab] = useState('identity');
   const [vendorModal,    setVendorModal]    = useState(false);   // true = open
   const [vendorForm,     setVendorForm]     = useState(BLANK_VENDOR_FORM);
   const [vendorSaving,   setVendorSaving]   = useState(false);
@@ -1682,17 +1702,39 @@ export default function ProcurementModule() {
   const handleSaveVendor = async (e) => {
     e.preventDefault();
     setVendorSaving(true);
+    const f = vendorForm;
     const body = {
-      name:             vendorForm.name.trim(),
-      category:         vendorForm.category.trim(),
-      contact_name:     vendorForm.contact.trim(),
-      email:            vendorForm.email.trim(),
-      phone:            vendorForm.phone.trim(),
-      lead_time_days:   Number(vendorForm.leadTimeDays) || 3,
-      payment_terms:    vendorForm.paymentTerms,
-      preferred_vendor: vendorForm.preferredVendor,
-      notes:            vendorForm.notes.trim(),
-      is_active:        true,
+      // Identity
+      name: f.name.trim(), legal_name: f.legalName.trim(), dba: f.dba.trim(),
+      category: f.category.trim(), website: f.website.trim(), tax_id: f.taxId.trim(),
+      business_type: f.businessType, year_established: f.yearEstablished ? Number(f.yearEstablished) : null,
+      // Address
+      address_line1: f.addressLine1.trim(), address_line2: f.addressLine2.trim(),
+      city: f.city.trim(), state: f.state.trim(), zip: f.zip.trim(), country: f.country,
+      // Primary contact
+      contact_name: f.contact.trim(), contact_title: f.contactTitle.trim(),
+      email: f.email.trim(), phone: f.phone.trim(), contact_mobile: f.contactMobile.trim(),
+      // Billing contact
+      billing_contact_name: f.billingContactName.trim(), billing_contact_title: f.billingContactTitle.trim(),
+      billing_contact_email: f.billingContactEmail.trim(), billing_contact_phone: f.billingContactPhone.trim(),
+      // Financial
+      payment_terms: f.paymentTerms, account_number: f.accountNumber.trim(),
+      currency: f.currency, credit_limit: f.creditLimit ? Number(f.creditLimit) : null,
+      payment_method: f.paymentMethod, early_pay_discount: f.earlyPayDiscount.trim(),
+      remit_to_name: f.remitToName.trim(), remit_to_address: f.remitToAddress.trim(),
+      // Ordering
+      lead_time_days: Number(f.leadTimeDays) || 3,
+      min_order_amount: f.minOrderAmount ? Number(f.minOrderAmount) : null,
+      min_order_qty: f.minOrderQty ? Number(f.minOrderQty) : null,
+      fob_terms: f.fobTerms, delivery_days: f.deliveryDays.trim(),
+      order_cutoff_time: f.orderCutoffTime.trim(),
+      // Compliance
+      w9_on_file: f.w9OnFile, insurance_on_file: f.insuranceOnFile,
+      insurance_expiry: f.insuranceExpiry || null, certifications: f.certifications,
+      fda_registration_number: f.fdaRegistrationNumber.trim(), license_number: f.licenseNumber.trim(),
+      // Status
+      vendor_status: f.vendorStatus, preferred_vendor: f.preferredVendor,
+      rating: f.rating ? Number(f.rating) : null, notes: f.notes.trim(), is_active: true,
     };
     try {
       if (!DEMO_MODE) {
@@ -1722,7 +1764,33 @@ export default function ProcurementModule() {
   };
 
   const openEditVendor = (v) => {
-    setVendorForm({ name: v.name, category: v.category, contact: v.contact, email: v.email, phone: v.phone, leadTimeDays: String(v.leadTimeDays), paymentTerms: v.paymentTerms, preferredVendor: !!v.preferredVendor, notes: v.notes || '' });
+    setVendorForm({
+      name: v.name || '', legalName: v.legal_name || '', dba: v.dba || '',
+      category: v.category || '', website: v.website || '', taxId: v.tax_id || '',
+      businessType: v.business_type || '', yearEstablished: v.year_established ? String(v.year_established) : '',
+      addressLine1: v.address_line1 || '', addressLine2: v.address_line2 || '',
+      city: v.city || '', state: v.state || '', zip: v.zip || '', country: v.country || 'US',
+      contact: v.contact_name || v.contact || '', contactTitle: v.contact_title || '',
+      email: v.email || '', phone: v.phone || '', contactMobile: v.contact_mobile || '',
+      billingContactName: v.billing_contact_name || '', billingContactTitle: v.billing_contact_title || '',
+      billingContactEmail: v.billing_contact_email || '', billingContactPhone: v.billing_contact_phone || '',
+      paymentTerms: v.payment_terms || v.paymentTerms || 'Net-30',
+      accountNumber: v.account_number || '', currency: v.currency || 'USD',
+      creditLimit: v.credit_limit ? String(v.credit_limit) : '', paymentMethod: v.payment_method || '',
+      earlyPayDiscount: v.early_pay_discount || '', remitToName: v.remit_to_name || '',
+      remitToAddress: v.remit_to_address || '',
+      leadTimeDays: String(v.lead_time_days ?? v.leadTimeDays ?? 3),
+      minOrderAmount: v.min_order_amount ? String(v.min_order_amount) : '',
+      minOrderQty: v.min_order_qty ? String(v.min_order_qty) : '',
+      fobTerms: v.fob_terms || '', deliveryDays: v.delivery_days || '',
+      orderCutoffTime: v.order_cutoff_time || '',
+      w9OnFile: !!v.w9_on_file, insuranceOnFile: !!v.insurance_on_file,
+      insuranceExpiry: v.insurance_expiry || '', certifications: v.certifications || [],
+      fdaRegistrationNumber: v.fda_registration_number || '', licenseNumber: v.license_number || '',
+      vendorStatus: v.vendor_status || 'active', preferredVendor: !!v.preferred_vendor,
+      rating: v.rating ? String(v.rating) : '', notes: v.notes || '',
+    });
+    setVendorModalTab('identity');
     setEditVendorId(v._id || v.vendorId);
     setVendorModal(true);
   };
@@ -3081,64 +3149,269 @@ export default function ProcurementModule() {
         )}
 
         {/* ── Add / Edit Vendor Modal ────────────────────────────────────────── */}
-        {vendorModal && (
+        {vendorModal && (() => {
+          const vf = vendorForm;
+          const set = (k, v) => setVendorForm(f => ({ ...f, [k]: v }));
+          const inp = (key, placeholder, type = 'text', extra = {}) => (
+            <input type={type} value={vf[key]} onChange={e => set(key, e.target.value)}
+              className={UI.input} placeholder={placeholder} {...extra} />
+          );
+          const CERT_OPTIONS = ['SQF','HACCP','GFSI','BRC','GMP','Organic','Kosher','Halal','FDA Registered','Non-GMO','Fair Trade'];
+          const toggleCert = (c) => set('certifications', vf.certifications.includes(c) ? vf.certifications.filter(x => x !== c) : [...vf.certifications, c]);
+          const TABS = [
+            { id: 'identity',    label: 'Identity' },
+            { id: 'contacts',    label: 'Contacts' },
+            { id: 'financial',   label: 'Financial' },
+            { id: 'ordering',    label: 'Ordering' },
+            { id: 'compliance',  label: 'Compliance' },
+          ];
+          return (
           <ModalOverlay onClose={() => { setVendorModal(false); setEditVendorId(null); }}>
-            <ModalBox>
-              <ModalHeader
-                title={editVendorId ? 'Edit Vendor' : 'New Vendor'}
-                onClose={() => { setVendorModal(false); setEditVendorId(null); }}
-              />
-              <form onSubmit={handleSaveVendor} className="p-5 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <label className={UI.label}>Vendor Name *</label>
-                    <input required value={vendorForm.name} onChange={e => setVendorForm(f => ({...f, name: e.target.value}))} className={UI.input} placeholder="e.g. Gulf Coast Proteins" />
-                  </div>
-                  <div>
-                    <label className={UI.label}>Category</label>
-                    <input value={vendorForm.category} onChange={e => setVendorForm(f => ({...f, category: e.target.value}))} className={UI.input} placeholder="e.g. Proteins, Produce…" />
-                  </div>
-                  <div>
-                    <label className={UI.label}>Payment Terms</label>
-                    <select value={vendorForm.paymentTerms} onChange={e => setVendorForm(f => ({...f, paymentTerms: e.target.value}))} className={UI.select}>
-                      {['Net-7','Net-15','Net-30','Net-45','Net-60','COD','Prepaid'].map(t => <option key={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className={UI.label}>Contact Name</label>
-                    <input value={vendorForm.contact} onChange={e => setVendorForm(f => ({...f, contact: e.target.value}))} className={UI.input} placeholder="Full name" />
-                  </div>
-                  <div>
-                    <label className={UI.label}>Lead Time (days)</label>
-                    <input type="number" min="0" value={vendorForm.leadTimeDays} onChange={e => setVendorForm(f => ({...f, leadTimeDays: e.target.value}))} className={UI.input} />
-                  </div>
-                  <div>
-                    <label className={UI.label}>Email</label>
-                    <input type="email" value={vendorForm.email} onChange={e => setVendorForm(f => ({...f, email: e.target.value}))} className={UI.input} placeholder="vendor@example.com" />
-                  </div>
-                  <div>
-                    <label className={UI.label}>Phone</label>
-                    <input value={vendorForm.phone} onChange={e => setVendorForm(f => ({...f, phone: e.target.value}))} className={UI.input} placeholder="(555) 000-0000" />
-                  </div>
-                  <div className="col-span-2">
-                    <label className={UI.label}>Notes</label>
-                    <textarea value={vendorForm.notes} onChange={e => setVendorForm(f => ({...f, notes: e.target.value}))} rows={2} className={`${UI.input} resize-none`} placeholder="Optional notes…" />
-                  </div>
-                  <div className="col-span-2 flex items-center gap-2">
-                    <input type="checkbox" id="prefVendor" checked={vendorForm.preferredVendor} onChange={e => setVendorForm(f => ({...f, preferredVendor: e.target.checked}))} className="w-4 h-4 rounded accent-cyan-500" />
-                    <label htmlFor="prefVendor" className="text-xs text-gray-400 cursor-pointer">Mark as Preferred Vendor</label>
-                  </div>
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col max-h-[90vh]">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 shrink-0">
+                <h2 className="text-base font-bold text-gray-100">{editVendorId ? 'Edit Vendor Profile' : 'New Vendor Profile'}</h2>
+                <button onClick={() => { setVendorModal(false); setEditVendorId(null); }} className="p-1.5 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-gray-300">✕</button>
+              </div>
+              {/* Tab bar */}
+              <div className="flex gap-1 px-4 pt-3 shrink-0 overflow-x-auto">
+                {TABS.map(t => (
+                  <button key={t.id} onClick={() => setVendorModalTab(t.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${vendorModalTab === t.id ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'}`}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              {/* Form body */}
+              <form onSubmit={handleSaveVendor} className="flex-1 overflow-y-auto">
+                <div className="p-5 space-y-4">
+
+                  {/* ── IDENTITY ── */}
+                  {vendorModalTab === 'identity' && (<>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2">
+                        <label className={UI.label}>Trade / DBA Name <span className="text-rose-400">*</span></label>
+                        {inp('name', 'e.g. Gulf Coast Proteins', 'text', { required: true })}
+                      </div>
+                      <div>
+                        <label className={UI.label}>Legal Entity Name</label>
+                        {inp('legalName', 'Legal registered name')}
+                      </div>
+                      <div>
+                        <label className={UI.label}>DBA / Trade Name</label>
+                        {inp('dba', 'Doing Business As')}
+                      </div>
+                      <div>
+                        <label className={UI.label}>Category / Commodity</label>
+                        {inp('category', 'e.g. Proteins, Produce, Dairy…')}
+                      </div>
+                      <div>
+                        <label className={UI.label}>Business Type</label>
+                        <select value={vf.businessType} onChange={e => set('businessType', e.target.value)} className={UI.select}>
+                          <option value="">— Select —</option>
+                          {['LLC','Corporation','S-Corp','Sole Proprietor','Partnership','Cooperative','Non-Profit','Other'].map(t => <option key={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={UI.label}>Federal Tax ID / EIN</label>
+                        {inp('taxId', 'XX-XXXXXXX')}
+                      </div>
+                      <div>
+                        <label className={UI.label}>Year Established</label>
+                        {inp('yearEstablished', 'e.g. 1998', 'number')}
+                      </div>
+                      <div className="col-span-2">
+                        <label className={UI.label}>Website</label>
+                        {inp('website', 'https://vendor.com')}
+                      </div>
+                    </div>
+                    <div className="border-t border-gray-800 pt-4">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Address</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="col-span-2">{inp('addressLine1', 'Street Address')}</div>
+                        <div className="col-span-2">{inp('addressLine2', 'Suite / Unit / Floor')}</div>
+                        <div>{inp('city', 'City')}</div>
+                        <div>{inp('state', 'State')}</div>
+                        <div>{inp('zip', 'ZIP Code')}</div>
+                        <div>
+                          <select value={vf.country} onChange={e => set('country', e.target.value)} className={UI.select}>
+                            {['US','CA','MX','Other'].map(c => <option key={c}>{c}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="border-t border-gray-800 pt-4 flex items-center gap-6">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={vf.preferredVendor} onChange={e => set('preferredVendor', e.target.checked)} className="w-4 h-4 rounded accent-cyan-500" />
+                        <span className="text-xs text-gray-400">Preferred Vendor</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-gray-500">Status</label>
+                        <select value={vf.vendorStatus} onChange={e => set('vendorStatus', e.target.value)} className={`${UI.select} w-36`}>
+                          {[['active','Active'],['inactive','Inactive'],['on_hold','On Hold'],['pending_approval','Pending Approval']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className={UI.label}>Internal Notes</label>
+                      <textarea value={vf.notes} onChange={e => set('notes', e.target.value)} rows={2} className={`${UI.input} resize-none`} placeholder="Internal notes about this vendor…" />
+                    </div>
+                  </>)}
+
+                  {/* ── CONTACTS ── */}
+                  {vendorModalTab === 'contacts' && (<>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Primary Contact</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><label className={UI.label}>Full Name</label>{inp('contact', 'Jane Smith')}</div>
+                      <div><label className={UI.label}>Title / Role</label>{inp('contactTitle', 'e.g. Sales Manager')}</div>
+                      <div><label className={UI.label}>Email</label>{inp('email', 'jane@vendor.com', 'email')}</div>
+                      <div><label className={UI.label}>Phone (office)</label>{inp('phone', '(555) 000-0000')}</div>
+                      <div className="col-span-2"><label className={UI.label}>Mobile / Direct</label>{inp('contactMobile', '(555) 000-0000')}</div>
+                    </div>
+                    <div className="border-t border-gray-800 pt-4">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Billing / AR Contact</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div><label className={UI.label}>Full Name</label>{inp('billingContactName', 'Billing contact name')}</div>
+                        <div><label className={UI.label}>Title</label>{inp('billingContactTitle', 'e.g. AR Specialist')}</div>
+                        <div><label className={UI.label}>Email</label>{inp('billingContactEmail', 'ar@vendor.com', 'email')}</div>
+                        <div><label className={UI.label}>Phone</label>{inp('billingContactPhone', '(555) 000-0000')}</div>
+                      </div>
+                    </div>
+                  </>)}
+
+                  {/* ── FINANCIAL ── */}
+                  {vendorModalTab === 'financial' && (<>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={UI.label}>Payment Terms</label>
+                        <select value={vf.paymentTerms} onChange={e => set('paymentTerms', e.target.value)} className={UI.select}>
+                          {['Net-7','Net-10','Net-15','Net-30','Net-45','Net-60','Net-90','COD','Prepaid','2/10 Net-30'].map(t => <option key={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={UI.label}>Payment Method</label>
+                        <select value={vf.paymentMethod} onChange={e => set('paymentMethod', e.target.value)} className={UI.select}>
+                          <option value="">— Select —</option>
+                          {['Check','ACH','Wire Transfer','Credit Card','Virtual Card','Other'].map(t => <option key={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={UI.label}>Account Number (our acct #)</label>
+                        {inp('accountNumber', 'Your account # with vendor')}
+                      </div>
+                      <div>
+                        <label className={UI.label}>Currency</label>
+                        <select value={vf.currency} onChange={e => set('currency', e.target.value)} className={UI.select}>
+                          {['USD','EUR','CAD','MXN','GBP'].map(c => <option key={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={UI.label}>Credit Limit ($)</label>
+                        {inp('creditLimit', '0.00', 'number')}
+                      </div>
+                      <div>
+                        <label className={UI.label}>Early Pay Discount</label>
+                        {inp('earlyPayDiscount', 'e.g. 2/10 Net 30')}
+                      </div>
+                      <div>
+                        <label className={UI.label}>Vendor Rating (0–5)</label>
+                        {inp('rating', '0.0', 'number')}
+                      </div>
+                    </div>
+                    <div className="border-t border-gray-800 pt-4">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Remittance Address</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="col-span-2"><label className={UI.label}>Remit-to Name</label>{inp('remitToName', 'Name on check / ACH payee')}</div>
+                        <div className="col-span-2"><label className={UI.label}>Remit-to Address</label><textarea value={vf.remitToAddress} onChange={e => set('remitToAddress', e.target.value)} rows={2} className={`${UI.input} resize-none`} placeholder="Full remittance mailing address" /></div>
+                      </div>
+                    </div>
+                  </>)}
+
+                  {/* ── ORDERING ── */}
+                  {vendorModalTab === 'ordering' && (<>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={UI.label}>Lead Time (days)</label>
+                        {inp('leadTimeDays', '3', 'number')}
+                      </div>
+                      <div>
+                        <label className={UI.label}>Min. Order Amount ($)</label>
+                        {inp('minOrderAmount', '0.00', 'number')}
+                      </div>
+                      <div>
+                        <label className={UI.label}>Min. Order Qty (cases)</label>
+                        {inp('minOrderQty', '0', 'number')}
+                      </div>
+                      <div>
+                        <label className={UI.label}>FOB Terms</label>
+                        <select value={vf.fobTerms} onChange={e => set('fobTerms', e.target.value)} className={UI.select}>
+                          <option value="">— Select —</option>
+                          {['FOB Origin','FOB Destination','FOB Origin, Freight Collect','FOB Origin, Freight Prepaid','CIF','EXW','DDP'].map(t => <option key={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={UI.label}>Delivery Days</label>
+                        {inp('deliveryDays', 'e.g. Mon, Wed, Fri')}
+                      </div>
+                      <div>
+                        <label className={UI.label}>Order Cutoff Time</label>
+                        {inp('orderCutoffTime', 'e.g. 2:00 PM day prior')}
+                      </div>
+                    </div>
+                  </>)}
+
+                  {/* ── COMPLIANCE ── */}
+                  {vendorModalTab === 'compliance' && (<>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2 flex gap-6">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" checked={vf.w9OnFile} onChange={e => set('w9OnFile', e.target.checked)} className="w-4 h-4 rounded accent-cyan-500" />
+                          <span className="text-xs text-gray-300">W-9 on File</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" checked={vf.insuranceOnFile} onChange={e => set('insuranceOnFile', e.target.checked)} className="w-4 h-4 rounded accent-cyan-500" />
+                          <span className="text-xs text-gray-300">Certificate of Insurance on File</span>
+                        </label>
+                      </div>
+                      <div>
+                        <label className={UI.label}>Insurance Expiry Date</label>
+                        {inp('insuranceExpiry', '', 'date')}
+                      </div>
+                      <div>
+                        <label className={UI.label}>FDA Registration #</label>
+                        {inp('fdaRegistrationNumber', 'FDA registration number')}
+                      </div>
+                      <div className="col-span-2">
+                        <label className={UI.label}>State / Business License #</label>
+                        {inp('licenseNumber', 'License or permit number')}
+                      </div>
+                    </div>
+                    <div className="border-t border-gray-800 pt-4">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Certifications</p>
+                      <div className="flex flex-wrap gap-2">
+                        {CERT_OPTIONS.map(c => (
+                          <button key={c} type="button" onClick={() => toggleCert(c)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${vf.certifications.includes(c) ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/40' : 'bg-gray-800 text-gray-500 border-gray-700 hover:border-gray-500'}`}>
+                            {vf.certifications.includes(c) ? '✓ ' : ''}{c}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>)}
+
                 </div>
-                <div className="flex justify-end gap-3 pt-2 border-t border-gray-800">
+                {/* Footer */}
+                <div className="flex justify-end gap-3 px-5 py-4 border-t border-gray-800 shrink-0">
                   <button type="button" onClick={() => { setVendorModal(false); setEditVendorId(null); }} className={UI.btnSecondary}>Cancel</button>
                   <button type="submit" disabled={vendorSaving} className={UI.btnPrimary}>
                     {vendorSaving ? 'Saving…' : editVendorId ? 'Save Changes' : 'Add Vendor'}
                   </button>
                 </div>
               </form>
-            </ModalBox>
+            </div>
           </ModalOverlay>
-        )}
+          );
+        })()}
 
         {/* ══════════════════════════════════════════════════════════════════
             RTVs TAB
