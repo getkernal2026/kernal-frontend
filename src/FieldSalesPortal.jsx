@@ -1684,7 +1684,11 @@ function OrderEntrySection({ customers, cartCustomer, cart, cartItems, cartTotal
           {catalog.length === 0 && <div className={`${UI.cardPad} text-center text-gray-500 italic`}>No items match.</div>}
           {catalog.map(item => {
             const inCart = cart[item.sku];
-            const stock = item.physicalStock - item.allocatedStock;
+            // In live mode apiProducts come from the products table and don't carry
+            // inventory fields — fall back to quantity_on_hand / allocated_quantity
+            // (populated once migration 030 is run) or a safe default of 0.
+            const stock = (item.physicalStock ?? item.quantity_on_hand ?? 0)
+                        - (item.allocatedStock ?? item.allocated_quantity ?? 0);
             const inGuide = guideSkus.has(item.sku);
             const guideRow = cartCustomer.orderGuide.find(g => g.sku === item.sku);
             const contractPrice = cartCustomer.contractPricing?.[item.id];
