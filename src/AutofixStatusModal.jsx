@@ -4,7 +4,7 @@
 // Auto-dismisses 6 s after the fix reaches a terminal state.
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { supabase } from './supabaseClient';
+import { supabase } from './lib/supabase.js';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://kernal-backend-production.up.railway.app';
 
