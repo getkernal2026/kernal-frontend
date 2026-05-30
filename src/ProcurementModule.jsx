@@ -18,7 +18,7 @@ import {
   Thermometer, Hash, BarChart3, Eye, Calendar, Printer,
   Clipboard, Minus, ChevronDown, ShoppingBag,
   Zap, RefreshCw, Paperclip, Award, TrendingUp, TrendingDown,
-  MapPin, Percent, Receipt, BadgeDollarSign, Target,
+  MapPin, Percent, Receipt, BadgeDollarSign, Target, Edit3,
 } from 'lucide-react';
 
 // Local copy — avoids Rolldown IIFE TDZ ordering issue with KernalContext
@@ -1672,6 +1672,61 @@ export default function ProcurementModule() {
   const [vendorSearch,       setVendorSearch]       = useState('');
   const [expandedScorecard,  setExpandedScorecard]  = useState(null);
 
+  // Add / Edit Vendor modal
+  const BLANK_VENDOR_FORM = { name: '', category: '', contact: '', email: '', phone: '', leadTimeDays: '3', paymentTerms: 'Net-30', preferredVendor: false, notes: '' };
+  const [vendorModal,    setVendorModal]    = useState(false);   // true = open
+  const [vendorForm,     setVendorForm]     = useState(BLANK_VENDOR_FORM);
+  const [vendorSaving,   setVendorSaving]   = useState(false);
+  const [editVendorId,   setEditVendorId]   = useState(null);    // null = create, id = edit
+
+  const handleSaveVendor = async (e) => {
+    e.preventDefault();
+    setVendorSaving(true);
+    const body = {
+      name:             vendorForm.name.trim(),
+      category:         vendorForm.category.trim(),
+      contact_name:     vendorForm.contact.trim(),
+      email:            vendorForm.email.trim(),
+      phone:            vendorForm.phone.trim(),
+      lead_time_days:   Number(vendorForm.leadTimeDays) || 3,
+      payment_terms:    vendorForm.paymentTerms,
+      preferred_vendor: vendorForm.preferredVendor,
+      notes:            vendorForm.notes.trim(),
+      is_active:        true,
+    };
+    try {
+      if (!DEMO_MODE) {
+        if (editVendorId) {
+          await api.procurement.vendors.update(editVendorId, body);
+          setVendors(prev => prev.map(v => v._id === editVendorId ? { ...v, ...mapApiVendor({ id: editVendorId, ...body }) } : v));
+        } else {
+          const res = await api.procurement.vendors.create(body);
+          setVendors(prev => [...prev, mapApiVendor(res.data || { id: res.id, ...body })]);
+        }
+      } else {
+        const fakeId = `V-${Date.now()}`;
+        if (editVendorId) {
+          setVendors(prev => prev.map(v => v.vendorId === editVendorId ? { ...v, name: body.name, category: body.category, contact: body.contact_name, email: body.email, phone: body.phone, leadTimeDays: body.lead_time_days, paymentTerms: body.payment_terms, preferredVendor: body.preferred_vendor, notes: body.notes } : v));
+        } else {
+          setVendors(prev => [...prev, { vendorId: fakeId, _id: fakeId, name: body.name, category: body.category, contact: body.contact_name, email: body.email, phone: body.phone, leadTimeDays: body.lead_time_days, paymentTerms: body.payment_terms, rating: 0, preferredVendor: body.preferred_vendor, activeStatus: 'Active', notes: body.notes }]);
+        }
+      }
+      setVendorModal(false);
+      setVendorForm(BLANK_VENDOR_FORM);
+      setEditVendorId(null);
+    } catch (err) {
+      showApiToast(`Vendor save failed: ${err.message}`);
+    } finally {
+      setVendorSaving(false);
+    }
+  };
+
+  const openEditVendor = (v) => {
+    setVendorForm({ name: v.name, category: v.category, contact: v.contact, email: v.email, phone: v.phone, leadTimeDays: String(v.leadTimeDays), paymentTerms: v.paymentTerms, preferredVendor: !!v.preferredVendor, notes: v.notes || '' });
+    setEditVendorId(v._id || v.vendorId);
+    setVendorModal(true);
+  };
+
   // ── PO Builder state ────────────────────────────────────────────────────────
   const [builderVendorId,    setBuilderVendorId]    = useState(null);
   const [builderCart,        setBuilderCart]        = useState([]);   // [{catalogItem, qty}]
@@ -2846,14 +2901,22 @@ export default function ProcurementModule() {
         ══════════════════════════════════════════════════════════════════ */}
         {activeTab === 'vendors' && (
           <div className="space-y-4">
-            <div className="relative">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input
-                value={vendorSearch}
-                onChange={e => setVendorSearch(e.target.value)}
-                placeholder="Search vendors by name or category…"
-                className={`${UI.input} pl-9`}
-              />
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <input
+                  value={vendorSearch}
+                  onChange={e => setVendorSearch(e.target.value)}
+                  placeholder="Search vendors by name or category…"
+                  className={`${UI.input} pl-9`}
+                />
+              </div>
+              <button
+                onClick={() => { setVendorForm(BLANK_VENDOR_FORM); setEditVendorId(null); setVendorModal(true); }}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-500 text-gray-950 text-xs font-bold hover:bg-cyan-400 transition-colors whitespace-nowrap"
+              >
+                <Plus size={14} /> New Vendor
+              </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2904,18 +2967,26 @@ export default function ProcurementModule() {
                         <span className="col-span-2"><span className="text-gray-400">Phone:</span> {v.phone}</span>
                       </div>
 
-                      <div className="mt-3 pt-3 border-t border-gray-800 flex items-center justify-between text-xs">
+                      <div className="mt-3 pt-3 border-t border-gray-800 flex items-center justify-between text-xs gap-2">
                         <span className="text-gray-600">{v.vendorId}</span>
-                        {score && (
+                        <div className="flex items-center gap-2">
                           <button
-                            onClick={() => setExpandedScorecard(isOpen ? null : v.vendorId)}
-                            className={`${UI.btnSecondary} text-xs py-1 gap-1.5`}
+                            onClick={() => openEditVendor(v)}
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-800 text-gray-400 hover:text-gray-200 hover:bg-gray-700 transition-colors text-xs"
                           >
-                            <BarChart3 size={12} />
-                            {isOpen ? 'Hide Scorecard' : 'View Scorecard'}
-                            <ChevronDown size={11} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                            <Edit3 size={11} /> Edit
                           </button>
-                        )}
+                          {score && (
+                            <button
+                              onClick={() => setExpandedScorecard(isOpen ? null : v.vendorId)}
+                              className={`${UI.btnSecondary} text-xs py-1 gap-1.5`}
+                            >
+                              <BarChart3 size={12} />
+                              {isOpen ? 'Hide Scorecard' : 'View Scorecard'}
+                              <ChevronDown size={11} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -3007,6 +3078,66 @@ export default function ProcurementModule() {
               })}
             </div>
           </div>
+        )}
+
+        {/* ── Add / Edit Vendor Modal ────────────────────────────────────────── */}
+        {vendorModal && (
+          <ModalOverlay onClose={() => { setVendorModal(false); setEditVendorId(null); }}>
+            <ModalBox>
+              <ModalHeader
+                title={editVendorId ? 'Edit Vendor' : 'New Vendor'}
+                onClose={() => { setVendorModal(false); setEditVendorId(null); }}
+              />
+              <form onSubmit={handleSaveVendor} className="p-5 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label className={UI.label}>Vendor Name *</label>
+                    <input required value={vendorForm.name} onChange={e => setVendorForm(f => ({...f, name: e.target.value}))} className={UI.input} placeholder="e.g. Gulf Coast Proteins" />
+                  </div>
+                  <div>
+                    <label className={UI.label}>Category</label>
+                    <input value={vendorForm.category} onChange={e => setVendorForm(f => ({...f, category: e.target.value}))} className={UI.input} placeholder="e.g. Proteins, Produce…" />
+                  </div>
+                  <div>
+                    <label className={UI.label}>Payment Terms</label>
+                    <select value={vendorForm.paymentTerms} onChange={e => setVendorForm(f => ({...f, paymentTerms: e.target.value}))} className={UI.select}>
+                      {['Net-7','Net-15','Net-30','Net-45','Net-60','COD','Prepaid'].map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={UI.label}>Contact Name</label>
+                    <input value={vendorForm.contact} onChange={e => setVendorForm(f => ({...f, contact: e.target.value}))} className={UI.input} placeholder="Full name" />
+                  </div>
+                  <div>
+                    <label className={UI.label}>Lead Time (days)</label>
+                    <input type="number" min="0" value={vendorForm.leadTimeDays} onChange={e => setVendorForm(f => ({...f, leadTimeDays: e.target.value}))} className={UI.input} />
+                  </div>
+                  <div>
+                    <label className={UI.label}>Email</label>
+                    <input type="email" value={vendorForm.email} onChange={e => setVendorForm(f => ({...f, email: e.target.value}))} className={UI.input} placeholder="vendor@example.com" />
+                  </div>
+                  <div>
+                    <label className={UI.label}>Phone</label>
+                    <input value={vendorForm.phone} onChange={e => setVendorForm(f => ({...f, phone: e.target.value}))} className={UI.input} placeholder="(555) 000-0000" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className={UI.label}>Notes</label>
+                    <textarea value={vendorForm.notes} onChange={e => setVendorForm(f => ({...f, notes: e.target.value}))} rows={2} className={`${UI.input} resize-none`} placeholder="Optional notes…" />
+                  </div>
+                  <div className="col-span-2 flex items-center gap-2">
+                    <input type="checkbox" id="prefVendor" checked={vendorForm.preferredVendor} onChange={e => setVendorForm(f => ({...f, preferredVendor: e.target.checked}))} className="w-4 h-4 rounded accent-cyan-500" />
+                    <label htmlFor="prefVendor" className="text-xs text-gray-400 cursor-pointer">Mark as Preferred Vendor</label>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 pt-2 border-t border-gray-800">
+                  <button type="button" onClick={() => { setVendorModal(false); setEditVendorId(null); }} className={UI.btnSecondary}>Cancel</button>
+                  <button type="submit" disabled={vendorSaving} className={UI.btnPrimary}>
+                    {vendorSaving ? 'Saving…' : editVendorId ? 'Save Changes' : 'Add Vendor'}
+                  </button>
+                </div>
+              </form>
+            </ModalBox>
+          </ModalOverlay>
         )}
 
         {/* ══════════════════════════════════════════════════════════════════
