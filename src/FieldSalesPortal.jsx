@@ -756,7 +756,7 @@ export default function FieldSalesPortal() {
             ? <AccountDetailSection customer={selectedCustomer} orders={ordersForCustomer(selectedCustomer.id)} activities={activitiesForCustomer(selectedCustomer.id)} onBack={() => setSelectedCustomerId(null)} onStartOrder={() => startNewOrderForCustomer(selectedCustomer.id)} onCollectPayment={() => setShowPayment(true)} onOpenOrder={(oid) => { setSelectedOrderId(oid); }} selectedOrder={selectedOrder} onCloseOrder={() => setSelectedOrderId(null)} onLogActivity={(type, note) => logActivity(selectedCustomer.id, type, note)} onDirectEditOrder={directEditOrder} onRequestChange={() => setShowChangeRequest(true)} setCustomers={setCustomers} showToast={showToast} />
             : <AccountsListSection customers={customers} onSelect={(cid) => setSelectedCustomerId(cid)} />
         )}
-        {section === 'orderEntry'  && <OrderEntrySection customers={customers} cartCustomer={cartCustomer} cart={cart} cartItems={cartItems} cartTotal={cartTotal} cartCommission={cartCommission} onPickCustomer={setCartCustomerId} onAddItem={addCartItem} onRemoveItem={removeCartItem} onClearItem={clearCartItem} onSubmit={submitOrder} onClearCart={() => setCart({})} />}
+        {section === 'orderEntry'  && <OrderEntrySection customers={customers} cartCustomer={cartCustomer} cart={cart} cartItems={cartItems} cartTotal={cartTotal} cartCommission={cartCommission} onPickCustomer={setCartCustomerId} onAddItem={addCartItem} onRemoveItem={removeCartItem} onClearItem={clearCartItem} onSubmit={submitOrder} onClearCart={() => setCart({})} apiProducts={apiProducts} />}
         {section === 'leads'       && (
           selectedLead
             ? <LeadDetailSection lead={selectedLead} onBack={() => setSelectedLeadId(null)} onUpdateStage={(stage) => updateLeadStage(selectedLead.id, stage)} onConvert={() => { showToast(`Converting ${selectedLead.name} to active customer…`, 'info'); }} />
@@ -1616,7 +1616,7 @@ function OrderDetailView({ order, customer, onBack, onDirectEdit, onRequestChang
 // ─────────────────────────────────────────────────────────────────────────────
 // SECTION: ORDER ENTRY (new order)
 // ─────────────────────────────────────────────────────────────────────────────
-function OrderEntrySection({ customers, cartCustomer, cart, cartItems, cartTotal, cartCommission, onPickCustomer, onAddItem, onRemoveItem, onClearItem, onSubmit, onClearCart }) {
+function OrderEntrySection({ customers, cartCustomer, cart, cartItems, cartTotal, cartCommission, onPickCustomer, onAddItem, onRemoveItem, onClearItem, onSubmit, onClearCart, apiProducts }) {
   const [filter, setFilter] = useState('guide');  // guide | all | categoryName
   const [search, setSearch] = useState('');
 
