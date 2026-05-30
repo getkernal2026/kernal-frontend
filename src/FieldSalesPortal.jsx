@@ -960,7 +960,7 @@ function SalesRepLiveMap({ gpsPosition, liveRepPositions, repId, repName, custom
     const center = gpsPosition ? [gpsPosition.lat, gpsPosition.lng] : NEW_ORLEANS;
     const map = L.map(mapContainerRef.current, { center, zoom: 13, zoomControl: true });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       attribution: '© OpenStreetMap contributors © CARTO',
       maxZoom: 19,
     }).addTo(map);
