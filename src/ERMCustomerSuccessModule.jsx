@@ -537,11 +537,11 @@ export default function ERMCustomerSuccessModule() {
   const [salesmanSaving, setSalesmanSaving]     = useState(false);
 
   useEffect(() => {
-    if (!canManageSalesman) return;
+    if (DEMO_MODE || !activeUser?.id) return;
     api.crm.team.list()
       .then(res => setTeamMembers(res.data || []))
-      .catch(() => {});
-  }, [canManageSalesman]);
+      .catch(err => console.error('[CRM] team members fetch failed:', err));
+  }, [activeUser?.id]);
 
   const customerPricingEnabled = settings.features.customerPricing;
   const creditTermsEnabled     = settings.features?.creditTerms !== false;
