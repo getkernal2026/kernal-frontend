@@ -218,6 +218,7 @@ export async function captureError({ error, moduleName, type = 'crash', extra = 
   }
 
   // Persist to backend DB (fire-and-forget — never blocks the UI)
+  // postReportToDB fires 'kernalAutofixStarted' with the returned bug ID.
   postReportToDB(report).catch(() => {});
 
   notifyListeners();
@@ -230,8 +231,8 @@ const API_BASE = import.meta.env.VITE_API_URL || 'https://kernal-backend-product
 async function postReportToDB(report) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) return; // not logged in — skip
-    await fetch(`${API_BASE}/api/v1/bugs`, {
+    if (!session?.access_token) return null; // not logged in — skip
+    const res = await fetch(`${API_BASE}/api/v1/bugs`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -239,7 +240,14 @@ async function postReportToDB(report) {
       },
       body: JSON.stringify(report),
     });
-  } catch { /* network failure — silently ignored */ }
+    if (!res.ok) return null;
+    const { id: bugId } = await res.json();
+    if (bugId) {
+      // Notify AutofixStatusModal so it can show progress to the user
+      window.dispatchEvent(new CustomEvent('kernalAutofixStarted', { detail: { bugId } }));
+    }
+    return bugId || null;
+  } catch { return null; /* network failure — silently ignored */ }
 }
 
 // ── Persisted report summaries (survives page reload) ─────────────────────────

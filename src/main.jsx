@@ -44,6 +44,7 @@ import EcommerceModule          from './EcommerceModule.jsx';
 import LandedCostModule         from './LandedCostModule.jsx';
 import MobileWMSModule          from './MobileWMSModule.jsx';
 import NLQueryModule            from './NLQueryModule.jsx';
+import AutofixStatusModal       from './AutofixStatusModal.jsx';
 
 import {
   Package, Truck, ShoppingCart, Building2, MapPin, Contact2, DollarSign,
@@ -1134,6 +1135,90 @@ function KernalShell() {
           onSkip={() => setActiveTourId(null)}
         />
       )}
+
+      {/* AutoPatch live status modal — shown to all authenticated users */}
+      <AutofixStatusModal />
+
+      {/* AutoPatch admin banner — subtle top strip for admin/manager/superadmin only */}
+      <AutofixActiveBanner role={activeUser?.role} />
+    </div>
+  );
+}
+
+// ── AutoPatch admin activity banner ───────────────────────────────────────────
+// Shown as a slim persistent strip at the bottom of the screen for admins,
+// indicating how many autofix jobs are actively running right now.
+const ADMIN_ROLES = new Set(['admin', 'manager', 'superadmin']);
+const API_BASE_BANNER = import.meta.env.VITE_API_URL || 'https://kernal-backend-production.up.railway.app';
+
+function AutofixActiveBanner({ role }) {
+  const [activeCount, setActiveCount] = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    if (!ADMIN_ROLES.has(role)) return;
+
+    const check = async () => {
+      try {
+        const { supabase } = await import('./lib/supabase.js');
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) return;
+        const res = await fetch(
+          `${API_BASE_BANNER}/api/v1/bugs?status=investigating&limit=50`,
+          { headers: { Authorization: `Bearer ${session.access_token}` } }
+        );
+        if (!res.ok) return;
+        const body = await res.json();
+        const active = (body.data || []).filter(b =>
+          ['analyzing', 'patching', 'generating_patch', 'opening_pr', 'pr_open'].includes(b.autofix_status)
+        );
+        setActiveCount(active.length);
+      } catch { /* silent */ }
+    };
+
+    check();
+    const id = setInterval(check, 30_000);
+    return () => clearInterval(id);
+  }, [role]);
+
+  if (!ADMIN_ROLES.has(role) || !visible || activeCount === 0) return null;
+
+  return (
+    <div style={{
+      position: 'fixed',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      zIndex: 9990,
+      background: 'linear-gradient(90deg, #1e3a5f 0%, #1a3050 100%)',
+      borderTop: '1px solid #2563eb44',
+      padding: '7px 16px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{
+          display: 'inline-block',
+          width: 8, height: 8, borderRadius: '50%',
+          background: '#3b82f6',
+          boxShadow: '0 0 6px #3b82f6',
+          animation: 'kab-pulse 1.4s ease-in-out infinite',
+        }} />
+        <style>{`@keyframes kab-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
+        <span style={{ fontSize: 12, color: '#93c5fd', fontWeight: 500 }}>
+          AutoPatch: {activeCount} job{activeCount !== 1 ? 's' : ''} running
+        </span>
+      </div>
+      <button
+        onClick={() => setVisible(false)}
+        style={{
+          background: 'none', border: 'none', cursor: 'pointer',
+          color: '#4b6fa5', fontSize: 16, lineHeight: 1, padding: 0,
+        }}
+        aria-label="Dismiss banner"
+      >×</button>
     </div>
   );
 }
