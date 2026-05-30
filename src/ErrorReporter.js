@@ -243,8 +243,15 @@ async function postReportToDB(report) {
     if (!res.ok) return null;
     const { id: bugId } = await res.json();
     if (bugId) {
-      // Notify AutofixStatusModal so it can show progress to the user
-      window.dispatchEvent(new CustomEvent('kernalAutofixStarted', { detail: { bugId } }));
+      // Notify AutofixStatusModal — pass module + error so the confirmation prompt
+      // can show the user what crashed before they decide to run AutoPatch.
+      window.dispatchEvent(new CustomEvent('kernalAutofixStarted', {
+        detail: {
+          bugId,
+          module:       report.module,
+          errorMessage: report.error?.message || '',
+        },
+      }));
     }
     return bugId || null;
   } catch { return null; /* network failure — silently ignored */ }
