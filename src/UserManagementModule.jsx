@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useKernal, ROLES, ROLE_PERMISSIONS, MODULE_IDS } from './KernalContext.jsx';
+import { api } from './lib/api.js';
+import { DEMO_MODE } from './lib/demoMode.js';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 function UserIcon({ size = 16 }) {
@@ -301,16 +303,32 @@ function UserPanel({ user, onClose, onSwitchTo, isAdmin, isAdminOrManager }) {
 }
 
 // ── Add User Modal ────────────────────────────────────────────────────────────
-function AddUserModal({ onClose }) {
+function AddUserModal({ onClose, onAdded }) {
   const { addUser } = useKernal();
-  const [name,  setName]  = useState('');
-  const [email, setEmail] = useState('');
-  const [role,  setRole]  = useState('warehouse');
+  const [name,     setName]     = useState('');
+  const [email,    setEmail]    = useState('');
+  const [password, setPassword] = useState('');
+  const [role,     setRole]     = useState('warehouse');
+  const [saving,   setSaving]   = useState(false);
+  const [err,      setErr]      = useState(null);
 
-  const handleAdd = () => {
-    if (!name.trim()) return;
-    addUser({ name: name.trim(), email: email.trim(), role });
-    onClose();
+  const handleAdd = async () => {
+    if (!name.trim() || !email.trim()) return;
+    if (DEMO_MODE) {
+      addUser({ name: name.trim(), email: email.trim(), role });
+      onClose();
+      return;
+    }
+    setSaving(true); setErr(null);
+    try {
+      const res = await api.admin.inviteUser({ full_name: name.trim(), email: email.trim(), password: password || undefined, role });
+      if (onAdded) onAdded(mapApiUser(res.data));
+      onClose();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -326,9 +344,16 @@ function AddUserModal({ onClose }) {
             <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Jane Smith" className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-cyan-500" />
           </div>
           <div>
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">Email</label>
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">Email *</label>
             <input value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@company.com" type="email" className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-cyan-500" />
           </div>
+          {!DEMO_MODE && (
+            <div>
+              <label className="block text-[11px] font-medium text-gray-500 mb-1">Password (optional — leave blank to send invite)</label>
+              <input value={password} onChange={e => setPassword(e.target.value)} placeholder="Temporary password" type="password" className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-cyan-500" />
+            </div>
+          )}
+          {err && <p className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">{err}</p>}
           <div>
             <label className="block text-[11px] font-medium text-gray-500 mb-1.5">Role</label>
             <div className="flex flex-wrap gap-2">
@@ -349,7 +374,7 @@ function AddUserModal({ onClose }) {
         </div>
         <div className="flex gap-2 p-4 border-t border-gray-800">
           <button onClick={onClose} className="flex-1 py-2 rounded-lg text-sm font-medium bg-gray-800 text-gray-400 hover:bg-gray-700 border border-gray-700 transition-colors">Cancel</button>
-          <button onClick={handleAdd} disabled={!name.trim()} className="flex-1 py-2 rounded-lg text-sm font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Add User</button>
+          <button onClick={handleAdd} disabled={!name.trim() || !email.trim() || saving} className="flex-1 py-2 rounded-lg text-sm font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">{saving ? 'Creating…' : 'Add User'}</button>
         </div>
       </div>
     </div>
@@ -475,13 +500,43 @@ function RoleProfilesTab({ isAdmin }) {
   );
 }
 
+// Map API user_profiles row → the shape this module expects
+function mapApiUser(u) {
+  return {
+    id:       u.id,
+    name:     u.full_name || u.email || u.id,
+    email:    u.email     || '',
+    role:     u.role      || 'staff',
+    active:   u.is_active !== false,
+    job_class: u.job_class || '',
+    overrides: {},
+  };
+}
+
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
 export default function UserManagementModule() {
-  const { users, activeUserId, activeUser, setActiveUserId, getPermission } = useKernal();
+  const { users: ctxUsers, activeUserId, activeUser, setActiveUserId, getPermission } = useKernal();
+  const [liveUsers, setLiveUsers]   = useState(null); // null = not yet loaded
   const [selectedId, setSelectedId] = useState(null);
   const [showAdd, setShowAdd]       = useState(false);
   const [filter, setFilter]         = useState('all');
   const [mainTab, setMainTab]       = useState('users'); // 'users' | 'roles'
+
+  // Load live users from API in production
+  const loadUsers = useCallback(async () => {
+    if (DEMO_MODE) return;
+    try {
+      const res = await api.admin.listUsers();
+      setLiveUsers((res.data || []).map(mapApiUser));
+    } catch (e) {
+      // Fall back to context users on error
+    }
+  }, []);
+
+  useEffect(() => { loadUsers(); }, [loadUsers]);
+
+  // Prefer live API data; fall back to context (demo mode / error)
+  const users = liveUsers ?? ctxUsers;
 
   const isAdmin          = activeUser?.role === 'admin';
   const isAdminOrManager = ['admin', 'manager'].includes(activeUser?.role);
@@ -658,7 +713,7 @@ export default function UserManagementModule() {
         </>} {/* end mainTab === 'users' */}
       </div>
 
-      {showAdd && <AddUserModal onClose={() => setShowAdd(false)} />}
+      {showAdd && <AddUserModal onClose={() => setShowAdd(false)} onAdded={u => setLiveUsers(prev => prev ? [...prev, u] : [u])} />}
     </div>
   );
 }
