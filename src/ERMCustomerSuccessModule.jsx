@@ -2447,6 +2447,40 @@ export default function ERMCustomerSuccessModule() {
                     </div>
                   </div>
 
+                  {/* Assigned Salesman — admin / accounting only */}
+                  <div>
+                    <label className={UI.label}><User className="w-3 h-3 inline mr-1" />Assigned Sales Rep</label>
+                    {canManageSalesman ? (
+                      <div className="flex gap-2">
+                        <select
+                          value={salesmanDraft !== null ? salesmanDraft : (ec.assignedSalesmanId || '')}
+                          onChange={e => setSalesmanDraft(e.target.value)}
+                          className={`${UI.inputSm} flex-1`}
+                        >
+                          <option value="">— Unassigned —</option>
+                          {teamMembers.map(u => (
+                            <option key={u.id} value={u.id}>{u.full_name || u.id}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={handleAssignSalesman}
+                          disabled={salesmanSaving || salesmanDraft === null || salesmanDraft === (ec.assignedSalesmanId || '')}
+                          className="px-3 py-1.5 rounded-lg bg-cyan-500 text-gray-950 text-xs font-semibold hover:bg-cyan-400 disabled:opacity-40 transition-colors whitespace-nowrap"
+                        >
+                          {salesmanSaving ? 'Saving…' : 'Assign'}
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-400 py-1">
+                        {ec.assignedSalesmanId
+                          ? teamMembers.find(u => u.id === ec.assignedSalesmanId)?.full_name || 'Assigned'
+                          : <span className="text-gray-600 italic">Unassigned</span>
+                        }
+                        <span className="text-[10px] text-gray-600 ml-2">(admin / accounting only)</span>
+                      </p>
+                    )}
+                  </div>
+
                   <div>
                     <label className={`${UI.label} flex items-center gap-1`}><MapPin className="w-3 h-3" /> Address</label>
                     <div className="space-y-2">
@@ -2667,44 +2701,6 @@ export default function ERMCustomerSuccessModule() {
                       </form>
                     )}
                   </div>
-                  {/* Assigned Salesman — admin / accounting only */}
-                  <div className="pt-4 border-t border-gray-800">
-                    <label className={UI.label}><User className="w-3 h-3 inline mr-1" />Assigned Salesman</label>
-                    {canManageSalesman && teamMembers.length > 0 ? (
-                      <div className="flex gap-2">
-                        <select
-                          value={salesmanDraft !== null ? salesmanDraft : (ec.assignedSalesmanId || '')}
-                          onChange={e => setSalesmanDraft(e.target.value)}
-                          className={`${UI.select} flex-1`}
-                        >
-                          <option value="">— Unassigned —</option>
-                          {teamMembers.map(u => (
-                            <option key={u.id} value={u.id}>{u.full_name || u.id}</option>
-                          ))}
-                        </select>
-                        <button
-                          onClick={handleAssignSalesman}
-                          disabled={
-                            salesmanSaving ||
-                            salesmanDraft === null ||
-                            salesmanDraft === (ec.assignedSalesmanId || '')
-                          }
-                          className="px-3 py-1.5 rounded-lg bg-cyan-500 text-gray-950 text-xs font-semibold hover:bg-cyan-400 disabled:opacity-40 transition-colors whitespace-nowrap"
-                        >
-                          {salesmanSaving ? 'Saving…' : 'Assign'}
-                        </button>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-300 py-1">
-                        {ec.assignedSalesmanId
-                          ? teamMembers.find(u => u.id === ec.assignedSalesmanId)?.full_name || 'Assigned'
-                          : <span className="text-gray-600 italic">Unassigned</span>
-                        }
-                        {!canManageSalesman && <span className="text-[10px] text-gray-600 ml-2">(admin / accounting only)</span>}
-                      </p>
-                    )}
-                  </div>
-
                   <div className="pt-4 border-t border-gray-800">
                     <label className={UI.label}>Assigned Route (Module 4)</label>
                     <input type="text" value={ec.route} onChange={e => handleRouteChange(e.target.value)} className={UI.input} />
