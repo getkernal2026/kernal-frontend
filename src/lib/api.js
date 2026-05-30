@@ -1,4 +1,4 @@
-// ── Kernel API Client ─────────────────────────────────────────────────────────
+// -- Kernel API Client -------------------------------------------------------
 // Thin wrapper around the Railway backend. Attaches the Supabase JWT on every
 // request so the backend's requireAuth middleware can verify it.
 //
@@ -9,7 +9,7 @@ import { supabase } from './supabase.js';
 
 const BASE = import.meta.env.VITE_API_URL || 'https://kernal-backend-production.up.railway.app';
 
-// ── Core fetch wrapper ────────────────────────────────────────────────────────
+// -- Core fetch wrapper ------------------------------------------------------
 async function authFetch(path, options = {}) {
   // Grab the current session JWT (null if not signed in)
   const { data: { session } } = await supabase.auth.getSession();
@@ -43,7 +43,7 @@ function qs(params = {}) {
   return s ? `?${s}` : '';
 }
 
-// ── API surface ───────────────────────────────────────────────────────────────
+// -- API surface -------------------------------------------------------------
 export const api = {
   // Health (no auth required)
   health: {
@@ -68,6 +68,21 @@ export const api = {
     delete: (id)           => authFetch(`/api/v1/inventory/${id}`, { method: 'DELETE' }),
   },
 
+  inventoryAdjustments: {
+    list:          (params = {}) => authFetch(`/api/v1/inventory-adjustments${qs(params)}`),
+    get:           (id)          => authFetch(`/api/v1/inventory-adjustments/${id}`),
+    create:        (body)        => authFetch('/api/v1/inventory-adjustments', { method: 'POST',   body: JSON.stringify(body) }),
+    update:        (id, body)    => authFetch(`/api/v1/inventory-adjustments/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    submit:        (id)          => authFetch(`/api/v1/inventory-adjustments/${id}/submit`,  { method: 'POST' }),
+    approve:       (id)          => authFetch(`/api/v1/inventory-adjustments/${id}/approve`, { method: 'POST' }),
+    reject:        (id, body)    => authFetch(`/api/v1/inventory-adjustments/${id}/reject`,  { method: 'POST', body: JSON.stringify(body) }),
+    post:          (id)          => authFetch(`/api/v1/inventory-adjustments/${id}/post`,    { method: 'POST' }),
+    void:          (id, body)    => authFetch(`/api/v1/inventory-adjustments/${id}/void`,    { method: 'POST', body: JSON.stringify(body) }),
+    journal:       (params = {}) => authFetch(`/api/v1/inventory-adjustments/journal${qs(params)}`),
+    lossPrevention:(params = {}) => authFetch(`/api/v1/inventory-adjustments/loss-prevention${qs(params)}`),
+    stats:         ()            => authFetch('/api/v1/inventory-adjustments/stats'),
+  },
+
   customers: {
     list:   (params = {}) => authFetch(`/api/v1/customers${qs(params)}`),
     get:    (id)           => authFetch(`/api/v1/customers/${id}`),
@@ -86,7 +101,7 @@ export const api = {
     deleteItem:   (id, itemId)   => authFetch(`/api/v1/orders/${id}/items/${itemId}`, { method: 'DELETE' }),
   },
 
-  // ── Admin (requires admin role) ───────────────────────────────────────────
+  // -- Admin (requires admin role) -------------------------------------------
   admin: {
     // Tenant
     getTenant:    ()             => authFetch('/api/v1/admin/tenant'),
@@ -98,7 +113,7 @@ export const api = {
     updateUser:   (id, body)     => authFetch(`/api/v1/admin/users/${id}`, { method: 'PATCH',  body: JSON.stringify(body) }),
     deactivateUser: (id)         => authFetch(`/api/v1/admin/users/${id}`, { method: 'DELETE' }),
 
-    // B2B Portal Customers — tenant admins manage portal access here
+    // B2B Portal Customers
     b2bCustomers: {
       list:          ()          => authFetch('/api/v1/admin/b2b-customers'),
       create:        (body)      => authFetch('/api/v1/admin/b2b-customers', { method: 'POST',   body: JSON.stringify(body) }),
@@ -108,9 +123,7 @@ export const api = {
     },
   },
 
-  // ── B2B Customer Portal ───────────────────────────────────────────────────
-  // All calls require a logged-in B2B customer (Supabase session with a
-  // b2b_customer_profiles row). The JWT is attached automatically by authFetch.
+  // -- B2B Customer Portal ---------------------------------------------------
   b2b: {
     me:      ()           => authFetch('/api/v1/b2b/me'),
     catalog: (params = {}) => authFetch(`/api/v1/b2b/catalog${qs(params)}`),
@@ -137,7 +150,7 @@ export const api = {
     },
   },
 
-  // ── CRM ──────────────────────────────────────────────────────────────────
+  // -- CRM ------------------------------------------------------------------
   crm: {
     customers: {
       list:           (params = {}) => authFetch(`/api/v1/crm/customers${qs(params)}`),
@@ -145,7 +158,6 @@ export const api = {
       create:         (body)         => authFetch('/api/v1/crm/customers', { method: 'POST',  body: JSON.stringify(body) }),
       update:         (id, body)     => authFetch(`/api/v1/crm/customers/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
       delete:         (id)           => authFetch(`/api/v1/crm/customers/${id}`, { method: 'DELETE' }),
-      // Admin / accounting only
       assignSalesman: (id, salesmanId) => authFetch(`/api/v1/crm/customers/${id}/salesman`, {
         method: 'PATCH',
         body: JSON.stringify({ assigned_salesman_id: salesmanId || null }),
@@ -194,15 +206,13 @@ export const api = {
     playbooks: {
       list:   (params = {}) => authFetch(`/api/v1/crm/playbooks${qs(params)}`),
       create: (body)         => authFetch('/api/v1/crm/playbooks', { method: 'POST', body: JSON.stringify(body) }),
-
-      // Customer enrollment
       enroll:  (customerId, body)         => authFetch(`/api/v1/crm/customers/${customerId}/playbooks`, { method: 'POST',  body: JSON.stringify(body) }),
       update:  (customerId, id, body)     => authFetch(`/api/v1/crm/customers/${customerId}/playbooks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
       unenroll:(customerId, id)           => authFetch(`/api/v1/crm/customers/${customerId}/playbooks/${id}`, { method: 'DELETE' }),
     },
   },
 
-  // ── Procurement ──────────────────────────────────────────────────────────
+  // -- Procurement ----------------------------------------------------------
   procurement: {
     vendors: {
       list:   (params = {}) => authFetch(`/api/v1/procurement/vendors${qs(params)}`),
@@ -224,7 +234,7 @@ export const api = {
     },
   },
 
-  // ── Accounting ────────────────────────────────────────────────────────────
+  // -- Accounting -----------------------------------------------------------
   accounting: {
     invoices: {
       list:         (params = {}) => authFetch(`/api/v1/accounting/invoices${qs(params)}`),
@@ -253,7 +263,7 @@ export const api = {
     },
   },
 
-  // ── Logistics ─────────────────────────────────────────────────────────────
+  // -- Logistics ------------------------------------------------------------
   logistics: {
     routes: {
       list:         (params = {}) => authFetch(`/api/v1/logistics/routes${qs(params)}`),
@@ -266,15 +276,13 @@ export const api = {
       update: (routeId, stopId, body)   => authFetch(`/api/v1/logistics/routes/${routeId}/stops/${stopId}`, { method: 'PATCH', body: JSON.stringify(body) }),
       delete: (routeId, stopId)         => authFetch(`/api/v1/logistics/routes/${routeId}/stops/${stopId}`, { method: 'DELETE' }),
     },
-    // GPS driver location — called by DriverApp every ~10s
     driverLocation:  (body)  => authFetch('/api/v1/logistics/driver-location',  { method: 'POST', body: JSON.stringify(body) }),
     driverLocations: ()      => authFetch('/api/v1/logistics/driver-locations'),
-    // GPS field-sales rep location — called by FieldSalesPortal every ~10s
     repLocation:     (body)  => authFetch('/api/v1/logistics/rep-location',      { method: 'POST', body: JSON.stringify(body) }),
     repLocations:    ()      => authFetch('/api/v1/logistics/rep-locations'),
   },
 
-  // ── GL / Chart of Accounts / Journal Entries / AP Bills ──────────────────
+  // -- GL / Chart of Accounts / Journal Entries / AP Bills ------------------
   gl: {
     accounts: {
       list:   (params = {}) => authFetch(`/api/v1/gl/accounts${qs(params)}`),
@@ -300,7 +308,7 @@ export const api = {
     },
   },
 
-  // ── Landed Costs ──────────────────────────────────────────────────────────
+  // -- Landed Costs ---------------------------------------------------------
   landedCosts: {
     shipments: {
       list:         (params = {}) => authFetch(`/api/v1/landed-costs/shipments${qs(params)}`),
@@ -314,12 +322,12 @@ export const api = {
     },
   },
 
-  // ── Demand Planning ───────────────────────────────────────────────────────
+  // -- Demand Planning ------------------------------------------------------
   demand: {
     forecast: (params = {}) => authFetch(`/api/v1/demand/forecast${qs(params)}`),
   },
 
-  // ── Pricing Engine ────────────────────────────────────────────────────────
+  // -- Pricing Engine -------------------------------------------------------
   pricing: {
     priceBooks: {
       list:          (params = {}) => authFetch(`/api/v1/pricing/price-books${qs(params)}`),
@@ -346,7 +354,7 @@ export const api = {
     },
   },
 
-  // ── WMS ──────────────────────────────────────────────────────────────────
+  // -- WMS ------------------------------------------------------------------
   wms: {
     tasks: {
       list:   (params = {}) => authFetch(`/api/v1/wms/tasks${qs(params)}`),
@@ -356,7 +364,7 @@ export const api = {
     },
   },
 
-  // ── Loss Prevention ───────────────────────────────────────────────────────
+  // -- Loss Prevention ------------------------------------------------------
   lp: {
     incidents: {
       list:   (params = {}) => authFetch(`/api/v1/lp/incidents${qs(params)}`),
@@ -379,7 +387,7 @@ export const api = {
     },
   },
 
-  // ── Warehouse ─────────────────────────────────────────────────────────────
+  // -- Warehouse ------------------------------------------------------------
   warehouse: {
     fulfillment: {
       list:   (params = {}) => authFetch(`/api/v1/warehouse/fulfillment${qs(params)}`),
@@ -409,7 +417,7 @@ export const api = {
     },
   },
 
-  // ── Approvals ─────────────────────────────────────────────────────────────
+  // -- Approvals ------------------------------------------------------------
   approvals: {
     stats:       ()             => authFetch('/api/v1/approvals/stats'),
     getRules:    ()             => authFetch('/api/v1/approvals/rules'),
@@ -422,12 +430,12 @@ export const api = {
     cancel:      (id)           => authFetch(`/api/v1/approvals/${id}`, { method: 'DELETE' }),
   },
 
-  // ── NL Query ──────────────────────────────────────────────────────────────
+  // -- NL Query -------------------------------------------------------------
   nlquery: {
     query: (q) => authFetch('/api/v1/nlquery', { method: 'POST', body: JSON.stringify({ query: q }) }),
   },
 
-  // ── Driver Close-out / Daily Reconciliation ───────────────────────────────
+  // -- Driver Close-out / Daily Reconciliation ------------------------------
   closeout: {
     list:           (date)               => authFetch(`/api/v1/closeout${date ? `?date=${date}` : ''}`),
     get:            (routeId)            => authFetch(`/api/v1/closeout/${routeId}`),
@@ -439,18 +447,16 @@ export const api = {
     depositSummary: (date)               => authFetch(`/api/v1/closeout/deposit-summary${date ? `?date=${date}` : ''}`),
   },
 
-  // ── Custom Reports ────────────────────────────────────────────────────────
+  // -- Custom Reports -------------------------------------------------------
   reports: {
-    // Fetch live rows for a data source
     source:      (src)       => authFetch(`/api/v1/reports/sources/${src}`),
-    // Saved report definitions
     listSaved:   ()           => authFetch('/api/v1/reports/saved'),
     save:        (body)       => authFetch('/api/v1/reports/saved', { method: 'POST',   body: JSON.stringify(body) }),
     update:      (id, body)   => authFetch(`/api/v1/reports/saved/${id}`, { method: 'PATCH',  body: JSON.stringify(body) }),
     deleteSaved: (id)         => authFetch(`/api/v1/reports/saved/${id}`, { method: 'DELETE' }),
   },
 
-  // ── Developer API ─────────────────────────────────────────────────────────
+  // -- Developer API --------------------------------------------------------
   developer: {
     apiKeys: {
       list:   ()       => authFetch('/api/v1/developer/api-keys'),
@@ -469,7 +475,7 @@ export const api = {
     },
   },
 
-  // ── Ecommerce ─────────────────────────────────────────────────────────────
+  // -- Ecommerce ------------------------------------------------------------
   ecommerce: {
     channels: {
       list:   ()           => authFetch('/api/v1/ecommerce/channels'),
@@ -485,7 +491,7 @@ export const api = {
     sync:     (body)        => authFetch('/api/v1/ecommerce/sync', { method: 'POST', body: JSON.stringify(body) }),
   },
 
-  // ── Integrations ─────────────────────────────────────────────────────────
+  // -- Integrations ---------------------------------------------------------
   integrations: {
     getConnection:    ()           => authFetch('/api/v1/integrations/connection'),
     connect:          (body)       => authFetch('/api/v1/integrations/connection', { method: 'POST',   body: JSON.stringify(body) }),
@@ -496,29 +502,24 @@ export const api = {
     recordSync:       (body)       => authFetch('/api/v1/integrations/sync', { method: 'POST', body: JSON.stringify(body) }),
   },
 
-  // ── Superadmin (requires superadmin role) ─────────────────────────────────
+  // -- Superadmin (requires superadmin role) --------------------------------
   superadmin: {
-    // Stats
     getStats:       ()              => authFetch('/api/v1/superadmin/stats'),
     revenueChart:   (months = 12)   => authFetch(`/api/v1/superadmin/revenue-chart?months=${months}`),
 
-    // Tenants
     listTenants:    ()           => authFetch('/api/v1/superadmin/tenants'),
     createTenant:   (body)       => authFetch('/api/v1/superadmin/tenants', { method: 'POST',   body: JSON.stringify(body) }),
     updateTenant:   (id, body)   => authFetch(`/api/v1/superadmin/tenants/${id}`, { method: 'PATCH',  body: JSON.stringify(body) }),
 
-    // Users (cross-tenant)
     listUsers:      (params = {}) => authFetch(`/api/v1/superadmin/users${qs(params)}`),
     inviteUser:     (body)        => authFetch('/api/v1/superadmin/users/invite', { method: 'POST', body: JSON.stringify(body) }),
     updateUser:     (id, body)    => authFetch(`/api/v1/superadmin/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     resetPassword:  (id, password) => authFetch(`/api/v1/superadmin/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ password }) }),
 
-    // Billing
     getInvoices:    (tenantId)   => authFetch(`/api/v1/superadmin/tenants/${tenantId}/invoices`),
     attachBilling:  (tenantId, body) => authFetch(`/api/v1/superadmin/tenants/${tenantId}/billing/attach`, { method: 'POST', body: JSON.stringify(body) }),
     cancelBilling:  (tenantId)   => authFetch(`/api/v1/superadmin/tenants/${tenantId}/billing/cancel`, { method: 'DELETE' }),
 
-    // Bug reports (cross-tenant triage)
     bugs: {
       list:        (params = {}) => authFetch(`/api/v1/bugs${qs(params)}`),
       stats:       ()             => authFetch('/api/v1/bugs/stats'),
@@ -530,7 +531,7 @@ export const api = {
     },
   },
 
-  // ── Bug Reports (tenant submission) ──────────────────────────────────────
+  // -- Bug Reports (tenant submission) --------------------------------------
   bugs: {
     report: (body) => authFetch('/api/v1/bugs', { method: 'POST', body: JSON.stringify(body) }),
   },
