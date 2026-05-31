@@ -564,6 +564,31 @@ export default function FieldSalesPortal() {
     setSection('orderEntry');
   };
 
+  // Auto-build order guide from recent order history when a customer is selected
+  useEffect(() => {
+    if (DEMO_MODE || !cartCustomerId || !orders.length) return;
+    const custOrders = orders.filter(o => o.customerId === cartCustomerId);
+    if (!custOrders.length) return;
+    // Aggregate SKUs from last 10 orders, sorted by frequency
+    const skuCount = {};
+    custOrders.slice(0, 10).forEach(o =>
+      (o.items || []).forEach(it => { skuCount[it.sku] = (skuCount[it.sku] || 0) + 1; })
+    );
+    const guide = Object.entries(skuCount)
+      .sort((a, b) => b[1] - a[1])
+      .map(([sku, count]) => {
+        const item = custOrders.flatMap(o => o.items || []).find(i => i.sku === sku);
+        return { sku, description: item?.description || sku, avgQty: Math.round(
+          custOrders.reduce((s, o) => s + ((o.items || []).find(i => i.sku === sku)?.qty || 0), 0) / custOrders.length
+        ) };
+      });
+    if (guide.length) {
+      setCustomers(prev => prev.map(c =>
+        c.id === cartCustomerId ? { ...c, orderGuide: guide } : c
+      ));
+    }
+  }, [cartCustomerId, orders]);
+
   const addCartItem = (sku, qty = 1) => {
     setCart(prev => {
       const existing = prev[sku];
@@ -1657,7 +1682,8 @@ function OrderDetailView({ order, customer, onBack, onDirectEdit, onRequestChang
 // SECTION: ORDER ENTRY (new order)
 // ─────────────────────────────────────────────────────────────────────────────
 function OrderEntrySection({ customers, cartCustomer, cart, cartItems, cartTotal, cartCommission, onPickCustomer, onAddItem, onRemoveItem, onClearItem, onSubmit, onClearCart, apiProducts, apiInventory }) {
-  const [filter, setFilter] = useState('guide');  // guide | all | categoryName
+  // Default to full catalog in live mode since orderGuide starts empty until populated
+  const [filter, setFilter] = useState(DEMO_MODE ? 'guide' : 'all');  // guide | all | categoryName
   const [search, setSearch] = useState('');
 
   if (!cartCustomer) {
