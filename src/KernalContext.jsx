@@ -691,6 +691,14 @@ export function KernalProvider({ children }) {
     onDelete: useCallback((row) => setApiInvoices(p => p.filter(r => r.id !== row.id)), []),
   });
 
+  // approval_requests — kept in context, merge RT events directly
+  useRealtimeTable({
+    table: 'approval_requests', tenantId, enabled: rtEnabled,
+    onInsert: useCallback((row) => setApprovalRequests(p => [row, ...p.filter(r => r.id !== row.id)]), []),
+    onUpdate: useCallback((row) => setApprovalRequests(p => p.map(r => r.id === row.id ? { ...r, ...row } : r)), []),
+    onDelete: useCallback((row) => setApprovalRequests(p => p.filter(r => r.id !== row.id)), []),
+  });
+
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [users,    setUsers]    = useState(DEMO_MODE ? INITIAL_USERS : []);
   // Live copy of role permission profiles — editable by admin at runtime
