@@ -1714,18 +1714,33 @@ function OrderEntrySection({ customers, cartCustomer, cart, cartItems, cartTotal
   }
 
   const guideSkus = new Set(cartCustomer.orderGuide.map(g => g.sku));
-  // In production, enrich apiProducts with quantity_on_hand from apiInventory
+
+  // Build live catalog: join apiProducts + apiInventory.
+  // Fall back to apiInventory alone if apiProducts hasn't loaded yet.
   const invByProductId = DEMO_MODE ? {} : Object.fromEntries(
     (apiInventory || []).map(inv => [inv.product_id, inv])
   );
-  const liveCatalog = DEMO_MODE ? MOCK_INVENTORY : (apiProducts || []).map(p => {
-    const inv = invByProductId[p.id];
-    return inv ? {
-      ...p,
-      physicalStock:  Number(inv.quantity_on_hand) || 0,
+  const liveCatalog = DEMO_MODE ? MOCK_INVENTORY : (() => {
+    const prods = apiProducts || [];
+    if (prods.length > 0) {
+      // Enrich products with stock data from inventory
+      return prods.map(p => {
+        const inv = invByProductId[p.id];
+        return inv ? { ...p, physicalStock: Number(inv.quantity_on_hand) || 0, allocatedStock: Number(inv.quantity_reserved) || 0 } : p;
+      });
+    }
+    // Fallback: build catalog from inventory rows (products may not have loaded yet)
+    return (apiInventory || []).map(inv => ({
+      id:           inv.product_id,
+      name:         inv.products?.name  || inv.product_id || '',
+      sku:          inv.products?.sku   || '',
+      basePrice:    Number(inv.products?.price_per_unit) || 0,
+      physicalStock: Number(inv.quantity_on_hand) || 0,
       allocatedStock: Number(inv.quantity_reserved) || 0,
-    } : p;
-  });
+      category:     inv.products?.category || '',
+      uom:          inv.products?.unit_of_measure || 'case',
+    }));
+  })();
   const catalog = liveCatalog.filter(item => {
     if (filter === 'guide' && !guideSkus.has(item.sku)) return false;
     if (search && !(item.name.toLowerCase().includes(search.toLowerCase()) || item.sku.toLowerCase().includes(search.toLowerCase()))) return false;
