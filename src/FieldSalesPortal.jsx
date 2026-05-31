@@ -809,7 +809,7 @@ export default function FieldSalesPortal() {
         <AddLeadModal rep={REP} onClose={() => setShowAddLead(false)} onSubmit={addLead} />
       )}
       {showChangeRequest && selectedOrder && (
-        <ChangeRequestModal order={selectedOrder} customer={customers.find(c => c.id === selectedOrder.customerId)} onClose={() => setShowChangeRequest(false)} onSubmit={(payload) => { requestPostPickChange(payload); setShowChangeRequest(false); }} />
+        <ChangeRequestModal order={selectedOrder} customer={customers.find(c => c.id === selectedOrder.customerId)} onClose={() => setShowChangeRequest(false)} onSubmit={(payload) => { requestPostPickChange(payload); setShowChangeRequest(false); }} apiProducts={apiProducts} apiInventory={apiInventory} />
       )}
 
       {/* Toast */}
@@ -2462,7 +2462,7 @@ function AddLeadModal({ rep, onClose, onSubmit }) {
   );
 }
 
-function ChangeRequestModal({ order, customer, onClose, onSubmit }) {
+function ChangeRequestModal({ order, customer, onClose, onSubmit, apiProducts, apiInventory }) {
   // Allow the user to mark line items for: change qty, remove, or add a new sku
   const [proposed, setProposed] = useState(order.items.map(i => ({ ...i, newQty: i.qty, remove: false })));
   const [newSku, setNewSku] = useState('');
@@ -2529,7 +2529,13 @@ function ChangeRequestModal({ order, customer, onClose, onSubmit }) {
             <div className="flex gap-2 mb-2">
               <select value={newSku} onChange={e => setNewSku(e.target.value)} className={`${UI.select} flex-1`}>
                 <option value="">Pick a SKU to add…</option>
-                {(DEMO_MODE ? MOCK_INVENTORY : (apiProducts || [])).filter(i => !order.items.some(it => it.sku === i.sku) && !additions.some(a => a.sku === i.sku)).map(i => (
+                {(DEMO_MODE ? MOCK_INVENTORY : (() => {
+                  const invMap = Object.fromEntries((apiInventory || []).map(inv => [inv.product_id, inv]));
+                  return (apiProducts || []).map(p => {
+                    const inv = invMap[p.id];
+                    return inv ? { ...p, physicalStock: Number(inv.quantity_on_hand) || 0 } : p;
+                  });
+                })()).filter(i => !order.items.some(it => it.sku === i.sku) && !additions.some(a => a.sku === i.sku)).map(i => (
                   <option key={i.id} value={i.sku}>{i.sku} — {i.name}</option>
                 ))}
               </select>
