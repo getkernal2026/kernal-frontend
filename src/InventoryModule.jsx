@@ -1685,15 +1685,15 @@ export default function InventoryModule() {
     isCatchWeight: false,
     leadTimeDays:  3, avgDailyUsage: 0,
     velocity: 'Medium', trend: 'stable', predictedDemand: 0,
-    lots: row.lot_number ? [{
-      lotId:        row.lot_number,
+    lots: [{
+      lotId:        row.lot_number || 'DEFAULT',
       qty:          Number(row.quantity_on_hand) || 0,
       qcHold:       false,
       expiry:       row.expiry_date || null,
       cost:         Number(row.products?.cost_per_unit) || 0,
       supplier:     null,
       receivedDate: null,
-    }] : [],
+    }],
     locationStock: {},
     specs: { origin: '', allergens: '', shelfLife: '', storage: '', description: row.products?.description || '' },
   });
