@@ -1132,6 +1132,25 @@ function mapApiPick(r) {
 
 // ─── ASSOCIATE PORTAL ─────────────────────────────────────────────────────────
 export default function WarehouseModule() {
+  const { apiInventory, apiProducts } = useKernal();
+
+  // Build an inventory lookup by inventory UUID — matches item.inventoryId in fulfillment tasks
+  const invById = useMemo(() => {
+    if (DEMO_MODE) return INVENTORY_BY_ID;
+    const map = {};
+    (apiInventory || []).forEach(inv => {
+      const prod = (apiProducts || []).find(p => p.id === inv.product_id);
+      map[inv.id] = {
+        id:           inv.id,
+        name:         prod?.name || inv.product_id,
+        sku:          prod?.sku  || '',
+        isCatchWeight:false,
+        lots:         [{ lotId: inv.lot_number || 'DEFAULT', qty: Number(inv.quantity_on_hand) || 0, qcHold: false }],
+      };
+    });
+    return map;
+  }, [apiInventory, apiProducts]);
+
   const [activeTab, setActiveTab]              = useState('fulfillment');
   const [orders, setOrders]                    = useState(DEMO_MODE ? INIT_ORDERS : []);
   const [searchQuery, setSearchQuery]          = useState('');
@@ -1181,7 +1200,7 @@ export default function WarehouseModule() {
   const openPackingModal = useCallback((order) => {
     const initialData = {};
     order.items.forEach(item => {
-      const inv = MOCK_INVENTORY.find(i => i.id === item.inventoryId);
+      const inv = invById[item.inventoryId];
       if (!inv) return;
       initialData[item.inventoryId] = {
         lotId:        inv.lots.find(l => !l.qcHold)?.lotId ?? '',
@@ -1302,7 +1321,7 @@ export default function WarehouseModule() {
             </div>
             <div className="p-6 overflow-y-auto flex-1 space-y-4">
               {packingModalOrder.items.map(item => {
-                const inv = MOCK_INVENTORY.find(i => i.id === item.inventoryId);
+                const inv = invById[item.inventoryId];
                 if (!inv) return null;
                 return (
                   <div key={item.inventoryId} className={`border rounded-xl p-4 flex flex-col md:flex-row gap-4 md:items-center ${inv.isCatchWeight ? 'border-cyan-500/20 bg-cyan-500/5' : 'border-gray-800 bg-gray-800/30'}`}>

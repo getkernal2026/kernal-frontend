@@ -172,18 +172,22 @@ const RETURN_REASONS = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const getAvailableStock = (item, allOrders) => {
-  const physical = item.lots
-    .filter(l => !l.qcHold)
-    .reduce((s, l) => s + l.qty, 0);
+  // Live mode: use physicalStock/allocatedStock merged from inventory table
+  // Demo mode: compute from lots array
+  const physical = item.physicalStock != null
+    ? item.physicalStock
+    : (item.lots || []).filter(l => !l.qcHold).reduce((s, l) => s + l.qty, 0);
 
-  const allocated = allOrders
-    .filter(o => o.status === 'Pending' || o.status === 'Pending Approval')
-    .reduce((s, o) => {
-      const line = o.lineItems.find(li => li.id === item.id);
-      return s + (line ? line.qty : 0);
-    }, 0);
+  const reserved = item.allocatedStock != null
+    ? item.allocatedStock
+    : allOrders
+        .filter(o => o.status === 'Pending' || o.status === 'Pending Approval')
+        .reduce((s, o) => {
+          const line = (o.lineItems || []).find(li => li.id === item.id);
+          return s + (line ? line.qty : 0);
+        }, 0);
 
-  return Math.max(0, physical - allocated);
+  return Math.max(0, physical - reserved);
 };
 
 const getItemPrice = (item, contractPricing = {}, tierMultiplier = 1.0) =>
@@ -628,7 +632,7 @@ const ProductCard = ({ item, cartQty, availableStock, onUpdate, contractPricing 
 
 // ─── Main Module ──────────────────────────────────────────────────────────────
 export default function B2BPortalModule() {
-  const { settings } = useKernal();
+  const { settings, apiInventory } = useKernal();
   const customerPricingEnabled = settings.features.customerPricing;
   const pricingTiers = settings.pricing?.tiers || [];
 
@@ -721,7 +725,13 @@ export default function B2BPortalModule() {
       // invoices are accessed via currentCustomer.invoices in live mode
       // Store them separately so we can update without mutating the profile
       setLiveInvoices(invoicesRes.data || []);
-      setProducts(catalogRes.data || []);
+      // Merge inventory stock into catalog products
+      const invMap = Object.fromEntries((apiInventory || []).map(i => [i.product_id, i]));
+      const enriched = (catalogRes.data || []).map(p => {
+        const inv = invMap[p.id];
+        return inv ? { ...p, physicalStock: Number(inv.quantity_on_hand) || 0, allocatedStock: Number(inv.quantity_reserved) || 0 } : p;
+      });
+      setProducts(enriched);
     } catch (err) {
       showToast('Failed to load your data. Please refresh.', 'error');
     } finally {
