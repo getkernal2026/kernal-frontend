@@ -573,14 +573,17 @@ export function KernalProvider({ children }) {
     setApiLoading(true);
     setApiError(null);
 
+    // Load each resource independently so one failure doesn't wipe out everything else
+    const safe = (promise) => promise.catch(() => ({ data: [] }));
+
     Promise.all([
-      api.products.list({ limit: 500 }),
-      api.inventory.list({ limit: 500 }),
-      api.crm.customers.list({ limit: 500 }),  // CRM-enriched: includes credit_hold, health_score, available_credit, etc.
-      api.orders.list({ limit: 100 }),
-      api.procurement.vendors.list({ limit: 500 }),
-      api.procurement.purchaseOrders.list({ limit: 200 }),
-      api.accounting.invoices.list({ limit: 200 }),
+      safe(api.products.list({ limit: 500 })),
+      safe(api.inventory.list({ limit: 500 })),
+      safe(api.crm.customers.list({ limit: 500 })),
+      safe(api.orders.list({ limit: 100 })),
+      safe(api.procurement.vendors.list({ limit: 500 })),
+      safe(api.procurement.purchaseOrders.list({ limit: 200 })),
+      safe(api.accounting.invoices.list({ limit: 200 })),
     ])
       .then(([prod, inv, cust, ord, ven, pos, inv2]) => {
         if (cancelled) return;
