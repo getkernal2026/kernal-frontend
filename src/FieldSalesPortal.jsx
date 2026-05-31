@@ -621,19 +621,21 @@ export default function FieldSalesPortal() {
     setSection('accounts');
 
     if (!DEMO_MODE) {
-      // Build items with product_id looked up by SKU from apiProducts
-      const productsBySku = Object.fromEntries((apiProducts || []).map(p => [p.sku, p.id]));
-      const apiItems = cartItems
-        .map(i => ({
-          product_id:       productsBySku[i.sku] || null,
-          quantity_ordered: i.qty,
-          unit_price:       i.unitPrice,
-        }))
-        .filter(i => i.product_id);  // only submit items we can resolve
+      // Build SKU→product_id map from apiInventory (reliable) with apiProducts as fallback
+      const productsBySku = {
+        ...Object.fromEntries((apiProducts || []).map(p => [p.sku, p.id])),
+        ...Object.fromEntries((apiInventory || []).map(inv => [inv.products?.sku, inv.product_id]).filter(([s]) => s)),
+      };
+      const apiItems = cartItems.map(i => ({
+        product_id:       productsBySku[i.sku] || i._productId || null,
+        quantity_ordered: i.qty,
+        unit_price:       i.unitPrice || i.basePrice || 0,
+      }));
 
       api.orders.create({
         customer_id: cartCustomerId,
         order_date:  TODAY,
+        status:      'confirmed',   // confirmed so warehouse sees it immediately
         items:       apiItems,
       }).then(created => {
         // Swap the optimistic temp id with the real backend id
