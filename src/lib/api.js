@@ -196,8 +196,16 @@ export const api = {
     },
 
     notes: {
-      list:   (customerId)       => authFetch(`/api/v1/crm/customers/${customerId}/notes`),
-      create: (customerId, body) => authFetch(`/api/v1/crm/customers/${customerId}/notes`, { method: 'POST', body: JSON.stringify(body) }),
+      list:       (customerId)       => authFetch(`/api/v1/crm/customers/${customerId}/notes`),
+      listAll:    (params = {})      => authFetch(`/api/v1/crm/notes${qs(params)}`),
+      create:     (customerId, body) => authFetch(`/api/v1/crm/customers/${customerId}/notes`, { method: 'POST', body: JSON.stringify(body) }),
+    },
+    leads: {
+      list:   (params = {}) => authFetch(`/api/v1/crm/leads${qs(params)}`),
+      get:    (id)           => authFetch(`/api/v1/crm/leads/${id}`),
+      create: (body)         => authFetch('/api/v1/crm/leads', { method: 'POST',   body: JSON.stringify(body) }),
+      update: (id, body)     => authFetch(`/api/v1/crm/leads/${id}`, { method: 'PATCH',  body: JSON.stringify(body) }),
+      delete: (id)           => authFetch(`/api/v1/crm/leads/${id}`, { method: 'DELETE' }),
     },
 
     nps: {
@@ -292,6 +300,14 @@ export const api = {
     // GPS field-sales rep location — called by FieldSalesPortal every ~10s
     repLocation:     (body)  => authFetch('/api/v1/logistics/rep-location',      { method: 'POST', body: JSON.stringify(body) }),
     repLocations:    ()      => authFetch('/api/v1/logistics/rep-locations'),
+    // Fleet (trucks + drivers)
+    fleet: {
+      list:   (params = {}) => authFetch(`/api/v1/logistics/fleet${qs(params)}`),
+      get:    (id)           => authFetch(`/api/v1/logistics/fleet/${id}`),
+      create: (body)         => authFetch('/api/v1/logistics/fleet', { method: 'POST',   body: JSON.stringify(body) }),
+      update: (id, body)     => authFetch(`/api/v1/logistics/fleet/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+      delete: (id)           => authFetch(`/api/v1/logistics/fleet/${id}`, { method: 'DELETE' }),
+    },
   },
 
   // ── GL / Chart of Accounts / Journal Entries / AP Bills ──────────────────
