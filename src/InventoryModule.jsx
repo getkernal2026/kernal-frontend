@@ -400,7 +400,8 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
       const res = await api.inventoryAdjustments.approve(id);
       const updated = res.adjustment || res;
       setAdjustments(prev => prev.map(a => a.id === id ? { ...a, ...updated } : a));
-      // Reload journal and stats since inventory was just updated
+      // Reload inventory counts + journal + stats
+      refreshInventory();
       const jr = await api.inventoryAdjustments.journal({ limit: 200 });
       setJournal(jr?.data || []);
       const lp = await api.inventoryAdjustments.lossPrevention({ limit: 200 });
