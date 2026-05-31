@@ -339,7 +339,8 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
                                : (item.quantity_on_hand ?? '');
     setForm(prev => ({
       ...prev,
-      inventory_id:     invId,
+      // Don't pass a stub placeholder — backend will resolve by product_id instead
+      inventory_id:     item._noInventory ? '' : invId,
       product_id:       item._productId || item.id || '',
       product_snapshot: { sku: item.sku, name: item.name, uom: item.uom },
       qty_before:       totalQty,
