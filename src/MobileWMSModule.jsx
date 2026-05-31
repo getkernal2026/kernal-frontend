@@ -1141,11 +1141,90 @@ export default function MobileWMSModule() {
   const [apiToast, setApiToast] = useState(null);
   const showApiToast = (msg) => { setApiToast(msg); setTimeout(() => setApiToast(null), 4000); };
 
-  // ── State — DEMO uses seed data; live uses empty (tasks come from scanning) ─
+  // ── State ─────────────────────────────────────────────────────────────────
   const [receiveTasks, setReceiveTasks] = useState(DEMO_MODE ? INIT_RECEIVE_TASKS : []);
   const [putawayTasks, setPutawayTasks] = useState(DEMO_MODE ? INIT_PUTAWAY_TASKS : []);
   const [waves,        setWaves       ] = useState(DEMO_MODE ? INIT_WAVES         : []);
   const [cycleCounts,  setCycleCounts ] = useState(DEMO_MODE ? INIT_CYCLE_COUNTS  : []);
+
+  // ── Live data loading ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    Promise.all([
+      api.procurement.purchaseOrders.list({ status: 'Sent', limit: 100 }),
+      api.warehouse.putaway.list({ limit: 200 }),
+      api.warehouse.picks.list({ limit: 200 }),
+      api.wms.tasks.list({ type: 'cycle_count', limit: 200 }),
+    ]).then(([posRes, putawayRes, picksRes, ccRes]) => {
+      // Receive tasks: map active POs to receive task format
+      setReceiveTasks((posRes.data || []).map(po => ({
+        id:          po.id,
+        poId:        po.po_number || po.id,
+        supplier:    po.vendors?.name || po.vendor_id || '',
+        arrivalDate: po.expected_date || po.created_at?.slice(0, 10) || '',
+        status:      'pending',
+        lines:       (po.lines || []).map((l, i) => ({
+          id:          l.id || `${po.id}-${i}`,
+          sku:         l.products?.sku  || l.sku  || '',
+          desc:        l.products?.name || l.name || '',
+          expectedQty: Number(l.quantity_ordered) || 0,
+          receivedQty: Number(l.quantity_received) || 0,
+          uom:         l.products?.unit_of_measure || 'case',
+          barcode:     '',
+          lot:         '',
+          status:      (l.quantity_received >= l.quantity_ordered) ? 'complete' : 'pending',
+        })),
+      })));
+
+      // Putaway tasks: map from warehouse_putaway_tasks
+      setPutawayTasks((putawayRes.data || []).map(t => ({
+        id:         t.id,
+        sku:        t.sku        || '',
+        desc:       t.name       || t.sku || '',
+        qty:        Number(t.qty) || 0,
+        lot:        t.lot_id     || '',
+        barcode:    '',
+        from:       t.suggested_loc || 'DOCK',
+        to:         t.actual_loc    || t.suggested_loc || '',
+        assignedTo: t.assigned_to  || '',
+        zone:       t.suggested_zone || t.category || '',
+        status:     t.status === 'Done' ? 'complete' : (t.assigned_to ? 'assigned' : 'pending'),
+        estMin:     10,
+      })));
+
+      // Pick waves: map from warehouse_pick_tasks
+      setWaves((picksRes.data || []).map(w => ({
+        id:          w.id,
+        soId:        w.order_ref     || w.id,
+        customer:    w.customer_name || '',
+        status:      w.status === 'Complete' ? 'complete' : (w.status === 'In Progress' ? 'in_progress' : 'pending'),
+        startedAt:   null,
+        completedAt: null,
+        picks:       (w.lines || []).map((l, i) => ({
+          id:       `${w.id}-${i}`,
+          sku:      l.sku      || '',
+          desc:     l.name     || l.sku || '',
+          bin:      l.bin      || '',
+          qty:      Number(l.qty) || 0,
+          picked:   l.picked   || false,
+          pickedAt: l.pickedAt || null,
+        })),
+      })));
+
+      // Cycle counts: map from wms_tasks type=cycle_count
+      setCycleCounts((ccRes.data || []).map(t => ({
+        id:          t.id,
+        bin:         t.location_from || '',
+        sku:         t.sku           || '',
+        desc:        t.notes         || t.sku || '',
+        zone:        '',
+        expectedQty: Number(t.quantity) || 0,
+        countedQty:  null,
+        status:      t.status === 'Completed' ? 'complete' : (t.assigned_to ? 'assigned' : 'pending'),
+        assignedTo:  t.assigned_to || null,
+      })));
+    }).catch(() => {});
+  }, []);
 
   // ── Tab definitions ────────────────────────────────────────────────────────
   const tabs = [
