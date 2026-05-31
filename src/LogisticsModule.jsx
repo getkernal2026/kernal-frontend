@@ -128,6 +128,57 @@ const MOCK_FLEET = [
 
 const WAREHOUSE_LOC = { x: 50, y: 50 };
 
+// ── Map API order → dispatcher order shape ────────────────────────────────────
+function mapApiOrder(row) {
+  const items = (row.order_items || []).map(li => ({
+    sku:              li.products?.sku           || li.product_id,
+    lotId:            'DEFAULT',
+    name:             li.products?.name          || li.product_id,
+    qty:              Number(li.quantity_ordered) || 0,
+    actualWeight:     null,
+    isCatchWeight:    li.products?.is_catch_weight || false,
+    tempCategory:     'dry',
+    unitCost:         Number(li.products?.cost_per_unit)  || 0,
+    unitPrice:        Number(li.products?.price_per_unit) || Number(li.unit_price) || 0,
+    pricePerLb:       Number(li.products?.price_per_lb)   || 0,
+    avgWeightPerCase: Number(li.products?.avg_weight_per_case) || 10,
+    inventoryId:      li.product_id,
+  }));
+  const totalWeight = items.reduce((s, i) => s + i.qty * i.avgWeightPerCase, 0);
+  const addr = row.customers
+    ? [row.customers.address_line1, row.customers.city, row.customers.state].filter(Boolean).join(', ')
+    : '';
+  const statusMap = { picked: 'Packed', shipped: 'Out for Delivery', delivered: 'Delivered' };
+  return {
+    id:             row.order_number || row.id,
+    _apiId:         row.id,
+    customer:       row.customers?.name || '',
+    address:        addr,
+    route:          '',
+    status:         statusMap[row.status] || row.status,
+    totalWeightLbs: totalWeight,
+    timeWindow:     row.requested_delivery_date
+      ? new Date(row.requested_delivery_date).toLocaleDateString() : '',
+    location:       { x: 50, y: 50 },
+    billed:         row.status === 'delivered',
+    items,
+  };
+}
+
+// ── Map API fleet row → dispatcher fleet shape ────────────────────────────────
+function mapApiFleet(row) {
+  return {
+    truckId:         row.truck_id,
+    _apiId:          row.id,
+    driver:          row.driver_name || '',
+    capacityLbs:     Number(row.capacity_lbs) || 10000,
+    status:          row.status || 'Available',
+    currentLocation: { x: 50, y: 50 },
+    tempZones:       row.temp_zones || ['Dry'],
+    assignedOrders:  [],
+  };
+}
+
 // ─────────────────────────────────────────────
 // ROUTE PROFITABILITY CONSTANTS & HELPERS
 // ─────────────────────────────────────────────
@@ -273,6 +324,26 @@ export default function LogisticsModule() {
   const [role, setRole] = useState(() => isDriver ? 'driver' : 'dispatcher');
   const [orders, setOrders] = useState(DEMO_MODE ? MOCK_PACKED_ORDERS : []);
   const [fleet,  setFleet]  = useState(DEMO_MODE ? MOCK_FLEET : []);
+
+  // ── Live data loading ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    // Load orders ready for dispatch (status: picked or shipped)
+    Promise.all([
+      api.orders.list({ status: 'picked',   limit: 200 }),
+      api.orders.list({ status: 'shipped',  limit: 200 }),
+      api.orders.list({ status: 'delivered', limit: 200 }),
+      api.logistics.fleet.list(),
+    ]).then(([picked, shipped, delivered, fleetRes]) => {
+      const rawOrders = [
+        ...(picked.data   || []),
+        ...(shipped.data  || []),
+        ...(delivered.data || []),
+      ];
+      setOrders(rawOrders.map(mapApiOrder));
+      setFleet((fleetRes.data || []).map(mapApiFleet));
+    }).catch(() => {});
+  }, []);
 
   // ── Live API: route/stop tracking ────────────────────────────────────────────
   // activeRouteId  : UUID of the delivery_route row created on dispatch
