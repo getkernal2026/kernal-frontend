@@ -410,9 +410,9 @@ export default function FieldSalesPortal() {
     status:          row.is_active ? 'Active' : 'Inactive',
     healthScore:     row.health_score || 75,
     creditLimit:     Number(row.credit_limit) || 0,
-    availableCredit: Math.max(0, Number(row.credit_limit) - Number(row.ar_balance || 0)),
-    arBalance:       Number(row.ar_balance) || 0,
-    arAging:         { current: Number(row.ar_balance) || 0, days30: 0, days60: 0, days90: 0 },
+    availableCredit: Number(row.available_credit ?? Math.max(0, Number(row.credit_limit) - Number(row.ar_balance || 0))) || 0,
+    arBalance:       Number(row.ar_balance || row.ar_balance_total || 0),
+    arAging:         row.ar_aging || { current: Number(row.ar_balance || 0), days30: 0, days60: 0, days90: 0 },
     creditHold:      !!row.credit_hold,
     ytdSpend:        Number(row.ytd_spend) || 0,
     lastOrderDate:   row.last_order_date || null,
@@ -442,11 +442,22 @@ export default function FieldSalesPortal() {
     createdBy: row.created_by || '',
   });
 
-  // ── Seed customers from apiCustomers (live mode only) ─────────────────────
+  // ── Seed customers from CRM (live mode only) ──────────────────────────────
+  // Use api.crm.customers.list() directly — it returns CRM-enriched fields
+  // (credit_hold, health_score, ar_balance, etc.) that apiCustomers may lack.
   useEffect(() => {
-    if (DEMO_MODE || !apiCustomers?.length) return;
-    setCustomers(apiCustomers.map(mapApiCustomer));
-  }, [apiCustomers]);
+    if (DEMO_MODE) return;
+    api.crm.customers.list({ limit: 500 })
+      .then(r => {
+        const rows = r.data || [];
+        if (rows.length) setCustomers(rows.map(mapApiCustomer));
+        else if (apiCustomers?.length) setCustomers(apiCustomers.map(mapApiCustomer));
+      })
+      .catch(() => {
+        // Fallback to context customers if CRM endpoint fails
+        if (apiCustomers?.length) setCustomers(apiCustomers.map(mapApiCustomer));
+      });
+  }, []);
 
   // ── Seed orders from apiOrders (live mode only) ───────────────────────────
   useEffect(() => {
