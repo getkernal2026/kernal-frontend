@@ -201,6 +201,745 @@ const INIT_TRANSFERS = [
 // ─────────────────────────────────────────────
 // TRANSFER ORDERS TAB
 // ─────────────────────────────────────────────
+// INVENTORY ADJUSTMENTS TAB
+// Industry-standard adjustment workflow:
+//  â¢ Reason tags + free-text notes
+//  â¢ Tiered approval: auto (<$100) | manager ($100â$500) | admin (>$500)
+//  â¢ Adjustment Journal (all posted adjustments)
+//  â¢ Loss Prevention Journal (shrinkage, damage, theft, expiry, write-off)
+// âââââââââââââââââââââââââââââââââââââââââââââ
+
+const ADJ_TYPES = [
+  { value: 'physical_count',       label: 'Physical Count Variance',  lp: false },
+  { value: 'shrinkage',            label: 'Shrinkage / Theft',         lp: true  },
+  { value: 'damage_in_house',      label: 'Damaged â In House',        lp: true  },
+  { value: 'damage_in_transit',    label: 'Damaged â In Transit',      lp: true  },
+  { value: 'expired',              label: 'Expired / Spoilage',        lp: true  },
+  { value: 'receiving_error',      label: 'Receiving Error',           lp: false },
+  { value: 'transfer_correction',  label: 'Transfer Correction',       lp: false },
+  { value: 'write_off',            label: 'Write-Off',                 lp: true  },
+  { value: 'found_surplus',        label: 'Found / Surplus',           lp: false },
+  { value: 'customer_return',      label: 'Customer Return',           lp: false },
+  { value: 'vendor_return',        label: 'Vendor Return',             lp: false },
+  { value: 'quality_reject',       label: 'Quality Reject',            lp: true  },
+  { value: 'other',                label: 'Other',                     lp: false },
+];
+
+const REASON_TAGS = {
+  physical_count:      ['Cycle Count', 'Annual Physical Count', 'Spot Check', 'System Discrepancy'],
+  shrinkage:           ['Employee Theft', 'Shoplifting', 'Vendor Short-Ship', 'Unknown Loss'],
+  damage_in_house:     ['Forklift Damage', 'Improper Storage', 'Packaging Failure', 'Equipment Malfunction'],
+  damage_in_transit:   ['Carrier Damage', 'Improper Loading', 'Temperature Excursion'],
+  expired:             ['Past Best-By Date', 'Past Use-By Date', 'Accelerated Spoilage'],
+  receiving_error:     ['Over-Received', 'Under-Received', 'Wrong Product', 'Duplicate Entry'],
+  transfer_correction: ['Transfer Overage', 'Transfer Shortage', 'Wrong Location Posted'],
+  write_off:           ['Unsellable', 'Contaminated', 'Regulatory Non-Compliance', 'Obsolete'],
+  found_surplus:       ['Unrecorded Receipt', 'Mislabeled Location', 'Count Error Found'],
+  customer_return:     ['Refused Delivery', 'Quality Complaint', 'Wrong Item Sent', 'Overshipment'],
+  vendor_return:       ['RTV Authorization', 'Quality Issue', 'Contractual Return'],
+  quality_reject:      ['FSMA Hold', 'Lab Failure', 'Allergen Cross-Contact', 'Sensory Reject'],
+  other:               ['Administrative Correction', 'System Migration', 'Other'],
+};
+
+const LP_LABEL = { shrinkage: 'Shrinkage', damage: 'Damage', expired: 'Expired', write_off: 'Write-Off', other_loss: 'Other Loss' };
+
+function adjThreshold(totalValue) {
+  if (totalValue < 100)  return 'auto';
+  if (totalValue < 500)  return 'manager';
+  return 'admin';
+}
+
+const STATUS_META_ADJ = {
+  draft:            { label: 'Draft',            color: 'text-gray-300',    bg: 'bg-gray-700/50',    border: 'border-gray-600/40'    },
+  pending_approval: { label: 'Pending Approval', color: 'text-amber-300',   bg: 'bg-amber-500/10',   border: 'border-amber-500/30'   },
+  approved:         { label: 'Approved',         color: 'text-sky-300',     bg: 'bg-sky-500/10',     border: 'border-sky-500/30'     },
+  rejected:         { label: 'Rejected',         color: 'text-rose-300',    bg: 'bg-rose-500/10',    border: 'border-rose-500/30'    },
+  posted:           { label: 'Posted',           color: 'text-emerald-300', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30' },
+  voided:           { label: 'Voided',           color: 'text-gray-400',    bg: 'bg-gray-700/40',    border: 'border-gray-600/30'    },
+};
+
+function AdjStatusBadge({ status }) {
+  const m = STATUS_META_ADJ[status] || STATUS_META_ADJ.draft;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${m.color} ${m.bg} ${m.border}`}>
+      {m.label}
+    </span>
+  );
+}
+
+function InventoryAdjustmentsTab({ inventory, userRole }) {
+  const { api: apiContext } = useKernal?.() || {};
+
+  // ââ State ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  const [subTab, setSubTab]           = useState('adjustments'); // 'adjustments' | 'journal' | 'loss_prevention'
+  const [adjustments, setAdjustments] = useState([]);
+  const [journal, setJournal]         = useState([]);
+  const [lpJournal, setLpJournal]     = useState([]);
+  const [stats, setStats]             = useState(null);
+  const [loading, setLoading]         = useState(false);
+  const [toast, setToast]             = useState(null);
+  const [selectedId, setSelectedId]   = useState(null);
+  const [showForm, setShowForm]       = useState(false);
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterType, setFilterType]   = useState('all');
+  const [submitting, setSubmitting]   = useState(false);
+  const [rejectModal, setRejectModal] = useState(null); // adjId or null
+  const [rejectReason, setRejectReason] = useState('');
+
+  // ââ Form state âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  const emptyForm = {
+    inventory_id: '',
+    product_id: '',
+    product_snapshot: {},
+    location_id: 'main',
+    lot_number: '',
+    adjustment_type: 'physical_count',
+    reason_tag: '',
+    qty_before: '',
+    delta: '',
+    unit_cost: '',
+    notes: '',
+    _sku: '',
+  };
+  const [form, setForm] = useState(emptyForm);
+  const setF = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // ââ Load data ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [adjRes, journalRes, lpRes, statsRes] = await Promise.all([
+        api.inventoryAdjustments.list({ limit: 200 }),
+        api.inventoryAdjustments.journal({ limit: 200 }),
+        api.inventoryAdjustments.lossPrevention({ limit: 200 }),
+        api.inventoryAdjustments.stats(),
+      ]);
+      setAdjustments(adjRes?.data || []);
+      setJournal(journalRes?.data || []);
+      setLpJournal(lpRes?.data || []);
+      setStats(statsRes || null);
+    } catch { /* silently fail */ }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ââ Derived ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  const filtered = adjustments.filter(a => {
+    if (filterStatus !== 'all' && a.status !== filterStatus) return false;
+    if (filterType   !== 'all' && a.adjustment_type !== filterType) return false;
+    return true;
+  });
+  const selected = adjustments.find(a => a.id === selectedId) ?? null;
+
+  // When user picks an inventory item, pre-fill qty_before and unit_cost
+  const handleInventoryPick = (invId) => {
+    const item = inventory.find(i => i._inventoryId === invId || i.id === invId);
+    if (!item) return;
+    const totalQty = item.lots ? item.lots.reduce((s, l) => s + (l.qty || 0), 0)
+                               : (item.quantity_on_hand ?? '');
+    setForm(prev => ({
+      ...prev,
+      inventory_id:     invId,
+      product_id:       item._productId || item.id || '',
+      product_snapshot: { sku: item.sku, name: item.name, uom: item.uom },
+      qty_before:       totalQty,
+      unit_cost:        item.lots?.[0]?.cost ?? item.price ?? '',
+      _sku:             item.sku,
+    }));
+  };
+
+  // ââ Actions ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  const handleCreate = async () => {
+    if (!form.adjustment_type || !form.reason_tag) return showToast('Type and reason are required', 'error');
+    if (form.delta === '' || isNaN(Number(form.delta))) return showToast('Quantity change is required', 'error');
+    if (form.qty_before === '' || isNaN(Number(form.qty_before))) return showToast('Quantity before is required', 'error');
+    setSubmitting(true);
+    try {
+      const body = {
+        inventory_id:     form.inventory_id || undefined,
+        product_id:       form.product_id   || undefined,
+        product_snapshot: form.product_snapshot,
+        location_id:      form.location_id,
+        lot_number:       form.lot_number   || undefined,
+        adjustment_type:  form.adjustment_type,
+        reason_tag:       form.reason_tag,
+        qty_before:       Number(form.qty_before),
+        delta:            Number(form.delta),
+        unit_cost:        Number(form.unit_cost || 0),
+        notes:            form.notes || undefined,
+      };
+      const created = await api.inventoryAdjustments.create(body);
+      setAdjustments(prev => [created, ...prev]);
+      setSelectedId(created.id);
+      setShowForm(false);
+      setForm(emptyForm);
+      showToast(`Adjustment ${created.reference_number} created`);
+    } catch (e) {
+      showToast(e?.message || 'Failed to create adjustment', 'error');
+    }
+    setSubmitting(false);
+  };
+
+  const handleSubmit = async (id) => {
+    setSubmitting(true);
+    try {
+      const res = await api.inventoryAdjustments.submit(id);
+      const updated = res.adjustment || res;
+      setAdjustments(prev => prev.map(a => a.id === id ? { ...a, ...updated } : a));
+      showToast(res.auto_approved ? 'Auto-approved (below threshold)' : 'Submitted for approval');
+    } catch (e) {
+      showToast(e?.message || 'Submit failed', 'error');
+    }
+    setSubmitting(false);
+  };
+
+  const handleApprove = async (id) => {
+    setSubmitting(true);
+    try {
+      const updated = await api.inventoryAdjustments.approve(id);
+      setAdjustments(prev => prev.map(a => a.id === id ? { ...a, ...updated } : a));
+      showToast('Adjustment approved');
+    } catch (e) {
+      showToast(e?.message || 'Approve failed', 'error');
+    }
+    setSubmitting(false);
+  };
+
+  const handleReject = async () => {
+    if (!rejectModal) return;
+    setSubmitting(true);
+    try {
+      const updated = await api.inventoryAdjustments.reject(rejectModal, { reason: rejectReason });
+      setAdjustments(prev => prev.map(a => a.id === rejectModal ? { ...a, ...updated } : a));
+      setRejectModal(null);
+      setRejectReason('');
+      showToast('Adjustment rejected');
+    } catch (e) {
+      showToast(e?.message || 'Reject failed', 'error');
+    }
+    setSubmitting(false);
+  };
+
+  const handlePost = async (id) => {
+    setSubmitting(true);
+    try {
+      const res = await api.inventoryAdjustments.post(id);
+      const updated = res.adjustment || res;
+      setAdjustments(prev => prev.map(a => a.id === id ? { ...a, ...updated } : a));
+      // Reload journal
+      const jr = await api.inventoryAdjustments.journal({ limit: 200 });
+      setJournal(jr?.data || []);
+      const lp = await api.inventoryAdjustments.lossPrevention({ limit: 200 });
+      setLpJournal(lp?.data || []);
+      const st = await api.inventoryAdjustments.stats();
+      setStats(st || null);
+      showToast('Adjustment posted to inventory');
+    } catch (e) {
+      showToast(e?.message || 'Post failed', 'error');
+    }
+    setSubmitting(false);
+  };
+
+  // ââ Helpers ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  const fmtQty = (v, sign = false) => {
+    const n = Number(v);
+    if (isNaN(n)) return 'â';
+    return (sign && n > 0 ? '+' : '') + n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  };
+  const fmtCur = (v) => `$${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const adjTypeLabel = (v) => ADJ_TYPES.find(t => t.value === v)?.label || v;
+  const canApprove = ['admin', 'manager'].includes(userRole);
+
+  // ââ Computed form values âââââââââââââââââââââââââââââââââââââââââââââââââââ
+  const formDelta     = Number(form.delta || 0);
+  const formBefore    = Number(form.qty_before || 0);
+  const formAfter     = formBefore + formDelta;
+  const formCost      = Number(form.unit_cost || 0);
+  const formValue     = Math.abs(formDelta) * formCost;
+  const formThreshold = adjThreshold(formValue);
+
+  // ââ Render âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  return (
+    <div className="space-y-4">
+
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-2xl border text-sm font-medium ${toast.type === 'error' ? 'bg-rose-900/90 border-rose-600/50 text-rose-200' : 'bg-emerald-900/90 border-emerald-600/50 text-emerald-200'}`}>
+          {toast.type === 'error' ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+          {toast.msg}
+        </div>
+      )}
+
+      {/* Reject Modal */}
+      {rejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <h3 className="text-lg font-bold text-gray-100 mb-1">Reject Adjustment</h3>
+            <p className="text-sm text-gray-400 mb-4">Provide a reason for rejection (required).</p>
+            <textarea
+              rows={3}
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              placeholder="Reason for rejectionâ¦"
+              className="w-full bg-gray-800 border border-gray-600 rounded-xl px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:ring-1 focus:ring-rose-500 mb-4"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => { setRejectModal(null); setRejectReason(''); }} className="flex-1 px-4 py-2 rounded-xl bg-gray-700 text-gray-200 text-sm font-semibold hover:bg-gray-600">Cancel</button>
+              <button
+                onClick={handleReject}
+                disabled={!rejectReason.trim() || submitting}
+                className="flex-1 px-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-semibold hover:bg-rose-500 disabled:opacity-50"
+              >
+                {submitting ? 'Rejectingâ¦' : 'Reject'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header banner */}
+      <div className="flex items-center gap-3 p-4 bg-violet-500/5 border border-violet-500/20 rounded-xl">
+        <ClipboardList className="w-5 h-5 text-violet-400 shrink-0" />
+        <div>
+          <h3 className="text-sm font-bold text-violet-300">Inventory Adjustments</h3>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Record, approve, and post quantity adjustments. Adjustments under $100 auto-approve; $100â$500 require manager sign-off; over $500 require admin approval. All posted adjustments are journalized and loss-category events are logged to the Loss Prevention Journal.
+          </p>
+        </div>
+      </div>
+
+      {/* Stats row */}
+      {stats && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { label: 'Pending Approval',   value: stats.pending_approval,    color: 'text-amber-300'   },
+            { label: 'Posted (30d)',        value: stats.posted_last_30d,     color: 'text-emerald-300' },
+            { label: 'Loss Value (30d)',    value: fmtCur(stats.loss_value_30d), color: 'text-rose-300' },
+            { label: 'Total LP Entries',   value: Object.values(stats.lp_totals || {}).reduce((s, v) => s + v, 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','), color: 'text-gray-300' },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="bg-gray-900/80 border border-gray-800 rounded-xl p-3">
+              <p className="text-xs text-gray-500 mb-1">{label}</p>
+              <p className={`text-xl font-bold ${color}`}>{value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Sub-tab bar */}
+      <div className="flex gap-1 p-1 bg-gray-900/50 border border-gray-800 rounded-xl w-fit">
+        {[
+          { id: 'adjustments',     label: 'Adjustments',        Icon: Edit },
+          { id: 'journal',         label: 'Adj. Journal',        Icon: FileText },
+          { id: 'loss_prevention', label: 'Loss Prevention',     Icon: FileWarning },
+        ].map(({ id, label, Icon }) => (
+          <button key={id} onClick={() => setSubTab(id)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${subTab === id ? 'bg-violet-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}>
+            <Icon className="w-3.5 h-3.5" />{label}
+          </button>
+        ))}
+      </div>
+
+      {/* ââ ADJUSTMENTS sub-tab âââââââââââââââââââââââââââââââââââââââââââ */}
+      {subTab === 'adjustments' && (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+
+          {/* Left: list */}
+          <div className="lg:col-span-2 space-y-3">
+            {/* Filters + New button */}
+            <div className="flex flex-wrap gap-2 items-center">
+              <select
+                value={filterStatus}
+                onChange={e => setFilterStatus(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-200 focus:ring-1 focus:ring-violet-500"
+              >
+                <option value="all">All Statuses</option>
+                {Object.entries(STATUS_META_ADJ).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+              <select
+                value={filterType}
+                onChange={e => setFilterType(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-200 focus:ring-1 focus:ring-violet-500"
+              >
+                <option value="all">All Types</option>
+                {ADJ_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+              <button onClick={() => { setShowForm(true); setSelectedId(null); }} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-semibold">
+                <Plus className="w-3.5 h-3.5" /> New Adjustment
+              </button>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-8 text-gray-500 text-sm">Loadingâ¦</div>
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-8 text-gray-500 text-sm">No adjustments found</div>
+            ) : (
+              <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+                {filtered.map(adj => (
+                  <button
+                    key={adj.id}
+                    onClick={() => { setSelectedId(adj.id); setShowForm(false); }}
+                    className={`w-full text-left p-3 rounded-xl border transition-colors ${selectedId === adj.id ? 'border-violet-500/60 bg-violet-500/10' : 'border-gray-800 bg-gray-900/50 hover:border-gray-700'}`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-mono text-gray-400">{adj.reference_number}</span>
+                      <AdjStatusBadge status={adj.status} />
+                    </div>
+                    <div className="text-sm font-semibold text-gray-100 truncate">{adj.product_snapshot?.name || adj.product_snapshot?.sku || 'Unknown product'}</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-gray-500">{adjTypeLabel(adj.adjustment_type)}</span>
+                      <span className="text-xs text-gray-600">Â·</span>
+                      <span className={`text-xs font-bold ${Number(adj.delta) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {fmtQty(adj.delta, true)} units
+                      </span>
+                      {Number(adj.total_value) > 0 && (
+                        <span className="text-xs text-gray-500 ml-auto">{fmtCur(adj.total_value)}</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">{adj.created_by_name} Â· {new Date(adj.created_at).toLocaleDateString()}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Right: form or detail */}
+          <div className="lg:col-span-3">
+
+            {/* ââ New Adjustment Form ââ */}
+            {showForm && (
+              <div className="bg-gray-900/80 border border-gray-800 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-bold text-gray-100">New Inventory Adjustment</h3>
+                  <button onClick={() => setShowForm(false)} className="text-gray-500 hover:text-gray-300"><X className="w-4 h-4" /></button>
+                </div>
+
+                {/* Product picker */}
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 mb-1 block">Product / SKU *</label>
+                  <select
+                    value={form.inventory_id}
+                    onChange={e => handleInventoryPick(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:ring-1 focus:ring-violet-500"
+                  >
+                    <option value="">â Select product â</option>
+                    {inventory.map(item => (
+                      <option key={item._inventoryId || item.id} value={item._inventoryId || item.id}>
+                        {item.sku} â {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Location + Lot */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-400 mb-1 block">Location</label>
+                    <input type="text" value={form.location_id} onChange={e => setF('location_id', e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-400 mb-1 block">Lot # (optional)</label>
+                    <input type="text" value={form.lot_number} onChange={e => setF('lot_number', e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200" />
+                  </div>
+                </div>
+
+                {/* Adjustment type */}
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 mb-1 block">Adjustment Type *</label>
+                  <select value={form.adjustment_type} onChange={e => { setF('adjustment_type', e.target.value); setF('reason_tag', ''); }}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:ring-1 focus:ring-violet-500">
+                    {ADJ_TYPES.map(t => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}{t.lp ? ' â  LP' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {ADJ_TYPES.find(t => t.value === form.adjustment_type)?.lp && (
+                    <p className="text-xs text-amber-400 mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> This type logs to the Loss Prevention Journal.</p>
+                  )}
+                </div>
+
+                {/* Reason tag */}
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 mb-1 block">Reason Tag *</label>
+                  <select value={form.reason_tag} onChange={e => setF('reason_tag', e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:ring-1 focus:ring-violet-500">
+                    <option value="">â Select reason â</option>
+                    {(REASON_TAGS[form.adjustment_type] || []).map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+
+                {/* Quantities */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-400 mb-1 block">Qty Before *</label>
+                    <input type="number" value={form.qty_before} onChange={e => setF('qty_before', e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-400 mb-1 block">Change (Â± qty) *</label>
+                    <input type="number" value={form.delta} onChange={e => setF('delta', e.target.value)}
+                      placeholder="e.g. -5 or +10"
+                      className={`w-full bg-gray-800 border rounded-xl px-3 py-2 text-sm font-bold ${formDelta > 0 ? 'border-emerald-600/60 text-emerald-300' : formDelta < 0 ? 'border-rose-600/60 text-rose-300' : 'border-gray-700 text-gray-200'}`} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-400 mb-1 block">Qty After</label>
+                    <input type="number" readOnly value={isNaN(formAfter) ? '' : formAfter}
+                      className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-400" />
+                  </div>
+                </div>
+
+                {/* Unit cost */}
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 mb-1 block">Unit Cost (for valuation)</label>
+                  <input type="number" step="0.01" value={form.unit_cost} onChange={e => setF('unit_cost', e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200" />
+                </div>
+
+                {/* Valuation + threshold preview */}
+                {formValue > 0 && (
+                  <div className={`flex items-center gap-3 p-3 rounded-xl border text-xs ${formThreshold === 'auto' ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-300' : formThreshold === 'manager' ? 'bg-amber-500/5 border-amber-500/20 text-amber-300' : 'bg-rose-500/5 border-rose-500/20 text-rose-300'}`}>
+                    <ShieldCheck className="w-4 h-4 shrink-0" />
+                    <div>
+                      <span className="font-bold">Total value impact: {fmtCur(formValue)}</span>
+                      <span className="ml-2">â Approval: {formThreshold === 'auto' ? 'Auto-approved' : formThreshold === 'manager' ? 'Manager required' : 'Admin required'}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Notes */}
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 mb-1 block">Notes</label>
+                  <textarea rows={3} value={form.notes} onChange={e => setF('notes', e.target.value)}
+                    placeholder="Supporting details, reference numbers, witness namesâ¦"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 placeholder-gray-600 resize-none" />
+                </div>
+
+                <div className="flex gap-3 pt-1">
+                  <button onClick={() => { setShowForm(false); setForm(emptyForm); }} className="flex-1 px-4 py-2 rounded-xl bg-gray-700 text-gray-200 text-sm font-semibold hover:bg-gray-600">Cancel</button>
+                  <button onClick={handleCreate} disabled={submitting} className="flex-1 px-4 py-2 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-500 disabled:opacity-50">
+                    {submitting ? 'Savingâ¦' : 'Create Adjustment'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ââ Adjustment Detail ââ */}
+            {!showForm && selected && (
+              <div className="bg-gray-900/80 border border-gray-800 rounded-2xl p-5 space-y-4">
+
+                {/* Header */}
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-mono text-gray-500">{selected.reference_number}</span>
+                      <AdjStatusBadge status={selected.status} />
+                      {ADJ_TYPES.find(t => t.value === selected.adjustment_type)?.lp && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30">LP</span>
+                      )}
+                    </div>
+                    <h3 className="text-base font-bold text-gray-100">{selected.product_snapshot?.name || selected.product_snapshot?.sku || 'Unknown product'}</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">{selected.product_snapshot?.sku} Â· {selected.location_id}{selected.lot_number ? ` Â· Lot ${selected.lot_number}` : ''}</p>
+                  </div>
+                </div>
+
+                {/* Key fields grid */}
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  {[
+                    { label: 'Type',        value: adjTypeLabel(selected.adjustment_type)  },
+                    { label: 'Reason',      value: selected.reason_tag                     },
+                    { label: 'Qty Before',  value: fmtQty(selected.qty_before)             },
+                    { label: 'Change',      value: <span className={Number(selected.delta) >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>{fmtQty(selected.delta, true)}</span> },
+                    { label: 'Qty After',   value: fmtQty(selected.qty_after)              },
+                    { label: 'Unit Cost',   value: fmtCur(selected.unit_cost)              },
+                    { label: 'Value Impact',value: fmtCur(selected.total_value)            },
+                    { label: 'Threshold',   value: selected.approval_threshold === 'auto' ? 'Auto-approve' : selected.approval_threshold === 'manager' ? 'Manager approval' : 'Admin approval' },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="bg-gray-800/50 rounded-xl p-2.5">
+                      <p className="text-xs text-gray-500 mb-0.5">{label}</p>
+                      <div className="text-sm font-semibold text-gray-200">{value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Notes */}
+                {selected.notes && (
+                  <div className="bg-gray-800/40 rounded-xl p-3">
+                    <p className="text-xs text-gray-500 mb-1 font-semibold uppercase tracking-wide">Notes</p>
+                    <p className="text-sm text-gray-300">{selected.notes}</p>
+                  </div>
+                )}
+
+                {/* Rejection reason */}
+                {selected.status === 'rejected' && selected.rejection_reason && (
+                  <div className="bg-rose-500/5 border border-rose-500/20 rounded-xl p-3">
+                    <p className="text-xs text-rose-400 font-semibold mb-1">Rejection Reason</p>
+                    <p className="text-sm text-rose-300">{selected.rejection_reason}</p>
+                    <p className="text-xs text-gray-500 mt-1">Rejected by {selected.rejected_by_name}</p>
+                  </div>
+                )}
+
+                {/* Audit trail */}
+                <div className="space-y-1 text-xs text-gray-500 border-t border-gray-800 pt-3">
+                  <p>Created by <span className="text-gray-400">{selected.created_by_name}</span> Â· {new Date(selected.created_at).toLocaleString()}</p>
+                  {selected.approved_by_name && <p>Approved by <span className="text-gray-400">{selected.approved_by_name}</span></p>}
+                  {selected.posted_at && <p>Posted Â· {new Date(selected.posted_at).toLocaleString()}</p>}
+                  {selected.voided_at && <p>Voided by <span className="text-gray-400">{selected.voided_by_name}</span> Â· {selected.void_reason}</p>}
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {selected.status === 'draft' && (
+                    <button onClick={() => handleSubmit(selected.id)} disabled={submitting}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold disabled:opacity-50">
+                      <Send className="w-3.5 h-3.5" /> Submit for Approval
+                    </button>
+                  )}
+                  {selected.status === 'pending_approval' && canApprove && (
+                    <>
+                      <button onClick={() => handleApprove(selected.id)} disabled={submitting}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold disabled:opacity-50">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                      </button>
+                      <button onClick={() => setRejectModal(selected.id)}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-700 hover:bg-rose-600 text-white text-xs font-semibold">
+                        <XCircle className="w-3.5 h-3.5" /> Reject
+                      </button>
+                    </>
+                  )}
+                  {selected.status === 'approved' && (
+                    <button onClick={() => handlePost(selected.id)} disabled={submitting}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold disabled:opacity-50">
+                      <PackageCheck className="w-3.5 h-3.5" /> Post to Inventory
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {!showForm && !selected && (
+              <div className="flex flex-col items-center justify-center h-48 text-gray-600 text-sm">
+                <ClipboardList className="w-8 h-8 mb-2 opacity-40" />
+                Select an adjustment to view details, or create a new one.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ââ ADJUSTMENT JOURNAL sub-tab âââââââââââââââââââââââââââââââââââ */}
+      {subTab === 'journal' && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <FileText className="w-4 h-4 text-sky-400" />
+            <h3 className="text-sm font-bold text-sky-300">Inventory Adjustment Journal</h3>
+            <span className="text-xs text-gray-500 ml-auto">{journal.length} posted entries</span>
+          </div>
+          {journal.length === 0 ? (
+            <div className="text-center py-10 text-gray-500 text-sm">No posted adjustments yet.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-800">
+                    {['Ref #', 'Date Posted', 'Product', 'Type', 'Reason', 'Î Qty', 'Qty After', 'Value', 'Approved By', 'Notes'].map(h => (
+                      <th key={h} className="text-left py-2 px-2 text-gray-500 font-semibold whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {journal.map(row => (
+                    <tr key={row.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                      <td className="py-2 px-2 font-mono text-gray-400">{row.reference_number}</td>
+                      <td className="py-2 px-2 text-gray-400 whitespace-nowrap">{row.posted_at ? new Date(row.posted_at).toLocaleDateString() : 'â'}</td>
+                      <td className="py-2 px-2 text-gray-200 max-w-[120px] truncate">{row.product_snapshot?.name || row.product_snapshot?.sku}</td>
+                      <td className="py-2 px-2 text-gray-400">{adjTypeLabel(row.adjustment_type)}</td>
+                      <td className="py-2 px-2 text-gray-400">{row.reason_tag}</td>
+                      <td className={`py-2 px-2 font-bold ${Number(row.delta) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{fmtQty(row.delta, true)}</td>
+                      <td className="py-2 px-2 text-gray-300">{fmtQty(row.qty_after)}</td>
+                      <td className="py-2 px-2 text-gray-300">{fmtCur(row.total_value)}</td>
+                      <td className="py-2 px-2 text-gray-400">{row.approved_by_name || 'Auto'}</td>
+                      <td className="py-2 px-2 text-gray-500 max-w-[160px] truncate">{row.notes || 'â'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ââ LOSS PREVENTION JOURNAL sub-tab âââââââââââââââââââââââââââââ */}
+      {subTab === 'loss_prevention' && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <FileWarning className="w-4 h-4 text-rose-400" />
+            <h3 className="text-sm font-bold text-rose-300">Loss Prevention Journal</h3>
+            <span className="text-xs text-gray-500 ml-auto">{lpJournal.length} entries</span>
+          </div>
+
+          {/* LP category totals */}
+          {stats?.lp_totals && Object.keys(stats.lp_totals).length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              {Object.entries(stats.lp_totals).map(([cat, val]) => (
+                <div key={cat} className="bg-rose-500/5 border border-rose-500/20 rounded-xl px-3 py-2 text-xs">
+                  <span className="text-gray-400">{LP_LABEL[cat] || cat}: </span>
+                  <span className="font-bold text-rose-300">{fmtCur(val)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {lpJournal.length === 0 ? (
+            <div className="text-center py-10 text-gray-500 text-sm">No loss events recorded.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-800">
+                    {['Date', 'Category', 'Product', 'Qty Lost', 'Unit Cost', 'Total Loss', 'Adj Ref', 'Logged By', 'Notes'].map(h => (
+                      <th key={h} className="text-left py-2 px-2 text-gray-500 font-semibold whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {lpJournal.map(row => (
+                    <tr key={row.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                      <td className="py-2 px-2 text-gray-400 whitespace-nowrap">{new Date(row.created_at).toLocaleDateString()}</td>
+                      <td className="py-2 px-2">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-300 border border-rose-500/20">
+                          {LP_LABEL[row.lp_category] || row.lp_category}
+                        </span>
+                      </td>
+                      <td className="py-2 px-2 text-gray-200 max-w-[120px] truncate">{row.product_snapshot?.name || row.product_snapshot?.sku}</td>
+                      <td className="py-2 px-2 text-rose-400 font-bold">{fmtQty(row.qty)}</td>
+                      <td className="py-2 px-2 text-gray-400">{fmtCur(row.unit_cost)}</td>
+                      <td className="py-2 px-2 text-rose-300 font-bold">{fmtCur(row.total_value)}</td>
+                      <td className="py-2 px-2 font-mono text-gray-500 text-xs">{row.adjustment_id?.slice(-8) || 'â'}</td>
+                      <td className="py-2 px-2 text-gray-400">{row.logged_by_name}</td>
+                      <td className="py-2 px-2 text-gray-500 max-w-[160px] truncate">{row.notes || 'â'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// âââââââââââââââââââââââââââââââââââââââââââââ
+// TRANSFER ORDERS TAB
+// âââââââââââââââââââââââââââââââââââââââââââââ
 function TransfersTab({ transfers, setTransfers, inventory, setInventory }) {
   const [filter, setFilter]       = useState('all');
   const [selectedId, setSelectedId] = useState('TRF-2026-002');
@@ -1318,7 +2057,8 @@ export default function InventoryModule() {
     { id: 'recall',      Icon: AlertOctagon,    label: 'Recall Simulation' },
     { id: 'reports',     Icon: ShieldCheck,     label: 'Compliance & Reports' },
     ...(lotTrackingEnabled   ? [{ id: 'expiry',    Icon: AlertTriangle,  label: 'Expiry Dashboard' }] : []),
-    ...(multiLocationEnabled ? [{ id: 'transfers', Icon: ArrowRightLeft, label: 'Transfers' }]        : []),
+    ...(multiLocationEnabled ? [{ id: 'adjustments',     label: 'Adjustments',        Icon: Edit },
+    { id: 'transfers', Icon: ArrowRightLeft, label: 'Transfers' }]        : []),
   ];
 
   return (
@@ -3031,6 +3771,13 @@ Remaining in warehouse: ${r.remainingQty} ${r.uom}` },
               </div>
             );
           })()}
+
+          {activeTab === 'adjustments' && (
+            <InventoryAdjustmentsTab
+              inventory={inventory}
+              userRole={activeUser?.role || settings?.userRole || 'viewer'}
+            />
+          )}
 
           {activeTab === 'transfers' && (
             <div className="space-y-4">
