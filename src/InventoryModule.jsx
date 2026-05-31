@@ -199,21 +199,19 @@ const INIT_TRANSFERS = [
 ];
 
 // ─────────────────────────────────────────────
-// TRANSFER ORDERS TAB
-// ─────────────────────────────────────────────
 // INVENTORY ADJUSTMENTS TAB
 // Industry-standard adjustment workflow:
-//  â¢ Reason tags + free-text notes
-//  â¢ Tiered approval: auto (<$100) | manager ($100â$500) | admin (>$500)
-//  â¢ Adjustment Journal (all posted adjustments)
-//  â¢ Loss Prevention Journal (shrinkage, damage, theft, expiry, write-off)
-// âââââââââââââââââââââââââââââââââââââââââââââ
+//  • Reason tags + free-text notes
+//  • Tiered approval: auto (<$100) | manager ($100–$500) | admin (>$500)
+//  • Adjustment Journal (all posted adjustments)
+//  • Loss Prevention Journal (shrinkage, damage, theft, expiry, write-off)
+// ─────────────────────────────────────────────
 
 const ADJ_TYPES = [
   { value: 'physical_count',       label: 'Physical Count Variance',  lp: false },
   { value: 'shrinkage',            label: 'Shrinkage / Theft',         lp: true  },
-  { value: 'damage_in_house',      label: 'Damaged â In House',        lp: true  },
-  { value: 'damage_in_transit',    label: 'Damaged â In Transit',      lp: true  },
+  { value: 'damage_in_house',      label: 'Damaged — In House',        lp: true  },
+  { value: 'damage_in_transit',    label: 'Damaged — In Transit',      lp: true  },
   { value: 'expired',              label: 'Expired / Spoilage',        lp: true  },
   { value: 'receiving_error',      label: 'Receiving Error',           lp: false },
   { value: 'transfer_correction',  label: 'Transfer Correction',       lp: false },
@@ -243,12 +241,6 @@ const REASON_TAGS = {
 
 const LP_LABEL = { shrinkage: 'Shrinkage', damage: 'Damage', expired: 'Expired', write_off: 'Write-Off', other_loss: 'Other Loss' };
 
-function adjThreshold(totalValue) {
-  if (totalValue < 100)  return 'auto';
-  if (totalValue < 500)  return 'manager';
-  return 'admin';
-}
-
 const STATUS_META_ADJ = {
   draft:            { label: 'Draft',            color: 'text-gray-300',    bg: 'bg-gray-700/50',    border: 'border-gray-600/40'    },
   pending_approval: { label: 'Pending Approval', color: 'text-amber-300',   bg: 'bg-amber-500/10',   border: 'border-amber-500/30'   },
@@ -270,7 +262,7 @@ function AdjStatusBadge({ status }) {
 function InventoryAdjustmentsTab({ inventory, userRole }) {
   const { api: apiContext } = useKernal?.() || {};
 
-  // ââ State ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // ── State ──────────────────────────────────────────────────────────────────
   const [subTab, setSubTab]           = useState('adjustments'); // 'adjustments' | 'journal' | 'loss_prevention'
   const [adjustments, setAdjustments] = useState([]);
   const [journal, setJournal]         = useState([]);
@@ -288,7 +280,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
   const [productSearch, setProductSearch]       = useState('');
   const [showProductDrop, setShowProductDrop]   = useState(false);
 
-  // ââ Form state âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // ── Form state ─────────────────────────────────────────────────────────────
   const emptyForm = {
     inventory_id: '',
     product_id: '',
@@ -311,7 +303,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // ââ Load data ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // ── Load data ──────────────────────────────────────────────────────────────
   const load = async () => {
     setLoading(true);
     try {
@@ -331,7 +323,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ââ Derived ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // ── Derived ────────────────────────────────────────────────────────────────
   const filtered = adjustments.filter(a => {
     if (filterStatus !== 'all' && a.status !== filterStatus) return false;
     if (filterType   !== 'all' && a.adjustment_type !== filterType) return false;
@@ -356,7 +348,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
     }));
   };
 
-  // ââ Actions ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // ── Actions ────────────────────────────────────────────────────────────────
   const handleCreate = async () => {
     if (!form.adjustment_type || !form.reason_tag) return showToast('Type and reason are required', 'error');
     if (form.delta === '' || isNaN(Number(form.delta))) return showToast('Quantity change is required', 'error');
@@ -394,7 +386,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
       const res = await api.inventoryAdjustments.submit(id);
       const updated = res.adjustment || res;
       setAdjustments(prev => prev.map(a => a.id === id ? { ...a, ...updated } : a));
-      showToast(res.auto_approved ? 'Auto-approved (below threshold)' : 'Submitted for approval');
+      showToast('Submitted for approval');
     } catch (e) {
       showToast(e?.message || 'Submit failed', 'error');
     }
@@ -404,9 +396,17 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
   const handleApprove = async (id) => {
     setSubmitting(true);
     try {
-      const updated = await api.inventoryAdjustments.approve(id);
+      const res = await api.inventoryAdjustments.approve(id);
+      const updated = res.adjustment || res;
       setAdjustments(prev => prev.map(a => a.id === id ? { ...a, ...updated } : a));
-      showToast('Adjustment approved');
+      // Reload journal and stats since inventory was just updated
+      const jr = await api.inventoryAdjustments.journal({ limit: 200 });
+      setJournal(jr?.data || []);
+      const lp = await api.inventoryAdjustments.lossPrevention({ limit: 200 });
+      setLpJournal(lp?.data || []);
+      const st = await api.inventoryAdjustments.stats();
+      setStats(st || null);
+      showToast('Approved — inventory updated');
     } catch (e) {
       showToast(e?.message || 'Approve failed', 'error');
     }
@@ -428,45 +428,24 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
     setSubmitting(false);
   };
 
-  const handlePost = async (id) => {
-    setSubmitting(true);
-    try {
-      const res = await api.inventoryAdjustments.post(id);
-      const updated = res.adjustment || res;
-      setAdjustments(prev => prev.map(a => a.id === id ? { ...a, ...updated } : a));
-      // Reload journal
-      const jr = await api.inventoryAdjustments.journal({ limit: 200 });
-      setJournal(jr?.data || []);
-      const lp = await api.inventoryAdjustments.lossPrevention({ limit: 200 });
-      setLpJournal(lp?.data || []);
-      const st = await api.inventoryAdjustments.stats();
-      setStats(st || null);
-      showToast('Adjustment posted to inventory');
-    } catch (e) {
-      showToast(e?.message || 'Post failed', 'error');
-    }
-    setSubmitting(false);
-  };
-
-  // ââ Helpers ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // ── Helpers ────────────────────────────────────────────────────────────────
   const fmtQty = (v, sign = false) => {
     const n = Number(v);
-    if (isNaN(n)) return 'â';
+    if (isNaN(n)) return '—';
     return (sign && n > 0 ? '+' : '') + n.toLocaleString(undefined, { maximumFractionDigits: 2 });
   };
   const fmtCur = (v) => `$${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const adjTypeLabel = (v) => ADJ_TYPES.find(t => t.value === v)?.label || v;
-  const canApprove = ['admin', 'manager'].includes(userRole);
+  const canApprove = ['admin', 'manager', 'accounting'].includes(userRole);
 
-  // ââ Computed form values âââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // ── Computed form values ───────────────────────────────────────────────────
   const formDelta     = Number(form.delta || 0);
   const formBefore    = Number(form.qty_before || 0);
   const formAfter     = formBefore + formDelta;
   const formCost      = Number(form.unit_cost || 0);
   const formValue     = Math.abs(formDelta) * formCost;
-  const formThreshold = adjThreshold(formValue);
 
-  // ââ Render âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
 
@@ -488,7 +467,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
               rows={3}
               value={rejectReason}
               onChange={e => setRejectReason(e.target.value)}
-              placeholder="Reason for rejectionâ¦"
+              placeholder="Reason for rejection…"
               className="w-full bg-gray-800 border border-gray-600 rounded-xl px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:ring-1 focus:ring-rose-500 mb-4"
             />
             <div className="flex gap-3">
@@ -498,7 +477,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
                 disabled={!rejectReason.trim() || submitting}
                 className="flex-1 px-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-semibold hover:bg-rose-500 disabled:opacity-50"
               >
-                {submitting ? 'Rejectingâ¦' : 'Reject'}
+                {submitting ? 'Rejecting…' : 'Reject'}
               </button>
             </div>
           </div>
@@ -511,7 +490,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
         <div>
           <h3 className="text-sm font-bold text-violet-300">Inventory Adjustments</h3>
           <p className="text-xs text-gray-400 mt-0.5">
-            Record, approve, and post quantity adjustments. Adjustments under $100 auto-approve; $100â$500 require manager sign-off; over $500 require admin approval. All posted adjustments are journalized and loss-category events are logged to the Loss Prevention Journal.
+            Record and approve quantity adjustments. Every adjustment requires approval by a manager, admin, or accounting before it is posted. On approval, inventory is updated immediately and loss-category events are logged to the Loss Prevention Journal.
           </p>
         </div>
       </div>
@@ -547,7 +526,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
         ))}
       </div>
 
-      {/* ââ ADJUSTMENTS sub-tab âââââââââââââââââââââââââââââââââââââââââââ */}
+      {/* ── ADJUSTMENTS sub-tab ─────────────────────────────────────────── */}
       {subTab === 'adjustments' && (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
@@ -577,7 +556,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
             </div>
 
             {loading ? (
-              <div className="text-center py-8 text-gray-500 text-sm">Loadingâ¦</div>
+              <div className="text-center py-8 text-gray-500 text-sm">Loading…</div>
             ) : filtered.length === 0 ? (
               <div className="text-center py-8 text-gray-500 text-sm">No adjustments found</div>
             ) : (
@@ -595,7 +574,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
                     <div className="text-sm font-semibold text-gray-100 truncate">{adj.product_snapshot?.name || adj.product_snapshot?.sku || 'Unknown product'}</div>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-xs text-gray-500">{adjTypeLabel(adj.adjustment_type)}</span>
-                      <span className="text-xs text-gray-600">Â·</span>
+                      <span className="text-xs text-gray-600">·</span>
                       <span className={`text-xs font-bold ${Number(adj.delta) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                         {fmtQty(adj.delta, true)} units
                       </span>
@@ -603,7 +582,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
                         <span className="text-xs text-gray-500 ml-auto">{fmtCur(adj.total_value)}</span>
                       )}
                     </div>
-                    <div className="text-xs text-gray-600 mt-1">{adj.created_by_name} Â· {new Date(adj.created_at).toLocaleDateString()}</div>
+                    <div className="text-xs text-gray-600 mt-1">{adj.created_by_name} · {new Date(adj.created_at).toLocaleDateString()}</div>
                   </button>
                 ))}
               </div>
@@ -613,7 +592,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
           {/* Right: form or detail */}
           <div className="lg:col-span-3">
 
-            {/* ââ New Adjustment Form ââ */}
+            {/* ── New Adjustment Form ── */}
             {showForm && (
               <div className="bg-gray-900/80 border border-gray-800 rounded-2xl p-5 space-y-4">
                 <div className="flex items-center justify-between">
@@ -621,7 +600,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
                   <button onClick={() => { setShowForm(false); setProductSearch(''); setShowProductDrop(false); }} className="text-gray-500 hover:text-gray-300"><X className="w-4 h-4" /></button>
                 </div>
 
-                {/* Product picker */}
+                {/* Product search combobox */}
                 <div className="relative">
                   <label className="text-xs font-semibold text-gray-400 mb-1 block">Product / SKU *</label>
                   {form.inventory_id ? (
@@ -696,7 +675,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
                     className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:ring-1 focus:ring-violet-500">
                     {ADJ_TYPES.map(t => (
                       <option key={t.value} value={t.value}>
-                        {t.label}{t.lp ? ' â  LP' : ''}
+                        {t.label}{t.lp ? ' ⚠ LP' : ''}
                       </option>
                     ))}
                   </select>
@@ -710,7 +689,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
                   <label className="text-xs font-semibold text-gray-400 mb-1 block">Reason Tag *</label>
                   <select value={form.reason_tag} onChange={e => setF('reason_tag', e.target.value)}
                     className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:ring-1 focus:ring-violet-500">
-                    <option value="">â Select reason â</option>
+                    <option value="">— Select reason —</option>
                     {(REASON_TAGS[form.adjustment_type] || []).map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </div>
@@ -723,7 +702,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
                       className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200" />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-gray-400 mb-1 block">Change (Â± qty) *</label>
+                    <label className="text-xs font-semibold text-gray-400 mb-1 block">Change (± qty) *</label>
                     <input type="number" value={form.delta} onChange={e => setF('delta', e.target.value)}
                       placeholder="e.g. -5 or +10"
                       className={`w-full bg-gray-800 border rounded-xl px-3 py-2 text-sm font-bold ${formDelta > 0 ? 'border-emerald-600/60 text-emerald-300' : formDelta < 0 ? 'border-rose-600/60 text-rose-300' : 'border-gray-700 text-gray-200'}`} />
@@ -742,13 +721,13 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
                     className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200" />
                 </div>
 
-                {/* Valuation + threshold preview */}
+                {/* Valuation preview */}
                 {formValue > 0 && (
-                  <div className={`flex items-center gap-3 p-3 rounded-xl border text-xs ${formThreshold === 'auto' ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-300' : formThreshold === 'manager' ? 'bg-amber-500/5 border-amber-500/20 text-amber-300' : 'bg-rose-500/5 border-rose-500/20 text-rose-300'}`}>
+                  <div className="flex items-center gap-3 p-3 rounded-xl border bg-amber-500/5 border-amber-500/20 text-amber-300 text-xs">
                     <ShieldCheck className="w-4 h-4 shrink-0" />
                     <div>
                       <span className="font-bold">Total value impact: {fmtCur(formValue)}</span>
-                      <span className="ml-2">â Approval: {formThreshold === 'auto' ? 'Auto-approved' : formThreshold === 'manager' ? 'Manager required' : 'Admin required'}</span>
+                      <span className="ml-2">→ Requires approval before posting</span>
                     </div>
                   </div>
                 )}
@@ -757,20 +736,20 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
                 <div>
                   <label className="text-xs font-semibold text-gray-400 mb-1 block">Notes</label>
                   <textarea rows={3} value={form.notes} onChange={e => setF('notes', e.target.value)}
-                    placeholder="Supporting details, reference numbers, witness namesâ¦"
+                    placeholder="Supporting details, reference numbers, witness names…"
                     className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 placeholder-gray-600 resize-none" />
                 </div>
 
                 <div className="flex gap-3 pt-1">
                   <button onClick={() => { setShowForm(false); setForm(emptyForm); setProductSearch(''); setShowProductDrop(false); }} className="flex-1 px-4 py-2 rounded-xl bg-gray-700 text-gray-200 text-sm font-semibold hover:bg-gray-600">Cancel</button>
                   <button onClick={handleCreate} disabled={submitting} className="flex-1 px-4 py-2 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-500 disabled:opacity-50">
-                    {submitting ? 'Savingâ¦' : 'Create Adjustment'}
+                    {submitting ? 'Saving…' : 'Create Adjustment'}
                   </button>
                 </div>
               </div>
             )}
 
-            {/* ââ Adjustment Detail ââ */}
+            {/* ── Adjustment Detail ── */}
             {!showForm && selected && (
               <div className="bg-gray-900/80 border border-gray-800 rounded-2xl p-5 space-y-4">
 
@@ -785,7 +764,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
                       )}
                     </div>
                     <h3 className="text-base font-bold text-gray-100">{selected.product_snapshot?.name || selected.product_snapshot?.sku || 'Unknown product'}</h3>
-                    <p className="text-xs text-gray-500 mt-0.5">{selected.product_snapshot?.sku} Â· {selected.location_id}{selected.lot_number ? ` Â· Lot ${selected.lot_number}` : ''}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{selected.product_snapshot?.sku} · {selected.location_id}{selected.lot_number ? ` · Lot ${selected.lot_number}` : ''}</p>
                   </div>
                 </div>
 
@@ -827,10 +806,10 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
 
                 {/* Audit trail */}
                 <div className="space-y-1 text-xs text-gray-500 border-t border-gray-800 pt-3">
-                  <p>Created by <span className="text-gray-400">{selected.created_by_name}</span> Â· {new Date(selected.created_at).toLocaleString()}</p>
+                  <p>Created by <span className="text-gray-400">{selected.created_by_name}</span> · {new Date(selected.created_at).toLocaleString()}</p>
                   {selected.approved_by_name && <p>Approved by <span className="text-gray-400">{selected.approved_by_name}</span></p>}
-                  {selected.posted_at && <p>Posted Â· {new Date(selected.posted_at).toLocaleString()}</p>}
-                  {selected.voided_at && <p>Voided by <span className="text-gray-400">{selected.voided_by_name}</span> Â· {selected.void_reason}</p>}
+                  {selected.posted_at && <p>Posted · {new Date(selected.posted_at).toLocaleString()}</p>}
+                  {selected.voided_at && <p>Voided by <span className="text-gray-400">{selected.voided_by_name}</span> · {selected.void_reason}</p>}
                 </div>
 
                 {/* Action buttons */}
@@ -853,12 +832,6 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
                       </button>
                     </>
                   )}
-                  {selected.status === 'approved' && (
-                    <button onClick={() => handlePost(selected.id)} disabled={submitting}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold disabled:opacity-50">
-                      <PackageCheck className="w-3.5 h-3.5" /> Post to Inventory
-                    </button>
-                  )}
                 </div>
               </div>
             )}
@@ -873,7 +846,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
         </div>
       )}
 
-      {/* ââ ADJUSTMENT JOURNAL sub-tab âââââââââââââââââââââââââââââââââââ */}
+      {/* ── ADJUSTMENT JOURNAL sub-tab ─────────────────────────────────── */}
       {subTab === 'journal' && (
         <div>
           <div className="flex items-center gap-2 mb-3">
@@ -888,7 +861,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-gray-800">
-                    {['Ref #', 'Date Posted', 'Product', 'Type', 'Reason', 'Î Qty', 'Qty After', 'Value', 'Approved By', 'Notes'].map(h => (
+                    {['Ref #', 'Date Posted', 'Product', 'Type', 'Reason', 'Δ Qty', 'Qty After', 'Value', 'Approved By', 'Notes'].map(h => (
                       <th key={h} className="text-left py-2 px-2 text-gray-500 font-semibold whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -897,7 +870,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
                   {journal.map(row => (
                     <tr key={row.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
                       <td className="py-2 px-2 font-mono text-gray-400">{row.reference_number}</td>
-                      <td className="py-2 px-2 text-gray-400 whitespace-nowrap">{row.posted_at ? new Date(row.posted_at).toLocaleDateString() : 'â'}</td>
+                      <td className="py-2 px-2 text-gray-400 whitespace-nowrap">{row.posted_at ? new Date(row.posted_at).toLocaleDateString() : '—'}</td>
                       <td className="py-2 px-2 text-gray-200 max-w-[120px] truncate">{row.product_snapshot?.name || row.product_snapshot?.sku}</td>
                       <td className="py-2 px-2 text-gray-400">{adjTypeLabel(row.adjustment_type)}</td>
                       <td className="py-2 px-2 text-gray-400">{row.reason_tag}</td>
@@ -905,7 +878,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
                       <td className="py-2 px-2 text-gray-300">{fmtQty(row.qty_after)}</td>
                       <td className="py-2 px-2 text-gray-300">{fmtCur(row.total_value)}</td>
                       <td className="py-2 px-2 text-gray-400">{row.approved_by_name || 'Auto'}</td>
-                      <td className="py-2 px-2 text-gray-500 max-w-[160px] truncate">{row.notes || 'â'}</td>
+                      <td className="py-2 px-2 text-gray-500 max-w-[160px] truncate">{row.notes || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -915,7 +888,7 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
         </div>
       )}
 
-      {/* ââ LOSS PREVENTION JOURNAL sub-tab âââââââââââââââââââââââââââââ */}
+      {/* ── LOSS PREVENTION JOURNAL sub-tab ───────────────────────────── */}
       {subTab === 'loss_prevention' && (
         <div>
           <div className="flex items-center gap-2 mb-3">
@@ -961,9 +934,9 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
                       <td className="py-2 px-2 text-rose-400 font-bold">{fmtQty(row.qty)}</td>
                       <td className="py-2 px-2 text-gray-400">{fmtCur(row.unit_cost)}</td>
                       <td className="py-2 px-2 text-rose-300 font-bold">{fmtCur(row.total_value)}</td>
-                      <td className="py-2 px-2 font-mono text-gray-500 text-xs">{row.adjustment_id?.slice(-8) || 'â'}</td>
+                      <td className="py-2 px-2 font-mono text-gray-500 text-xs">{row.adjustment_id?.slice(-8) || '—'}</td>
                       <td className="py-2 px-2 text-gray-400">{row.logged_by_name}</td>
-                      <td className="py-2 px-2 text-gray-500 max-w-[160px] truncate">{row.notes || 'â'}</td>
+                      <td className="py-2 px-2 text-gray-500 max-w-[160px] truncate">{row.notes || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -976,9 +949,9 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
   );
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââ
+// ─────────────────────────────────────────────
 // TRANSFER ORDERS TAB
-// âââââââââââââââââââââââââââââââââââââââââââââ
+// ─────────────────────────────────────────────
 function TransfersTab({ transfers, setTransfers, inventory, setInventory }) {
   const [filter, setFilter]       = useState('all');
   const [selectedId, setSelectedId] = useState('TRF-2026-002');
@@ -2095,9 +2068,9 @@ export default function InventoryModule() {
     { id: 'qc',          Icon: Lock,            label: 'Quality Control' },
     { id: 'recall',      Icon: AlertOctagon,    label: 'Recall Simulation' },
     { id: 'reports',     Icon: ShieldCheck,     label: 'Compliance & Reports' },
-    ...(lotTrackingEnabled   ? [{ id: 'expiry',    Icon: AlertTriangle,  label: 'Expiry Dashboard' }] : []),
-    ...(multiLocationEnabled ? [{ id: 'adjustments',     label: 'Adjustments',        Icon: Edit },
-    { id: 'transfers', Icon: ArrowRightLeft, label: 'Transfers' }]        : []),
+    ...(lotTrackingEnabled   ? [{ id: 'expiry',      Icon: AlertTriangle,  label: 'Expiry Dashboard' }]    : []),
+    ...(multiLocationEnabled ? [{ id: 'transfers',   Icon: ArrowRightLeft, label: 'Transfers' }]             : []),
+    { id: 'adjustments', Icon: ClipboardList, label: 'Adjustments' },
   ];
 
   return (
@@ -3811,13 +3784,6 @@ Remaining in warehouse: ${r.remainingQty} ${r.uom}` },
             );
           })()}
 
-          {activeTab === 'adjustments' && (
-            <InventoryAdjustmentsTab
-              inventory={inventory}
-              userRole={activeUser?.role || settings?.userRole || 'viewer'}
-            />
-          )}
-
           {activeTab === 'transfers' && (
             <div className="space-y-4">
               <div className="flex items-center gap-3 p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-xl">
@@ -3834,6 +3800,14 @@ Remaining in warehouse: ${r.remainingQty} ${r.uom}` },
                 setInventory={setInventory}
               />
             </div>
+          )}
+
+          {/* ══ TAB: ADJUSTMENTS ══ */}
+          {activeTab === 'adjustments' && (
+            <InventoryAdjustmentsTab
+              inventory={inventory}
+              userRole={activeUser?.role || settings?.userRole || 'viewer'}
+            />
           )}
 
         </div>
