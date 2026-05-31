@@ -622,20 +622,57 @@ function InventoryAdjustmentsTab({ inventory, userRole }) {
                 </div>
 
                 {/* Product picker */}
-                <div>
+                <div className="relative">
                   <label className="text-xs font-semibold text-gray-400 mb-1 block">Product / SKU *</label>
-                  <select
-                    value={form.inventory_id}
-                    onChange={e => handleInventoryPick(e.target.value)}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:ring-1 focus:ring-violet-500"
-                  >
-                    <option value="">â Select product â</option>
-                    {inventory.map(item => (
-                      <option key={item._inventoryId || item.id} value={item._inventoryId || item.id}>
-                        {item.sku} â {item.name}
-                      </option>
-                    ))}
-                  </select>
+                  {form.inventory_id ? (
+                    <div className="flex items-center gap-2 w-full bg-gray-800 border border-violet-500/60 rounded-xl px-3 py-2">
+                      <span className="text-sm text-gray-100 flex-1 truncate">
+                        <span className="font-mono text-violet-300 mr-2">{form._sku}</span>
+                        {form.product_snapshot?.name}
+                      </span>
+                      <button onClick={() => { setF('inventory_id', ''); setF('product_id', ''); setF('product_snapshot', {}); setF('qty_before', ''); setF('unit_cost', ''); setF('_sku', ''); setProductSearch(''); }}
+                        className="text-gray-500 hover:text-gray-300 shrink-0"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={productSearch}
+                          onChange={e => { setProductSearch(e.target.value); setShowProductDrop(true); }}
+                          onFocus={() => setShowProductDrop(true)}
+                          placeholder="Search by SKU or product name…"
+                          className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-8 pr-3 py-2 text-sm text-gray-200 focus:ring-1 focus:ring-violet-500 placeholder-gray-600"
+                        />
+                      </div>
+                      {showProductDrop && productSearch.length > 0 && (() => {
+                        const q = productSearch.toLowerCase();
+                        const hits = inventory.filter(i =>
+                          i.sku?.toLowerCase().includes(q) || i.name?.toLowerCase().includes(q)
+                        ).slice(0, 30);
+                        return hits.length > 0 ? (
+                          <div className="absolute z-50 mt-1 w-full bg-gray-800 border border-gray-700 rounded-xl shadow-xl max-h-56 overflow-y-auto">
+                            {hits.map(item => (
+                              <button
+                                key={item._inventoryId || item.id}
+                                onMouseDown={e => { e.preventDefault(); handleInventoryPick(item._inventoryId || item.id); setProductSearch(''); setShowProductDrop(false); }}
+                                className="w-full text-left px-3 py-2 hover:bg-gray-700 text-sm flex items-center gap-3"
+                              >
+                                <span className="font-mono text-violet-300 text-xs w-24 shrink-0 truncate">{item.sku}</span>
+                                <span className="text-gray-200 truncate">{item.name}</span>
+                                <span className="text-gray-500 text-xs ml-auto shrink-0">{item.quantity_on_hand ?? 0} on hand</span>
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="absolute z-50 mt-1 w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs text-gray-500">
+                            No products match "{productSearch}"
+                          </div>
+                        );
+                      })()}
+                    </>
+                  )}
                 </div>
 
                 {/* Location + Lot */}
