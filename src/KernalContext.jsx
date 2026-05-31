@@ -1,7 +1,8 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from './lib/supabase.js';
 import { api } from './lib/api.js';
 import { DEMO_MODE } from './lib/demoMode.js';
+import { useRealtimeTable } from './shared/useRealtimeTable.js';
 
 
 // ── Company Information ───────────────────────────────────────────────────────
@@ -495,6 +496,7 @@ export function KernalProvider({ children }) {
   // ── Supabase auth state ───────────────────────────────────────────────────
   const [authUser,    setAuthUser]    = useState(null);   // supabase User object
   const [authLoading, setAuthLoading] = useState(true);   // true until first session check resolves
+  const [tenantId,    setTenantId]    = useState(null);   // resolved from /api/v1/auth/me
 
   // Listen for login/logout events
   useEffect(() => {
@@ -510,6 +512,14 @@ export function KernalProvider({ children }) {
 
   const login  = (email, password) => supabase.auth.signInWithPassword({ email, password });
   const logout = ()                => supabase.auth.signOut();
+
+  // Fetch resolved tenant context (tenantId, role) from backend once logged in
+  useEffect(() => {
+    if (DEMO_MODE || !authUser) { setTenantId(null); return; }
+    api.auth.me()
+      .then(data => { if (data?.tenantId) setTenantId(data.tenantId); })
+      .catch(() => {});
+  }, [authUser]);
 
   // In production (non-demo) mode: once the auth user is known, seed a minimal
   // user entry so the rest of the app has an activeUser to work with.
@@ -628,6 +638,58 @@ export function KernalProvider({ children }) {
   const refreshVendors        = () => api.procurement.vendors.list({ limit: 500 }).then(r => setApiVendors(r.data || []));
   const refreshPurchaseOrders = () => api.procurement.purchaseOrders.list({ limit: 200 }).then(r => setApiPurchaseOrders(r.data || []));
   const refreshInvoices       = () => api.accounting.invoices.list({ limit: 200 }).then(r => setApiInvoices(r.data || r || []));
+
+  // ── Supabase Realtime — keep shared context arrays live ───────────────────
+  const rtEnabled = !DEMO_MODE && !!tenantId;
+
+  useRealtimeTable({
+    table: 'products', tenantId, enabled: rtEnabled,
+    onInsert: useCallback((row) => setApiProducts(p => [row, ...p.filter(r => r.id !== row.id)]), []),
+    onUpdate: useCallback((row) => setApiProducts(p => p.map(r => r.id === row.id ? { ...r, ...row } : r)), []),
+    onDelete: useCallback((row) => setApiProducts(p => p.filter(r => r.id !== row.id)), []),
+  });
+
+  useRealtimeTable({
+    table: 'inventory', tenantId, enabled: rtEnabled,
+    onInsert: useCallback((row) => setApiInventory(p => [row, ...p.filter(r => r.id !== row.id)]), []),
+    onUpdate: useCallback((row) => setApiInventory(p => p.map(r => r.id === row.id ? { ...r, ...row } : r)), []),
+    onDelete: useCallback((row) => setApiInventory(p => p.filter(r => r.id !== row.id)), []),
+  });
+
+  useRealtimeTable({
+    table: 'customers', tenantId, enabled: rtEnabled,
+    onInsert: useCallback((row) => setApiCustomers(p => [row, ...p.filter(r => r.id !== row.id)]), []),
+    onUpdate: useCallback((row) => setApiCustomers(p => p.map(r => r.id === row.id ? { ...r, ...row } : r)), []),
+    onDelete: useCallback((row) => setApiCustomers(p => p.filter(r => r.id !== row.id)), []),
+  });
+
+  useRealtimeTable({
+    table: 'orders', tenantId, enabled: rtEnabled,
+    onInsert: useCallback((row) => setApiOrders(p => [row, ...p.filter(r => r.id !== row.id)]), []),
+    onUpdate: useCallback((row) => setApiOrders(p => p.map(r => r.id === row.id ? { ...r, ...row } : r)), []),
+    onDelete: useCallback((row) => setApiOrders(p => p.filter(r => r.id !== row.id)), []),
+  });
+
+  useRealtimeTable({
+    table: 'vendors', tenantId, enabled: rtEnabled,
+    onInsert: useCallback((row) => setApiVendors(p => [row, ...p.filter(r => r.id !== row.id)]), []),
+    onUpdate: useCallback((row) => setApiVendors(p => p.map(r => r.id === row.id ? { ...r, ...row } : r)), []),
+    onDelete: useCallback((row) => setApiVendors(p => p.filter(r => r.id !== row.id)), []),
+  });
+
+  useRealtimeTable({
+    table: 'purchase_orders', tenantId, enabled: rtEnabled,
+    onInsert: useCallback((row) => setApiPurchaseOrders(p => [row, ...p.filter(r => r.id !== row.id)]), []),
+    onUpdate: useCallback((row) => setApiPurchaseOrders(p => p.map(r => r.id === row.id ? { ...r, ...row } : r)), []),
+    onDelete: useCallback((row) => setApiPurchaseOrders(p => p.filter(r => r.id !== row.id)), []),
+  });
+
+  useRealtimeTable({
+    table: 'invoices', tenantId, enabled: rtEnabled,
+    onInsert: useCallback((row) => setApiInvoices(p => [row, ...p.filter(r => r.id !== row.id)]), []),
+    onUpdate: useCallback((row) => setApiInvoices(p => p.map(r => r.id === row.id ? { ...r, ...row } : r)), []),
+    onDelete: useCallback((row) => setApiInvoices(p => p.filter(r => r.id !== row.id)), []),
+  });
 
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [users,    setUsers]    = useState(DEMO_MODE ? INITIAL_USERS : []);
@@ -1074,7 +1136,7 @@ export function KernalProvider({ children }) {
   return (
     <KernalContext.Provider value={{
       // ── Auth ──────────────────────────────────────────────────────────────
-      authUser, authLoading, login, logout,
+      authUser, authLoading, login, logout, tenantId,
       // ── Live API data ──────────────────────────────────────────────────────
       apiProducts, apiInventory, apiCustomers, apiOrders,
       apiVendors, apiPurchaseOrders, apiInvoices,
