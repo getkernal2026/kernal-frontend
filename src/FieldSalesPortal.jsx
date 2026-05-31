@@ -1715,32 +1715,21 @@ function OrderEntrySection({ customers, cartCustomer, cart, cartItems, cartTotal
 
   const guideSkus = new Set(cartCustomer.orderGuide.map(g => g.sku));
 
-  // Build live catalog: join apiProducts + apiInventory.
-  // Fall back to apiInventory alone if apiProducts hasn't loaded yet.
-  const invByProductId = DEMO_MODE ? {} : Object.fromEntries(
-    (apiInventory || []).map(inv => [inv.product_id, inv])
-  );
-  const liveCatalog = DEMO_MODE ? MOCK_INVENTORY : (() => {
-    const prods = apiProducts || [];
-    if (prods.length > 0) {
-      // Enrich products with stock data from inventory
-      return prods.map(p => {
-        const inv = invByProductId[p.id];
-        return inv ? { ...p, physicalStock: Number(inv.quantity_on_hand) || 0, allocatedStock: Number(inv.quantity_reserved) || 0 } : p;
-      });
-    }
-    // Fallback: build catalog from inventory rows (products may not have loaded yet)
-    return (apiInventory || []).map(inv => ({
-      id:           inv.product_id,
-      name:         inv.products?.name  || inv.product_id || '',
-      sku:          inv.products?.sku   || '',
-      basePrice:    Number(inv.products?.price_per_unit) || 0,
-      physicalStock: Number(inv.quantity_on_hand) || 0,
-      allocatedStock: Number(inv.quantity_reserved) || 0,
-      category:     inv.products?.category || '',
-      uom:          inv.products?.unit_of_measure || 'case',
-    }));
-  })();
+  // Build catalog from apiInventory — it already joins the products table,
+  // so it has name, sku, price AND live stock in one place.
+  // No need to join apiProducts separately.
+  const liveCatalog = DEMO_MODE ? MOCK_INVENTORY : (apiInventory || []).map(inv => ({
+    id:            inv.product_id || inv.id,
+    _inventoryId:  inv.id,
+    name:          inv.products?.name             || '',
+    sku:           inv.products?.sku              || '',
+    basePrice:     Number(inv.products?.price_per_unit) || 0,
+    price:         Number(inv.products?.price_per_unit) || 0,
+    category:      inv.products?.category         || '',
+    uom:           inv.products?.unit_of_measure  || 'case',
+    physicalStock: Number(inv.quantity_on_hand)   || 0,
+    allocatedStock:Number(inv.quantity_reserved)  || 0,
+  }));
   const catalog = liveCatalog.filter(item => {
     if (filter === 'guide' && !guideSkus.has(item.sku)) return false;
     if (search && !(item.name.toLowerCase().includes(search.toLowerCase()) || item.sku.toLowerCase().includes(search.toLowerCase()))) return false;
