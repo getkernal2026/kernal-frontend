@@ -454,6 +454,35 @@ export default function FieldSalesPortal() {
     setOrders(apiOrders.map(mapApiOrder));
   }, [apiOrders]);
 
+  // ── Seed leads + activities from API (live mode only) ─────────────────────
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    api.crm.leads.list({ limit: 200 })
+      .then(r => {
+        if (r.data?.length) setLeads(r.data.map(l => ({
+          id:               l.id,
+          name:             l.name || '',
+          contactName:      l.contact_name || '',
+          phone:            l.phone || '',
+          address:          l.address || '',
+          estimatedMonthly: Number(l.estimated_monthly) || 0,
+          stage:            l.stage || 'New',
+          addedDate:        l.added_date || l.created_at?.slice(0, 10) || '',
+          _apiId:           l.id,
+        })));
+      }).catch(() => {});
+    api.crm.notes.listAll({ limit: 500 })
+      .then(r => {
+        if (r.data?.length) setActivities(r.data.map(n => ({
+          id:         n.id,
+          customerId: n.customer_id,
+          date:       n.created_at?.slice(0, 10) || '',
+          type:       n.type || 'note',
+          note:       n.content || n.note || '',
+        })));
+      }).catch(() => {});
+  }, []);
+
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);

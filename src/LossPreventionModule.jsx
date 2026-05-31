@@ -1698,6 +1698,35 @@ function PacaTab() {
     api.lp.pacaDisputes.list({ limit: 200 })
       .then(r => { if (r.data?.length) setDisputes(r.data.map(mapApiPacaDispute)); })
       .catch(() => {});
+    // PACA invoices: load from accounting invoices (open/overdue)
+    api.accounting.invoices.list({ limit: 200 })
+      .then(r => {
+        const rows = r.data || r || [];
+        if (rows.length) {
+          setInvoices(rows.map(inv => {
+            const due = inv.due_date ? new Date(inv.due_date) : null;
+            const now = new Date();
+            const daysPast = due ? Math.floor((now - due) / 86400000) : 0;
+            return {
+              id:           inv.id,
+              customerId:   inv.customer_id || '',
+              customer:     inv.customers?.name || '',
+              invoiceDate:  inv.invoice_date  || inv.created_at?.slice(0, 10) || '',
+              dueDate:      inv.due_date      || '',
+              amount:       Number(inv.total_amount || inv.amount) || 0,
+              sku:          '',
+              product:      '',
+              qty:          0,
+              status:       inv.status === 'paid' ? 'Paid' : (daysPast > 0 ? 'Overdue' : 'Open'),
+              trustNotice:  true,
+              pacaDaysUsed: Math.max(0, daysPast),
+              paid:         inv.status === 'paid',
+              _apiId:       inv.id,
+            };
+          }));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const fmt$ = v => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(v);
