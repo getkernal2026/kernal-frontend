@@ -44,7 +44,7 @@ import EcommerceModule          from './EcommerceModule.jsx';
 import LandedCostModule         from './LandedCostModule.jsx';
 import MobileWMSModule          from './MobileWMSModule.jsx';
 import NLQueryModule            from './NLQueryModule.jsx';
-import AutofixStatusModal       from './AutofixStatusModal.jsx';
+// AutofixStatusModal removed — autofix feature disabled
 
 import {
   Package, Truck, ShoppingCart, Building2, MapPin, Contact2, DollarSign,
@@ -1136,22 +1136,15 @@ function KernalShell() {
         />
       )}
 
-      {/* AutoPatch live status modal — shown to all authenticated users */}
-      <AutofixStatusModal />
-
-      {/* AutoPatch admin banner — subtle top strip for admin/manager/superadmin only */}
-      <AutofixActiveBanner role={activeUser?.role} />
+      {/* autofix removed */}
     </div>
   );
 }
 
-// ── AutoPatch admin activity banner ───────────────────────────────────────────
-// Shown as a slim persistent strip at the bottom of the screen for admins,
-// indicating how many autofix jobs are actively running right now.
 const ADMIN_ROLES = new Set(['admin', 'manager', 'superadmin']);
-const API_BASE_BANNER = import.meta.env.VITE_API_URL || 'https://kernal-backend-production.up.railway.app';
 
 function AutofixActiveBanner({ role }) {
+  return null; // autofix feature disabled
   const [activeCount, setActiveCount] = useState(0);
   const [visible, setVisible] = useState(true);
 

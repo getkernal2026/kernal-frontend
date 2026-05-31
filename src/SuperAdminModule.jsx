@@ -992,49 +992,6 @@ function BugDetailDrawer({ reportId, onClose, onUpdate }) {
               </div>
             )}
 
-            {/* AutoFix status */}
-            {report.autofix_status && (
-              <div className="bg-gray-800/60 border border-gray-700 rounded-lg p-3 space-y-1.5">
-                <p className="text-xs text-gray-400 font-medium">AutoFix</p>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className={`text-sm font-semibold ${AUTOFIX_STATUS[report.autofix_status]?.color || 'text-gray-400'}`}>
-                    {AUTOFIX_STATUS[report.autofix_status]?.label || report.autofix_status}
-                  </span>
-                  {report.autofix_confidence != null && (
-                    <span className="text-xs text-gray-400">Confidence: {report.autofix_confidence}%</span>
-                  )}
-                  {report.autofix_fix_type && (
-                    <span className="text-xs text-gray-400">Type: {report.autofix_fix_type}</span>
-                  )}
-                </div>
-                {report.autofix_pr_url && (
-                  <a href={report.autofix_pr_url} target="_blank" rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 underline">
-                    View Pull Request →
-                  </a>
-                )}
-                {report.autofix_branch && (
-                  <p className="text-xs text-gray-600 font-mono">{report.autofix_branch}</p>
-                )}
-                {/* Watchdog window indicator */}
-                {report.autofix_watchdog_until && !report.rollback_status && new Date(report.autofix_watchdog_until) > new Date() && (
-                  <p className="text-xs text-cyan-500/70 flex items-center gap-1">
-                    <span>🛡️</span> Watchdog active — auto-rolls back if same module crashes before {new Date(report.autofix_watchdog_until).toLocaleTimeString()}
-                  </p>
-                )}
-                {/* Rollback status */}
-                {report.rollback_status && (
-                  <div className={`text-xs font-semibold flex items-center gap-1.5 mt-1 ${ROLLBACK_STATUS[report.rollback_status]?.color || 'text-gray-400'}`}>
-                    {ROLLBACK_STATUS[report.rollback_status]?.label || report.rollback_status}
-                    {report.rollback_at && <span className="text-gray-500 font-normal">· {timeAgo(report.rollback_at)}</span>}
-                  </div>
-                )}
-                {report.rollback_reason && report.rollback_reason !== 'manual' && (
-                  <p className="text-xs text-gray-500 italic">Trigger: {report.rollback_reason}</p>
-                )}
-              </div>
-            )}
-
             {/* Triage notes */}
             <div>
               <p className="text-xs text-gray-400 mb-1">Triage Notes</p>
@@ -1077,40 +1034,7 @@ function BugDetailDrawer({ reportId, onClose, onUpdate }) {
                   Reopen
                 </button>
               )}
-              <div className="flex gap-2 ml-auto">
-                {/* Rollback — only shown when a patch was deployed and hasn't been rolled back */}
-                {report.autofix_status === 'deployed' && !report.rollback_status && (
-                  <button
-                    onClick={async () => {
-                      if (!confirm('Roll back this auto-patch? This will restore the original file and trigger a new Vercel deployment.')) return;
-                      setSaving(true);
-                      try {
-                        await api.superadmin.bugs.rollback(reportId);
-                        setReport(r => ({ ...r, rollback_status: 'rolling_back', autofix_status: 'rolled_back' }));
-                        onUpdate({ ...report, rollback_status: 'rolling_back', autofix_status: 'rolled_back' });
-                      } catch (e) { alert('Rollback failed: ' + e.message); }
-                      setSaving(false);
-                    }}
-                    disabled={saving}
-                    className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white text-xs rounded font-medium disabled:opacity-50">
-                    ⏪ Rollback Patch
-                  </button>
-                )}
-                <button
-                  onClick={async () => {
-                    setSaving(true);
-                    try {
-                      await api.superadmin.bugs.autofix(reportId);
-                      setReport(r => ({ ...r, autofix_status: 'queued' }));
-                      onUpdate({ ...report, autofix_status: 'queued' });
-                    } catch {}
-                    setSaving(false);
-                  }}
-                  disabled={saving}
-                  className="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs rounded font-medium disabled:opacity-50">
-                  ⚡ Re-run AutoFix
-                </button>
-              </div>
+              <div />
             </div>
           </div>
         )}
@@ -1288,7 +1212,6 @@ function BugsTab({ tenants }) {
               <tr className="border-b border-gray-700 text-left">
                 <th className="text-xs text-gray-400 font-medium pb-2 pr-3">Severity</th>
                 <th className="text-xs text-gray-400 font-medium pb-2 pr-3">Status</th>
-                <th className="text-xs text-gray-400 font-medium pb-2 pr-3">AutoFix</th>
                 <th className="text-xs text-gray-400 font-medium pb-2 pr-3">Tenant</th>
                 <th className="text-xs text-gray-400 font-medium pb-2 pr-3">Module</th>
                 <th className="text-xs text-gray-400 font-medium pb-2 pr-3 max-w-xs">Error</th>
@@ -1310,21 +1233,6 @@ function BugsTab({ tenants }) {
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${BUG_STATUS_COLORS[r.status] || ''}`}>
                       {r.status}
                     </span>
-                  </td>
-                  <td className="py-2.5 pr-3 whitespace-nowrap">
-                    {r.autofix_status ? (
-                      <span className={`text-xs font-medium ${AUTOFIX_STATUS[r.autofix_status]?.color || 'text-gray-400'}`}>
-                        {AUTOFIX_STATUS[r.autofix_status]?.label || r.autofix_status}
-                        {r.autofix_confidence != null && ` ${r.autofix_confidence}%`}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-600">—</span>
-                    )}
-                    {r.autofix_pr_url && (
-                      <a href={r.autofix_pr_url} target="_blank" rel="noreferrer"
-                        onClick={e => e.stopPropagation()}
-                        className="ml-1.5 text-[10px] text-blue-400 hover:text-blue-300 underline">PR</a>
-                    )}
                   </td>
                   <td className="py-2.5 pr-3 text-gray-300 text-xs">{r.tenants?.name || '—'}</td>
                   <td className="py-2.5 pr-3 text-gray-400 text-xs font-mono">{r.module || '—'}</td>
