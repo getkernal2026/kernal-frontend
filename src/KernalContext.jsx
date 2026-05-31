@@ -576,7 +576,7 @@ export function KernalProvider({ children }) {
     Promise.all([
       api.products.list({ limit: 500 }),
       api.inventory.list({ limit: 500 }),
-      api.customers.list({ limit: 500 }),
+      api.crm.customers.list({ limit: 500 }),  // CRM-enriched: includes credit_hold, health_score, available_credit, etc.
       api.orders.list({ limit: 100 }),
       api.procurement.vendors.list({ limit: 500 }),
       api.procurement.purchaseOrders.list({ limit: 200 }),

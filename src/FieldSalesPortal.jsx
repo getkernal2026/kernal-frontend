@@ -442,22 +442,11 @@ export default function FieldSalesPortal() {
     createdBy: row.created_by || '',
   });
 
-  // ── Seed customers from CRM (live mode only) ──────────────────────────────
-  // Use api.crm.customers.list() directly — it returns CRM-enriched fields
-  // (credit_hold, health_score, ar_balance, etc.) that apiCustomers may lack.
+  // ── Seed customers from context (KernalContext now loads CRM-enriched customers) ─
   useEffect(() => {
-    if (DEMO_MODE) return;
-    api.crm.customers.list({ limit: 500 })
-      .then(r => {
-        const rows = r.data || [];
-        if (rows.length) setCustomers(rows.map(mapApiCustomer));
-        else if (apiCustomers?.length) setCustomers(apiCustomers.map(mapApiCustomer));
-      })
-      .catch(() => {
-        // Fallback to context customers if CRM endpoint fails
-        if (apiCustomers?.length) setCustomers(apiCustomers.map(mapApiCustomer));
-      });
-  }, []);
+    if (DEMO_MODE || !apiCustomers?.length) return;
+    setCustomers(apiCustomers.map(mapApiCustomer));
+  }, [apiCustomers]);
 
   // ── Seed orders from apiOrders (live mode only) ───────────────────────────
   useEffect(() => {
