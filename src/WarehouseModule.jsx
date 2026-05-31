@@ -1173,9 +1173,39 @@ export default function WarehouseModule() {
   // ── Live data seed ────────────────────────────────────────────────────────
   useEffect(() => {
     if (DEMO_MODE) return;
-    api.warehouse.fulfillment.list({ limit: 200 })
-      .then(r => { if (r.data?.length) setOrders(r.data.map(mapApiFulfillment)); })
-      .catch(() => {});
+    // Load both warehouse_fulfillment_orders AND regular orders (confirmed/picking)
+    // so orders from Field Sales, Orders module, etc. all show up here
+    Promise.all([
+      api.warehouse.fulfillment.list({ limit: 200 }),
+      api.orders.list({ status: 'confirmed', limit: 200 }),
+      api.orders.list({ status: 'picking',   limit: 200 }),
+    ]).then(([fulfillRes, confirmedRes, pickingRes]) => {
+      const fulfillOrders = (fulfillRes.data || []).map(mapApiFulfillment);
+      const fromOrders = [...(confirmedRes.data || []), ...(pickingRes.data || [])].map(ord => ({
+        _id:        ord.id,
+        id:         ord.order_number || ord.id,
+        customer:   ord.customers?.name || '',
+        route:      '',
+        status:     ord.status === 'confirmed' ? 'Open' : 'Picking',
+        timePlaced: ord.order_date || '',
+        urgent:     false,
+        picker:     null,
+        items:      (ord.order_items || []).map(li => ({
+          sku:       li.products?.sku  || li.product_id,
+          name:      li.products?.name || '',
+          qty:       li.quantity_ordered,
+          inventoryId: li.product_id,
+        })),
+      }));
+      // Merge: fulfillment orders first, then any orders not already in that list
+      const allIds = new Set(fulfillOrders.map(o => o.id));
+      const merged = [...fulfillOrders, ...fromOrders.filter(o => !allIds.has(o.id))];
+      if (merged.length) setOrders(merged);
+    }).catch(() => {
+      api.warehouse.fulfillment.list({ limit: 200 })
+        .then(r => { if (r.data?.length) setOrders(r.data.map(mapApiFulfillment)); })
+        .catch(() => {});
+    });
     api.warehouse.locationStock.list({ limit: 500 })
       .then(r => { if (r.data?.length) setLocationStock(mapApiLocationStock(r.data)); })
       .catch(() => {});
